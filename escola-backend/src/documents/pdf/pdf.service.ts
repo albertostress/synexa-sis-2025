@@ -20,6 +20,7 @@ export class PdfService {
 
       this.browser = await chromium.launch({
         headless: true,
+        executablePath: '/usr/bin/chromium-browser', // Usar Chromium do Alpine
         args: [
           '--no-sandbox', 
           '--disable-setuid-sandbox',
@@ -29,6 +30,11 @@ export class PdfService {
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
           '--disable-renderer-backgrounding',
+          '--disable-web-security',
+          '--allow-running-insecure-content',
+          '--hide-scrollbars',
+          '--disable-features=TranslateUI',
+          '--disable-ipc-flooding-protection',
         ],
       });
       this.logger.log('Playwright Chromium iniciado com sucesso');
