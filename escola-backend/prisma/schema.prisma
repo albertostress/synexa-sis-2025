@@ -26,10 +26,34 @@ model User {
   email     String   @unique
   password  String
   role      Role
+  teacher   Teacher?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("users")
+}
+
+model Teacher {
+  id        String    @id @default(uuid())
+  userId    String    @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio       String?
+  subjects  Subject[] @relation("TeacherSubjects")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("teachers")
+}
+
+model Subject {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  teachers    Teacher[] @relation("TeacherSubjects")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("subjects")
 }
 
 enum Role {

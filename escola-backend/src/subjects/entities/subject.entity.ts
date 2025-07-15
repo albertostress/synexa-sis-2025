@@ -1,0 +1,64 @@
+/**
+ * Subject Entity - Entidade Disciplina
+ * Referência: context7 mcp - Entity Pattern
+ */
+import { ApiProperty } from '@nestjs/swagger';
+import { Subject as PrismaSubject, Teacher, User } from '@prisma/client';
+
+export class Subject implements PrismaSubject {
+  @ApiProperty({
+    description: 'ID único da disciplina',
+    example: 'uuid-generated-id',
+  })
+  id: string;
+
+  @ApiProperty({
+    description: 'Nome da disciplina',
+    example: 'Matemática',
+  })
+  name: string;
+
+  @ApiProperty({
+    description: 'Descrição da disciplina',
+    example: 'Disciplina de matemática fundamental e aplicada',
+    required: false,
+  })
+  description: string | null;
+
+  @ApiProperty({
+    description: 'Data de criação',
+    example: '2024-01-01T10:00:00.000Z',
+  })
+  createdAt: Date;
+
+  @ApiProperty({
+    description: 'Data de atualização',
+    example: '2024-01-01T10:00:00.000Z',
+  })
+  updatedAt: Date;
+}
+
+export class SubjectWithTeachers extends Subject {
+  @ApiProperty({
+    description: 'Professores associados à disciplina',
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', example: 'teacher-uuid-id' },
+        userId: { type: 'string', example: 'user-uuid-id' },
+        bio: { type: 'string', example: 'Professor especialista' },
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: 'user-uuid-id' },
+            name: { type: 'string', example: 'Prof. João Silva' },
+            email: { type: 'string', example: 'joao.silva@escola.com' },
+            role: { type: 'string', example: 'PROFESSOR' },
+          },
+        },
+      },
+    },
+  })
+  teachers: (Teacher & { user: Omit<User, 'password'> })[];
+}
