@@ -9,6 +9,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Get,
 } from '@nestjs/common';
 import { 
   ApiTags, 
@@ -26,13 +27,17 @@ import { TranscriptData } from './templates/transcript.template';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { PdfService } from './pdf/pdf.service';
 
 @ApiTags('documents')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('documents')
 export class DocumentsController {
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly pdfService: PdfService,
+  ) {}
 
   @Post('certificate')
   @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
@@ -116,5 +121,24 @@ export class DocumentsController {
       generateTranscriptDto.startYear,
       generateTranscriptDto.endYear,
     );
+  }
+
+  @Get('pdf/health')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @ApiOperation({ summary: 'Verificar status do serviço de PDF' })
+  @ApiResponse({
+    status: 200,
+    description: 'Status do serviço de PDF',
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', example: 'ok' },
+        browser: { type: 'boolean', example: false },
+        mode: { type: 'string', example: 'mock' },
+      },
+    },
+  })
+  async getPdfHealth(): Promise<{ status: string; browser: boolean; mode: string }> {
+    return this.pdfService.healthCheck();
   }
 }

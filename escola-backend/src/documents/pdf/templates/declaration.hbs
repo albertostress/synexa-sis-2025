@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Declaração de Matrícula</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body class="bg-white">
+    <div class="max-w-4xl mx-auto py-8 px-6">
+        <!-- Cabeçalho da instituição -->
+        <div class="text-center mb-12">
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">{{institutionName}}</h1>
+            <p class="text-gray-600">{{institutionAddress}}</p>
+            <p class="text-gray-600">{{city}}</p>
+        </div>
+
+        <!-- Título do documento -->
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 mb-4">DECLARAÇÃO DE MATRÍCULA</h2>
+            <div class="w-32 h-1 bg-blue-500 mx-auto"></div>
+        </div>
+
+        <!-- Corpo da declaração -->
+        <div class="space-y-6 text-justify">
+            <p class="text-lg text-gray-700">
+                Declaramos para os devidos fins que o(a) aluno(a)
+                <strong class="text-gray-800">{{studentName}}</strong>,
+                nascido(a) em <strong>{{birthDate}}</strong>,
+                encontra-se devidamente matriculado(a) nesta instituição de ensino.
+            </p>
+
+            <!-- Informações da matrícula -->
+            <div class="bg-gray-50 p-6 rounded-lg border-l-4 border-blue-500">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Dados da Matrícula:</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600">Turma:</p>
+                        <p class="font-semibold text-gray-800">{{className}}</p>
+                    </div>
+                    
+                    <div>
+                        <p class="text-sm text-gray-600">Turno:</p>
+                        <p class="font-semibold text-gray-800">{{shift}}</p>
+                    </div>
+                    
+                    <div>
+                        <p class="text-sm text-gray-600">Ano Letivo:</p>
+                        <p class="font-semibold text-gray-800">{{year}}</p>
+                    </div>
+                    
+                    <div>
+                        <p class="text-sm text-gray-600">Status da Matrícula:</p>
+                        <p class="font-semibold text-green-600">{{enrollmentStatus}}</p>
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <p class="text-sm text-gray-600">Data de Matrícula:</p>
+                        <p class="font-semibold text-gray-800">{{enrollmentDate}}</p>
+                    </div>
+                </div>
+            </div>
+
+            <p class="text-lg text-gray-700">
+                Esta declaração é expedida <strong>{{purpose}}</strong>
+                e tem validade de 30 (trinta) dias a contar da data de sua emissão.
+            </p>
+
+            <p class="text-lg text-gray-700">
+                Por ser verdade, firmamos a presente declaração.
+            </p>
+        </div>
+
+        <!-- Rodapé com assinatura -->
+        <div class="mt-16">
+            <div class="text-right">
+                <p class="text-gray-700 mb-8">{{city}}, {{issueDate}}</p>
+            </div>
+            
+            <div class="flex justify-end">
+                <div class="text-center">
+                    <div class="border-t-2 border-gray-400 w-64 mb-3"></div>
+                    <p class="font-semibold text-gray-800">{{issuer}}</p>
+                    <p class="text-sm text-gray-600">{{issuerRole}}</p>
+                    <p class="text-sm text-gray-600">{{institutionName}}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Observação -->
+        <div class="mt-12 pt-8 border-t border-gray-200">
+            <p class="text-xs text-gray-500 text-center">
+                Este documento foi gerado eletronicamente e possui validade legal.
+                <br>
+                Para verificação de autenticidade, entre em contato com a secretaria da instituição.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

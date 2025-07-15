@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificado de Conclusão</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        @page {
+            size: A4;
+            margin: 1cm;
+        }
+        body {
+            font-family: 'Times New Roman', serif;
+            line-height: 1.6;
+        }
+        .certificate-border {
+            border: 8px solid #1f2937;
+            border-radius: 12px;
+            padding: 2rem;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .ornament {
+            width: 60px;
+            height: 4px;
+            background: linear-gradient(90deg, #d97706, #f59e0b, #d97706);
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body class="bg-white">
+    <div class="certificate-border">
+        <!-- Cabeçalho -->
+        <div class="text-center">
+            <div class="ornament mb-6"></div>
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">CERTIFICADO DE CONCLUSÃO</h1>
+            <div class="ornament mb-8"></div>
+            
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold text-gray-700">{{institutionName}}</h2>
+                <p class="text-gray-600">{{city}}</p>
+            </div>
+        </div>
+
+        <!-- Corpo do certificado -->
+        <div class="flex-1 flex flex-col justify-center text-center px-8">
+            <p class="text-lg text-gray-700 mb-8">
+                Certificamos para os devidos fins que
+            </p>
+            
+            <h3 class="text-3xl font-bold text-gray-800 mb-8 border-b-2 border-gray-300 pb-2">
+                {{studentName}}
+            </h3>
+            
+            <p class="text-lg text-gray-700 mb-4">
+                nascido(a) em <strong>{{birthDate}}</strong>, concluiu com aproveitamento o curso de
+            </p>
+            
+            <p class="text-xl font-semibold text-gray-800 mb-4">
+                {{className}} - Turno {{shift}}
+            </p>
+            
+            <p class="text-lg text-gray-700 mb-6">
+                no ano letivo de <strong>{{year}}</strong>, obtendo média final de <strong>{{overallAverage}}</strong>,
+                sendo considerado(a) <strong>{{finalStatus}}</strong>.
+            </p>
+
+            <!-- Disciplinas em grade -->
+            <div class="grid grid-cols-2 gap-4 mt-8 mb-8">
+                {{#each subjects}}
+                <div class="bg-gray-50 p-3 rounded border">
+                    <p class="font-semibold text-sm">{{subjectName}}</p>
+                    <p class="text-gray-600 text-sm">Nota: {{finalGrade}} - {{status}}</p>
+                </div>
+                {{/each}}
+            </div>
+        </div>
+
+        <!-- Rodapé -->
+        <div class="text-center">
+            <div class="ornament mb-6"></div>
+            
+            <div class="flex justify-between items-end mt-12">
+                <div class="text-left">
+                    <p class="text-sm text-gray-600">{{city}}, {{issueDate}}</p>
+                </div>
+                
+                <div class="text-center">
+                    <div class="border-t-2 border-gray-400 w-48 mb-2"></div>
+                    <p class="text-sm font-semibold">{{issuer}}</p>
+                    <p class="text-xs text-gray-600">{{issuerRole}}</p>
+                </div>
+            </div>
+            
+            <div class="ornament mt-6"></div>
+        </div>
+    </div>
+</body>
+</html>
