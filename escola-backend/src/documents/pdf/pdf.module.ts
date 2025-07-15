@@ -4,9 +4,10 @@
  */
 import { Module, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PdfService } from './pdf.service';
+import { PdfCacheService } from './pdf-cache.service';
 
 @Module({
-  providers: [PdfService],
+  providers: [PdfService, PdfCacheService],
   exports: [PdfService],
 })
 export class PdfModule implements OnModuleInit, OnModuleDestroy {

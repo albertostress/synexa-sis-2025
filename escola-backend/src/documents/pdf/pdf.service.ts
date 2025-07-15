@@ -7,11 +7,14 @@ import { chromium, Browser, Page } from 'playwright';
 import * as Handlebars from 'handlebars';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { PdfCacheService } from './pdf-cache.service';
 
 @Injectable()
 export class PdfService {
   private readonly logger = new Logger(PdfService.name);
   private browser: Browser | null = null;
+
+  constructor(private readonly cacheService: PdfCacheService) {}
 
   async onModuleInit(): Promise<void> {
     try {
@@ -72,9 +75,20 @@ export class PdfService {
   }
 
   async generatePdf(templateName: string, data: Record<string, any>): Promise<Buffer> {
+    // Verificar cache primeiro
+    const cacheKey = { templateName, data };
+    const cachedPdf = this.cacheService.get('pdf', cacheKey);
+    if (cachedPdf) {
+      this.logger.debug(`PDF recuperado do cache: ${templateName}`);
+      return cachedPdf;
+    }
+
     if (!this.browser) {
       this.logger.warn(`Modo simulado: gerando PDF mock para template '${templateName}'`);
-      return this.generateMockPdf(templateName, data);
+      const mockPdf = await this.generateMockPdf(templateName, data);
+      // Armazenar mock no cache também
+      this.cacheService.set('pdf', cacheKey, mockPdf);
+      return mockPdf;
     }
 
     let page: Page | null = null;
@@ -118,8 +132,13 @@ export class PdfService {
         },
       });
 
+      const resultBuffer = Buffer.from(pdfBuffer);
+      
+      // Armazenar no cache
+      this.cacheService.set('pdf', cacheKey, resultBuffer);
+      
       this.logger.log(`PDF gerado com sucesso para template: ${templateName}`);
-      return Buffer.from(pdfBuffer);
+      return resultBuffer;
 
     } catch (error) {
       this.logger.error(`Erro ao gerar PDF para template '${templateName}':`, error);
@@ -223,11 +242,31 @@ startxref
   /**
    * Verifica se o serviço está funcionando corretamente
    */
-  async healthCheck(): Promise<{ status: string; browser: boolean; mode: string }> {
+  async healthCheck(): Promise<{ 
+    status: string; 
+    browser: boolean; 
+    mode: string;
+    cache: any;
+  }> {
     return {
       status: 'ok',
       browser: this.browser !== null,
       mode: this.browser ? 'production' : 'mock',
+      cache: this.cacheService.getStats(),
     };
+  }
+
+  /**
+   * Limpa o cache de PDFs
+   */
+  clearCache(): void {
+    this.cacheService.clear();
+  }
+
+  /**
+   * Verifica se um PDF está no cache
+   */
+  hasCachedPdf(templateName: string, data: Record<string, any>): boolean {
+    return this.cacheService.has('pdf', { templateName, data });
   }
 }

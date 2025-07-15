@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReportCardsService } from '../report-cards/report-cards.service';
+import { PdfService } from './pdf/pdf.service';
 import { CertificateData, CertificateSubject } from './templates/certificate.template';
 import { DeclarationData } from './templates/declaration.template';
 import { TranscriptData, TranscriptYear, TranscriptSubject } from './templates/transcript.template';
@@ -19,6 +20,7 @@ export class DocumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reportCardsService: ReportCardsService,
+    private readonly pdfService: PdfService,
   ) {}
 
   async generateCertificate(studentId: string, year: number): Promise<CertificateData> {
@@ -263,5 +265,51 @@ export class DocumentsService {
     };
 
     return transcriptData;
+  }
+
+  // ============= MÉTODOS PARA GERAÇÃO DE PDF =============
+
+  async generateCertificatePdf(studentId: string, year: number): Promise<Buffer> {
+    const certificateData = await this.generateCertificate(studentId, year);
+    return this.pdfService.generateCertificatePdf(certificateData);
+  }
+
+  async generateDeclarationPdf(studentId: string, year: number, purpose: string): Promise<Buffer> {
+    const declarationData = await this.generateDeclaration(studentId, year, purpose);
+    return this.pdfService.generateDeclarationPdf(declarationData);
+  }
+
+  async generateTranscriptPdf(studentId: string, startYear?: number, endYear?: number): Promise<Buffer> {
+    const transcriptData = await this.generateTranscript(studentId, startYear, endYear);
+    return this.pdfService.generateTranscriptPdf(transcriptData);
+  }
+
+  // ============= MÉTODOS PARA GERAÇÃO COMBINADA (JSON + PDF) =============
+
+  async generateCertificateWithPdf(studentId: string, year: number): Promise<{
+    data: CertificateData;
+    pdf: Buffer;
+  }> {
+    const data = await this.generateCertificate(studentId, year);
+    const pdf = await this.pdfService.generateCertificatePdf(data);
+    return { data, pdf };
+  }
+
+  async generateDeclarationWithPdf(studentId: string, year: number, purpose: string): Promise<{
+    data: DeclarationData;
+    pdf: Buffer;
+  }> {
+    const data = await this.generateDeclaration(studentId, year, purpose);
+    const pdf = await this.pdfService.generateDeclarationPdf(data);
+    return { data, pdf };
+  }
+
+  async generateTranscriptWithPdf(studentId: string, startYear?: number, endYear?: number): Promise<{
+    data: TranscriptData;
+    pdf: Buffer;
+  }> {
+    const data = await this.generateTranscript(studentId, startYear, endYear);
+    const pdf = await this.pdfService.generateTranscriptPdf(data);
+    return { data, pdf };
   }
 }
