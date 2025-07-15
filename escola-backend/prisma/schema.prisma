@@ -11,11 +11,13 @@ datasource db {
 }
 
 model Student {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  birthDate DateTime
-  createdAt DateTime @default(now())
+  id          String       @id @default(uuid())
+  name        String
+  email       String       @unique
+  birthDate   DateTime
+  schoolClass SchoolClass? @relation("ClassStudents", fields: [classId], references: [id])
+  classId     String?
+  createdAt   DateTime     @default(now())
 
   @@map("students")
 }
@@ -34,13 +36,14 @@ model User {
 }
 
 model Teacher {
-  id        String    @id @default(uuid())
-  userId    String    @unique
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bio       String?
-  subjects  Subject[] @relation("TeacherSubjects")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id           String        @id @default(uuid())
+  userId       String        @unique
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio          String?
+  subjects     Subject[]     @relation("TeacherSubjects")
+  schoolClasses SchoolClass[] @relation("ClassTeachers")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@map("teachers")
 }
@@ -56,9 +59,29 @@ model Subject {
   @@map("subjects")
 }
 
+model SchoolClass {
+  id        String    @id @default(uuid())
+  name      String
+  year      Int
+  shift     Shift
+  capacity  Int
+  students  Student[] @relation("ClassStudents")
+  teachers  Teacher[] @relation("ClassTeachers")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("school_classes")
+}
+
 enum Role {
   ADMIN
   SECRETARIA
   PROFESSOR
   DIRETOR
+}
+
+enum Shift {
+  MORNING
+  AFTERNOON
+  EVENING
 }
