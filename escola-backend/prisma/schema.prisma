@@ -17,6 +17,7 @@ model Student {
   birthDate   DateTime
   schoolClass SchoolClass? @relation("ClassStudents", fields: [classId], references: [id])
   classId     String?
+  enrollments Enrollment[]
   createdAt   DateTime     @default(now())
 
   @@map("students")
@@ -60,17 +61,31 @@ model Subject {
 }
 
 model SchoolClass {
-  id        String    @id @default(uuid())
-  name      String
-  year      Int
-  shift     Shift
-  capacity  Int
-  students  Student[] @relation("ClassStudents")
-  teachers  Teacher[] @relation("ClassTeachers")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String       @id @default(uuid())
+  name        String
+  year        Int
+  shift       Shift
+  capacity    Int
+  students    Student[]    @relation("ClassStudents")
+  teachers    Teacher[]    @relation("ClassTeachers")
+  enrollments Enrollment[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   @@map("school_classes")
+}
+
+model Enrollment {
+  id        String           @id @default(uuid())
+  student   Student          @relation(fields: [studentId], references: [id])
+  studentId String
+  class     SchoolClass      @relation(fields: [classId], references: [id])
+  classId   String
+  year      Int
+  status    EnrollmentStatus
+  createdAt DateTime         @default(now())
+
+  @@map("enrollments")
 }
 
 enum Role {
@@ -84,4 +99,11 @@ enum Shift {
   MORNING
   AFTERNOON
   EVENING
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  TRANSFERRED
+  CANCELLED
+  PENDING
 }
