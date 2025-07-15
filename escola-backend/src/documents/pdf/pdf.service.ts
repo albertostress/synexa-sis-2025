@@ -162,6 +162,81 @@ export class PdfService {
     return this.generatePdf('transcript', data);
   }
 
+  async generateInvoicePdf(data: Record<string, any>): Promise<Buffer> {
+    // Usar o template de fatura do módulo finance
+    const templatePath = path.join(process.cwd(), 'src', 'finance', 'templates', 'invoice.hbs');
+    
+    let templateContent: string;
+    try {
+      templateContent = await fs.readFile(templatePath, 'utf-8');
+    } catch (error) {
+      throw new BadRequestException(`Template 'invoice' não encontrado em finance/templates`);
+    }
+
+    // Verificar cache primeiro
+    const cacheKey = { templateName: 'invoice', data };
+    const cachedPdf = this.cacheService.get('pdf', cacheKey);
+    if (cachedPdf) {
+      this.logger.debug(`PDF de fatura recuperado do cache`);
+      return cachedPdf;
+    }
+
+    if (!this.browser) {
+      this.logger.warn(`Modo simulado: gerando PDF mock para fatura`);
+      const mockPdf = await this.generateMockPdf('invoice', data);
+      this.cacheService.set('pdf', cacheKey, mockPdf);
+      return mockPdf;
+    }
+
+    let page: Page | null = null;
+
+    try {
+      // Compilar template com dados
+      const template = Handlebars.compile(templateContent);
+      const html = template(data);
+
+      // Criar nova página no browser
+      page = await this.browser.newPage();
+
+      // Configurar viewport para PDF
+      await page.setViewportSize({ width: 1024, height: 1448 }); // A4 proporção
+
+      // Carregar HTML na página
+      await page.setContent(html, {
+        waitUntil: 'networkidle',
+        timeout: 30000,
+      });
+
+      // Gerar PDF
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '1.5cm',
+          right: '1.5cm',
+          bottom: '1.5cm',
+          left: '1.5cm',
+        },
+      });
+
+      const resultBuffer = Buffer.from(pdfBuffer);
+      
+      // Armazenar no cache
+      this.cacheService.set('pdf', cacheKey, resultBuffer);
+      
+      this.logger.log(`PDF de fatura gerado com sucesso`);
+      return resultBuffer;
+
+    } catch (error) {
+      this.logger.error(`Erro ao gerar PDF de fatura:`, error);
+      throw error;
+    } finally {
+      if (page) {
+        await page.close();
+      }
+    }
+  }
+
   /**
    * Gera um PDF mock para desenvolvimento quando Chromium não está disponível
    */

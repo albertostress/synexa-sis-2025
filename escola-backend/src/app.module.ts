@@ -13,6 +13,7 @@ import { EnrollmentModule } from './enrollment/enrollment.module';
 import { GradesModule } from './grades/grades.module';
 import { ReportCardsModule } from './report-cards/report-cards.module';
 import { DocumentsModule } from './documents/documents.module';
+import { FinanceModule } from './finance/finance.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { DocumentsModule } from './documents/documents.module';
     GradesModule,
     ReportCardsModule,
     DocumentsModule,
+    FinanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

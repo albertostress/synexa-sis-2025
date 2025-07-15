@@ -19,6 +19,7 @@ model Student {
   classId     String?
   enrollments Enrollment[]
   grades      Grade[]
+  invoices    Invoice[]
   createdAt   DateTime     @default(now())
 
   @@map("students")
@@ -128,4 +129,50 @@ enum EnrollmentStatus {
   TRANSFERRED
   CANCELLED
   PENDING
+}
+
+model Invoice {
+  id           String        @id @default(uuid())
+  student      Student       @relation(fields: [studentId], references: [id])
+  studentId    String
+  amount       Float
+  dueDate      DateTime
+  status       InvoiceStatus @default(PENDENTE)
+  description  String
+  month        Int
+  year         Int
+  payments     Payment[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("invoices")
+}
+
+model Payment {
+  id        String      @id @default(uuid())
+  invoice   Invoice     @relation(fields: [invoiceId], references: [id])
+  invoiceId String
+  amount    Float
+  method    PaymentMethod
+  reference String?
+  paidAt    DateTime    @default(now())
+  createdAt DateTime    @default(now())
+
+  @@map("payments")
+}
+
+enum InvoiceStatus {
+  PENDENTE
+  PAGA
+  VENCIDA
+  CANCELADA
+}
+
+enum PaymentMethod {
+  DINHEIRO
+  TRANSFERENCIA
+  MULTIBANCO
+  MBWAY
+  CARTAO
+  CHEQUE
 }
