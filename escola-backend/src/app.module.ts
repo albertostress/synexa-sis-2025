@@ -21,6 +21,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { LibraryModule } from './library/library.module';
 import { TransportModule } from './transport/transport.module';
+import { EventsModule } from './events/events.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -46,6 +48,8 @@ import { TransportModule } from './transport/transport.module';
     UploadsModule,
     LibraryModule,
     TransportModule,
+    EventsModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

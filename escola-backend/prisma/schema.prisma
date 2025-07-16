@@ -26,6 +26,7 @@ model Student {
   uploadedFiles UploadedFile[]
   loans       Loan[]
   transport   StudentTransport?
+  eventParticipations EventParticipation[]
   createdAt   DateTime       @default(now())
 
   @@map("students")
@@ -406,4 +407,102 @@ model StudentTransport {
 
   @@index([routeId])
   @@map("student_transport")
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  date        DateTime
+  location    String
+  type        EventType
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  participants EventParticipation[]
+
+  @@map("events")
+}
+
+model EventParticipation {
+  id        String   @id @default(uuid())
+  eventId   String
+  studentId String
+  presence  Boolean  @default(false)
+  note      String?
+  createdAt DateTime @default(now())
+
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, studentId])
+  @@index([eventId])
+  @@index([studentId])
+  @@map("event_participations")
+}
+
+enum EventType {
+  PALESTRA
+  PASSEIO
+  REUNIAO
+  FORMATURA
+  OUTRO
+}
+
+model Setting {
+  id          String      @id @default(uuid())
+  key         String      @unique
+  value       String
+  description String?
+  type        SettingType @default(STRING)
+  isPublic    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("settings")
+}
+
+enum SettingType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}
+
+model SmtpConfig {
+  id        String   @id @default(uuid())
+  host      String
+  port      Int
+  secure    Boolean  @default(false)
+  user      String
+  password  String
+  fromName  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("smtp_configs")
+}
+
+model Webhook {
+  id             String        @id @default(uuid())
+  name           String
+  url            String
+  method         WebhookMethod @default(POST)
+  events         String[]
+  headers        Json?
+  secret         String?
+  isActive       Boolean       @default(true)
+  retryAttempts  Int           @default(3)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@map("webhooks")
+}
+
+enum WebhookMethod {
+  GET
+  POST
+  PUT
+  PATCH
+  DELETE
 }
