@@ -1,6 +1,6 @@
 # 📘 Synexa-SIS-2025 – Claude Assistant Rules (Atualizado)
 
-Este ficheiro define as regras e o contexto completo para uso da Claude AI no desenvolvimento do projeto **Synexa-SIS** (Sistema Escolar Angola), até à **FASE 11** concluída (Attendance). É o documento oficial de referência técnica.
+Este ficheiro define as regras e o contexto completo para uso da Claude AI no desenvolvimento do projeto **Synexa-SIS** (Sistema Escolar Angola), até à **FASE 12** concluída (Communication). É o documento oficial de referência técnica.
 
 ---
 
@@ -49,21 +49,23 @@ Este ficheiro define as regras e o contexto completo para uso da Claude AI no de
 | 9    | Finance             | ✅ Faturas, pagamentos, PDF, histórico, cache
 | 10   | Parents Portal      | ✅ JWT próprio, boletins, docs, pagamentos
 | 11   | Attendance          | ✅ Registro por professor, % frequência, filtros, relatórios
+| 12   | Communication       | ✅ Mensagens internas, filtros, confirmação leitura, stats
 
 
 ---
 
-## 🎯 Status Atual do Sistema (FASE 11 - Attendance)
+## 🎯 Status Atual do Sistema (FASE 12 - Communication)
 
 ### ✅ **Completamente Funcional:**
-- **11 módulos principais** implementados e testados
+- **12 módulos principais** implementados e testados
 - **Autenticação JWT** com 5 roles (ADMIN, SECRETARIA, PROFESSOR, DIRETOR, PARENT)
-- **Base de dados PostgreSQL** com 16 tabelas relacionadas
-- **API REST completa** com 50+ endpoints documentados (Swagger)
+- **Base de dados PostgreSQL** com 17 tabelas relacionadas
+- **API REST completa** com 58+ endpoints documentados (Swagger)
 - **Geração de PDFs** funcionando (Playwright + Handlebars + Tailwind)
 - **Sistema de matrículas, notas, boletins e financeiro** operacional
 - **Portal dos pais** com acesso independente
 - **Controle de presença** com cálculo de frequência automático
+- **Sistema de comunicação interna** com mensagens para diferentes públicos
 
 ### ⚠️ **Pequenas Pendências Técnicas:**
 1. **Módulo Attendance**: Endpoint `POST /attendance/mark` com erro 500 (debug menor necessário)
@@ -75,6 +77,7 @@ Este ficheiro define as regras e o contexto completo para uso da Claude AI no de
 - ✅ Teachers ↔ Subjects ↔ Grades  
 - ✅ Finance ↔ Students ↔ Parents
 - ✅ Attendance ↔ Classes ↔ Students ↔ Subjects
+- ✅ Communication ↔ Users (todos os roles)
 - ✅ Documents com geração de PDFs
 - ✅ Report Cards com médias automáticas
 
@@ -84,7 +87,6 @@ Este ficheiro define as regras e o contexto completo para uso da Claude AI no de
 
 | Fase | Módulo               | Objetivo |
 |------|----------------------|----------|
-| 12   | Communication        | Mensagens internas escola → pais/professores
 | 13   | Dashboards           | Métricas, gráficos de desempenho, inadimplência
 | 14   | Uploads              | Envio de ficheiros de matrícula, provas, etc.
 | 15   | Multi-escola (SaaS)  | Gestão multi-instância com separação por tenant
@@ -190,6 +192,72 @@ docker compose exec escola-backend npx prisma db push --force-reset
 
 ---
 
+## 📢 Módulo Communication (FASE 12) - Detalhes Técnicos
+
+### 🎯 **Funcionalidades Implementadas:**
+- ✅ **Criação de mensagens** para diferentes públicos-alvo
+- ✅ **Sistema de confirmação de leitura** (readBy array JSON)
+- ✅ **Filtros avançados** (prioridade, data, status de leitura, busca textual)
+- ✅ **Estatísticas administrativas** (taxa de leitura, distribuição por prioridade/público)
+- ✅ **Soft delete** e **expiração automática** de mensagens
+- ✅ **Paginação** em todos os endpoints de listagem
+- ✅ **Controle de acesso por roles** (criação restrita a ADMIN/DIRETOR/SECRETARIA)
+
+### 📊 **Audiences Suportadas:**
+- `PARENTS` - Todos os pais/encarregados
+- `TEACHERS` - Todos os professores  
+- `ALL_STAFF` - Toda a equipe (ADMIN/DIRETOR/SECRETARIA/PROFESSOR)
+- `SPECIFIC_CLASS` - Pais e professores de uma turma específica
+- `INDIVIDUAL` - Usuário específico por ID
+- `GROUP` - Grupo de usuários por IDs
+
+### 🎨 **Níveis de Prioridade:**
+- `LOW` - Prioridade baixa
+- `NORMAL` - Prioridade normal (padrão)
+- `HIGH` - Prioridade alta
+- `URGENT` - Prioridade urgente
+
+### 🛡️ **Endpoints API:**
+```
+POST   /communication/messages           # Criar mensagem (ADMIN/DIRETOR/SECRETARIA)
+GET    /communication/inbox             # Caixa de entrada com filtros
+GET    /communication/messages/:id      # Detalhes da mensagem
+POST   /communication/messages/:id/read # Marcar como lida
+PUT    /communication/messages/:id      # Editar mensagem (criador/ADMIN/DIRETOR)
+DELETE /communication/messages/:id      # Deletar mensagem (criador/ADMIN/DIRETOR)
+GET    /communication/stats             # Estatísticas (ADMIN/DIRETOR)
+GET    /communication/sent              # Mensagens enviadas (ADMIN/DIRETOR/SECRETARIA)
+```
+
+### 🗄️ **Modelo de Dados:**
+```sql
+CommunicationMessage {
+  id: UUID
+  title: String(5-200 chars)
+  content: String(10-2000 chars)  
+  priority: MessagePriority (enum)
+  audience: MessageAudience[] (array)
+  targetUsers: String[] (IDs calculados automaticamente)
+  readBy: JSON (array de userIds que leram)
+  expiresAt: DateTime? (opcional)
+  isDeleted: Boolean (soft delete)
+  createdBy: String (FK User)
+  createdAt/updatedAt: DateTime
+}
+```
+
+### ✅ **Testes Realizados:**
+- ✅ Autenticação e autorização por roles
+- ✅ Criação de mensagens com targetUsers automático
+- ✅ Sistema de marcação como lida funcionando
+- ✅ Filtros por prioridade (HIGH, URGENT) funcionando
+- ✅ Filtro por status de leitura (unread=true) funcionando
+- ✅ Estatísticas calculadas corretamente (100% taxa leitura)
+- ✅ Paginação e summary funcionando
+- ✅ Swagger documentation completa
+
+---
+
 ## 📄 Observações finais
 
 - Sempre que novos módulos forem implementados, atualiza este ficheiro imediatamente com as referências completas (fase, endpoints, relações, regras de acesso, estrutura, status do backend e dependências).
@@ -206,7 +274,7 @@ docker compose exec escola-backend npx prisma db push --force-reset
    - Corrigir erro 500 no `POST /attendance/mark` (provável issue no Prisma constraint)
    
 2. **MÓDULOS ESSENCIAIS FALTANTES:**
-   - **Communication**: Sistema de mensagens internas
+   - ~~**Communication**: Sistema de mensagens internas~~ ✅ **IMPLEMENTADO**
    - **Transport**: Gestão de transporte escolar  
    - **Library**: Controle de biblioteca
    - **Cafeteria**: Gestão de cantina
