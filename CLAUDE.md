@@ -1,6 +1,6 @@
 # 📘 Synexa-SIS-2025 – Claude Assistant Rules (Atualizado)
 
-Este ficheiro define as regras e o contexto completo para uso da Claude AI no desenvolvimento do projeto **Synexa-SIS** (Sistema Escolar Angola), até à **FASE 12** concluída (Communication). É o documento oficial de referência técnica.
+Este ficheiro define as regras e o contexto completo para uso da Claude AI no desenvolvimento do projeto **Synexa-SIS** (Sistema Escolar Angola), até à **FASE 13** concluída (Analytics). É o documento oficial de referência técnica.
 
 ---
 

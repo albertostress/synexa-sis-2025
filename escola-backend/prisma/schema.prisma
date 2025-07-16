@@ -11,19 +11,20 @@ datasource db {
 }
 
 model Student {
-  id          String       @id @default(uuid())
+  id          String         @id @default(uuid())
   name        String
-  email       String       @unique
+  email       String         @unique
   birthDate   DateTime
-  schoolClass SchoolClass? @relation("ClassStudents", fields: [classId], references: [id])
+  schoolClass SchoolClass?   @relation("ClassStudents", fields: [classId], references: [id])
   classId     String?
   enrollments Enrollment[]
   grades      Grade[]
   invoices    Invoice[]
-  parents     Parent[]     @relation("StudentParents")
+  parents     Parent[]       @relation("StudentParents")
   documents   Document[]
   attendances Attendance[]
-  createdAt   DateTime     @default(now())
+  uploadedFiles UploadedFile[]
+  createdAt   DateTime       @default(now())
 
   @@map("students")
 }
@@ -37,6 +38,7 @@ model User {
   teacher               Teacher?
   messages              Message[]
   communicationMessages CommunicationMessage[] @relation("MessageCreator")
+  uploadedFiles         UploadedFile[]
   createdAt             DateTime               @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -44,16 +46,17 @@ model User {
 }
 
 model Teacher {
-  id           String        @id @default(uuid())
-  userId       String        @unique
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String         @id @default(uuid())
+  userId       String         @unique
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   bio          String?
-  subjects     Subject[]     @relation("TeacherSubjects")
+  subjects     Subject[]      @relation("TeacherSubjects")
   schoolClasses SchoolClass[] @relation("ClassTeachers")
   grades       Grade[]
   attendances  Attendance[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  uploadedFiles UploadedFile[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   @@map("teachers")
 }
@@ -300,4 +303,34 @@ model Attendance {
 
   @@unique([date, studentId, subjectId]) // Evita duplicação
   @@map("attendances")
+}
+
+model UploadedFile {
+  id           String   @id @default(uuid())
+  originalName String
+  storedName   String
+  path         String
+  mimeType     String
+  size         Int
+  type         FileType
+  studentId    String?
+  teacherId    String?
+  uploaderId   String
+  student      Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher      Teacher? @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  uploader     User     @relation(fields: [uploaderId], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([studentId])
+  @@index([teacherId])
+  @@map("uploaded_files")
+}
+
+enum FileType {
+  MATRICULA
+  ATESTADO
+  AVALIACAO
+  HISTORICO
+  EXAME_MEDICO
+  OUTRO
 }
