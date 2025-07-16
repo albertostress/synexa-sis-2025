@@ -72,7 +72,7 @@ export class DocumentsService {
     const certificateData: CertificateData = {
       documentType: 'CERTIFICADO_CONCLUSAO',
       studentName: student.name,
-      birthDate: student.birthDate.toISOString().split('T')[0],
+      birthDate: student.birthDate.toISOString().split('T')[0] || '',
       className: enrollment.class.name,
       shift: shiftTranslation[enrollment.class.shift] || enrollment.class.shift,
       year,
@@ -81,7 +81,7 @@ export class DocumentsService {
       finalStatus: 'APROVADO',
       institutionName: 'Escola Synexa',
       city: 'São Paulo',
-      issueDate: new Date().toISOString().split('T')[0],
+      issueDate: new Date().toISOString().split('T')[0] || '',
       issuer: 'Sistema Synexa-SIS',
       issuerRole: 'Sistema de Gestão Escolar',
     };
@@ -125,16 +125,16 @@ export class DocumentsService {
     const declarationData: DeclarationData = {
       documentType: 'DECLARACAO_MATRICULA',
       studentName: student.name,
-      birthDate: student.birthDate.toISOString().split('T')[0],
+      birthDate: student.birthDate.toISOString().split('T')[0] || '',
       className: enrollment.class.name,
       shift: shiftTranslation[enrollment.class.shift] || enrollment.class.shift,
       year,
       enrollmentStatus: enrollment.status,
-      enrollmentDate: enrollment.createdAt.toISOString().split('T')[0],
+      enrollmentDate: enrollment.createdAt.toISOString().split('T')[0] || '',
       institutionName: 'Escola Synexa',
       institutionAddress: 'Rua das Flores, 123 - Centro - São Paulo/SP',
       city: 'São Paulo',
-      issueDate: new Date().toISOString().split('T')[0],
+      issueDate: new Date().toISOString().split('T')[0] || '',
       issuer: 'Sistema Synexa-SIS',
       issuerRole: 'Sistema de Gestão Escolar',
       purpose,
@@ -235,7 +235,7 @@ export class DocumentsService {
     const lastEnrollment = enrollments[enrollments.length - 1];
     let overallStatus: 'APROVADO' | 'REPROVADO' | 'CURSANDO';
     
-    if (lastEnrollment.status === 'ACTIVE') {
+    if (lastEnrollment && lastEnrollment.status === 'ACTIVE') {
       overallStatus = 'CURSANDO';
     } else if (overallAverage >= 7.0) {
       overallStatus = 'APROVADO';
@@ -246,7 +246,7 @@ export class DocumentsService {
     const transcriptData: TranscriptData = {
       documentType: 'HISTORICO_ESCOLAR',
       studentName: student.name,
-      birthDate: student.birthDate.toISOString().split('T')[0],
+      birthDate: student.birthDate.toISOString().split('T')[0] || '',
       rg: '12.345.678-9', // Placeholder - adicionar campo no modelo Student se necessário
       cpf: '123.456.789-00', // Placeholder - adicionar campo no modelo Student se necessário
       motherName: 'Informação não disponível', // Placeholder
@@ -254,12 +254,12 @@ export class DocumentsService {
       years: yearGroups,
       overallAverage,
       overallStatus,
-      startDate: enrollments[0].createdAt.toISOString().split('T')[0],
+      startDate: enrollments[0]?.createdAt.toISOString().split('T')[0] || '',
       endDate: overallStatus === 'APROVADO' ? new Date().toISOString().split('T')[0] : undefined,
       institutionName: 'Escola Synexa',
       institutionAddress: 'Rua das Flores, 123 - Centro - São Paulo/SP',
       city: 'São Paulo',
-      issueDate: new Date().toISOString().split('T')[0],
+      issueDate: new Date().toISOString().split('T')[0] || '',
       issuer: 'Sistema Synexa-SIS',
       issuerRole: 'Sistema de Gestão Escolar',
     };
