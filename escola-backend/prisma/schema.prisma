@@ -25,6 +25,7 @@ model Student {
   attendances Attendance[]
   uploadedFiles UploadedFile[]
   loans       Loan[]
+  transport   StudentTransport?
   createdAt   DateTime       @default(now())
 
   @@map("students")
@@ -377,4 +378,32 @@ enum LoanStatus {
   ACTIVE
   RETURNED
   OVERDUE
+}
+
+model TransportRoute {
+  id         String     @id @default(uuid())
+  name       String
+  driverName String
+  vehicle    String
+  departure  String     // Horário de saída (formato HH:mm)
+  returnTime String     // Horário de retorno (formato HH:mm)
+  stops      Json?      // Array ordenado com nomes de paragens
+  createdAt  DateTime   @default(now())
+  students   StudentTransport[]
+
+  @@map("transport_routes")
+}
+
+model StudentTransport {
+  id        String   @id @default(uuid())
+  studentId String   @unique
+  routeId   String
+  stopName  String
+  notes     String?
+
+  student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  route     TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId])
+  @@map("student_transport")
 }

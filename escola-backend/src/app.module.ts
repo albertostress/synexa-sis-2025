@@ -20,6 +20,7 @@ import { CommunicationModule } from './communication/communication.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { LibraryModule } from './library/library.module';
+import { TransportModule } from './transport/transport.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { LibraryModule } from './library/library.module';
     AnalyticsModule,
     UploadsModule,
     LibraryModule,
+    TransportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
