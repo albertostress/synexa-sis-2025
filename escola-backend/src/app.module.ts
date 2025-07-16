@@ -14,6 +14,7 @@ import { GradesModule } from './grades/grades.module';
 import { ReportCardsModule } from './report-cards/report-cards.module';
 import { DocumentsModule } from './documents/documents.module';
 import { FinanceModule } from './finance/finance.module';
+import { ParentsPortalModule } from './parents-portal/parents-portal.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { FinanceModule } from './finance/finance.module';
     ReportCardsModule,
     DocumentsModule,
     FinanceModule,
+    ParentsPortalModule,
   ],
   controllers: [AppController],
   providers: [AppService],

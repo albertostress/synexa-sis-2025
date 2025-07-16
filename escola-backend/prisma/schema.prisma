@@ -20,20 +20,23 @@ model Student {
   enrollments Enrollment[]
   grades      Grade[]
   invoices    Invoice[]
+  parents     Parent[]     @relation("StudentParents")
+  documents   Document[]
   createdAt   DateTime     @default(now())
 
   @@map("students")
 }
 
 model User {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String
-  email     String   @unique
+  email     String    @unique
   password  String
   role      Role
   teacher   Teacher?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@map("users")
 }
@@ -116,6 +119,7 @@ enum Role {
   SECRETARIA
   PROFESSOR
   DIRETOR
+  PARENT
 }
 
 enum Shift {
@@ -175,4 +179,70 @@ enum PaymentMethod {
   MBWAY
   CARTAO
   CHEQUE
+}
+
+model Parent {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  phone     String?
+  password  String
+  students  Student[] @relation("StudentParents")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("parents")
+}
+
+model Message {
+  id          String      @id @default(uuid())
+  title       String
+  content     String
+  type        MessageType @default(GERAL)
+  priority    MessagePriority @default(NORMAL)
+  targetRole  String?     // Se for para um role específico
+  authorId    String
+  author      User        @relation(fields: [authorId], references: [id])
+  published   Boolean     @default(false)
+  publishedAt DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("messages")
+}
+
+enum MessageType {
+  GERAL
+  ACADEMICO
+  FINANCEIRO
+  EVENTO
+  URGENTE
+}
+
+enum MessagePriority {
+  BAIXA
+  NORMAL
+  ALTA
+  URGENTE
+}
+
+model Document {
+  id          String       @id @default(uuid())
+  student     Student      @relation(fields: [studentId], references: [id])
+  studentId   String
+  type        DocumentType
+  filename    String
+  description String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("documents")
+}
+
+enum DocumentType {
+  CERTIFICADO
+  DECLARACAO
+  HISTORICO
+  FATURA
 }

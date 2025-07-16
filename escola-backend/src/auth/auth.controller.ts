@@ -12,6 +12,7 @@ import {
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import { LoginParentDto } from '../parents-portal/dto/login-parent.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -33,5 +34,22 @@ export class AuthController {
   })
   async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
     return await this.authService.login(loginDto);
+  }
+
+  @Post('parent-login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login de responsável/pai' })
+  @ApiBody({ type: LoginParentDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Login de responsável realizado com sucesso',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Email ou senha inválidos',
+  })
+  async parentLogin(@Body() loginParentDto: LoginParentDto): Promise<AuthResponseDto> {
+    return await this.authService.parentLogin(loginParentDto);
   }
 }
