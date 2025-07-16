@@ -33,10 +33,11 @@ model User {
   name      String
   email     String    @unique
   password  String
-  role      Role
-  teacher   Teacher?
-  messages  Message[]
-  createdAt DateTime  @default(now())
+  role                  Role
+  teacher               Teacher?
+  messages              Message[]
+  communicationMessages CommunicationMessage[] @relation("MessageCreator")
+  createdAt             DateTime               @default(now())
   updatedAt DateTime  @updatedAt
 
   @@map("users")
@@ -225,10 +226,19 @@ enum MessageType {
 }
 
 enum MessagePriority {
-  BAIXA
+  LOW
   NORMAL
-  ALTA
-  URGENTE
+  HIGH
+  URGENT
+}
+
+enum MessageAudience {
+  PARENTS
+  TEACHERS
+  ALL_STAFF
+  SPECIFIC_CLASS
+  INDIVIDUAL
+  GROUP
 }
 
 model Document {
@@ -250,6 +260,25 @@ enum DocumentType {
   HISTORICO
   FATURA
 }
+
+model CommunicationMessage {
+  id          String             @id @default(uuid())
+  title       String
+  content     String
+  priority    MessagePriority    @default(NORMAL)
+  audience    MessageAudience[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  createdBy   String             // ID do usuário que criou
+  creator     User               @relation("MessageCreator", fields: [createdBy], references: [id])
+  readBy      Json?              // Array de userIds que já leram
+  isDeleted   Boolean            @default(false)
+  targetUsers String[]           // IDs específicos quando audience é INDIVIDUAL/GROUP
+  expiresAt   DateTime?          // Data de expiração da mensagem
+  
+  @@map("communication_messages")
+}
+
 
 model Attendance {
   id        String         @id @default(uuid())

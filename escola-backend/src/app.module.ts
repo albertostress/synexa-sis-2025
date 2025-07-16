@@ -16,6 +16,7 @@ import { DocumentsModule } from './documents/documents.module';
 import { FinanceModule } from './finance/finance.module';
 import { ParentsPortalModule } from './parents-portal/parents-portal.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { CommunicationModule } from './communication/communication.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AttendanceModule } from './attendance/attendance.module';
     FinanceModule,
     ParentsPortalModule,
     AttendanceModule,
+    CommunicationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
