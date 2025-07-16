@@ -19,6 +19,7 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { CommunicationModule } from './communication/communication.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { LibraryModule } from './library/library.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { UploadsModule } from './uploads/uploads.module';
     CommunicationModule,
     AnalyticsModule,
     UploadsModule,
+    LibraryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

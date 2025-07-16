@@ -24,6 +24,7 @@ model Student {
   documents   Document[]
   attendances Attendance[]
   uploadedFiles UploadedFile[]
+  loans       Loan[]
   createdAt   DateTime       @default(now())
 
   @@map("students")
@@ -55,6 +56,7 @@ model Teacher {
   grades       Grade[]
   attendances  Attendance[]
   uploadedFiles UploadedFile[]
+  loans        Loan[]
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -333,4 +335,46 @@ enum FileType {
   HISTORICO
   EXAME_MEDICO
   OUTRO
+}
+
+model Book {
+  id        String   @id @default(uuid())
+  title     String
+  author    String
+  isbn      String   @unique
+  copies    Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  loans     Loan[]
+
+  @@map("books")
+}
+
+model Loan {
+  id         String     @id @default(uuid())
+  bookId     String
+  studentId  String?
+  teacherId  String?
+  status     LoanStatus @default(ACTIVE)
+  loanDate   DateTime   @default(now())
+  dueDate    DateTime
+  returnDate DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  book       Book     @relation(fields: [bookId], references: [id])
+  student    Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher    Teacher? @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([bookId])
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([status])
+  @@map("loans")
+}
+
+enum LoanStatus {
+  ACTIVE
+  RETURNED
+  OVERDUE
 }
