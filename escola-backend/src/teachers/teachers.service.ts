@@ -1,67 +1,47 @@
-/**
- * Teachers Service - Gerenciamento de professores
- * Referência: context7 mcp - NestJS Services Pattern
- */
 import { 
   ConflictException, 
   Injectable, 
   NotFoundException, 
-  BadRequestException 
+  ForbiddenException 
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { UsersService } from '../users/users.service';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
-import { Teacher } from '@prisma/client';
 import { TeacherWithUser } from './entities/teacher.entity';
 
 @Injectable()
 export class TeachersService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly usersService: UsersService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(createTeacherDto: CreateTeacherDto): Promise<TeacherWithUser> {
-    const { userId, bio } = createTeacherDto;
+    const { userId, biography, qualification, specialization, experience } = createTeacherDto;
 
-    // Verificar se usuário existe
-    const user = await this.usersService.findOne(userId);
-    if (!user) {
-      throw new NotFoundException(`Usuário com ID ${userId} não encontrado`);
-    }
-
-    // Verificar se usuário tem role PROFESSOR
-    const userWithPassword = await this.usersService.findByEmail(user.email);
-    if (userWithPassword?.role !== 'PROFESSOR') {
-      throw new BadRequestException('Usuário deve ter role PROFESSOR para ser cadastrado como professor');
-    }
-
-    // Verificar se já existe um professor para este usuário
-    const existingTeacher = await this.prisma.teacher.findUnique({
-      where: { userId },
+    const user = await this.prisma.user.findUnique({ 
+      where: { id: userId } 
     });
 
-    if (existingTeacher) {
-      throw new ConflictException('Já existe um professor cadastrado para este usuário');
+    if (!user || user.role !== 'PROFESSOR') {
+      throw new ForbiddenException('Usuário inválido ou não tem role PROFESSOR');
+    }
+
+    const existing = await this.prisma.teacher.findUnique({ 
+      where: { userId } 
+    });
+
+    if (existing) {
+      throw new ConflictException('Usuário já está vinculado a um professor');
     }
 
     const teacher = await this.prisma.teacher.create({
       data: {
         userId,
-        bio: bio || null,
+        bio: biography || null,
+        qualification: qualification || null,
+        specialization: specialization || null,
+        experience: experience || null,
       },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
+        user: true,
       },
     });
 
@@ -71,16 +51,7 @@ export class TeachersService {
   async findAll(): Promise<TeacherWithUser[]> {
     const teachers = await this.prisma.teacher.findMany({
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
+        user: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -94,21 +65,12 @@ export class TeachersService {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
+        user: true,
       },
     });
 
     if (!teacher) {
-      throw new NotFoundException(`Professor com ID ${id} não encontrado`);
+      throw new NotFoundException('Professor não encontrado');
     }
 
     return teacher as TeacherWithUser;
@@ -118,16 +80,7 @@ export class TeachersService {
     const teacher = await this.prisma.teacher.findUnique({
       where: { userId },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
+        user: true,
       },
     });
 
@@ -137,15 +90,27 @@ export class TeachersService {
   async update(id: string, updateTeacherDto: UpdateTeacherDto): Promise<TeacherWithUser> {
     const teacher = await this.findOne(id);
     
-    // Simple update without strict optional typing
-    if (updateTeacherDto.bio !== undefined) {
+    const updateData: any = {};
+    if (updateTeacherDto.biography !== undefined) {
+      updateData.bio = updateTeacherDto.biography;
+    }
+    if (updateTeacherDto.qualification !== undefined) {
+      updateData.qualification = updateTeacherDto.qualification;
+    }
+    if (updateTeacherDto.specialization !== undefined) {
+      updateData.specialization = updateTeacherDto.specialization;
+    }
+    if (updateTeacherDto.experience !== undefined) {
+      updateData.experience = updateTeacherDto.experience;
+    }
+
+    if (Object.keys(updateData).length > 0) {
       await this.prisma.teacher.update({
         where: { id },
-        data: { bio: updateTeacherDto.bio },
+        data: updateData,
       });
     }
 
-    // Return updated teacher
     return await this.findOne(id);
   }
 
@@ -155,16 +120,7 @@ export class TeachersService {
     const teacher = await this.prisma.teacher.delete({
       where: { id },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
+        user: true,
       },
     });
 

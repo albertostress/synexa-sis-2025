@@ -26,6 +26,27 @@ export class Teacher implements PrismaTeacher {
   bio: string | null;
 
   @ApiProperty({
+    description: 'Qualificação do professor',
+    example: 'Licenciatura em Matemática',
+    required: false,
+  })
+  qualification: string | null;
+
+  @ApiProperty({
+    description: 'Especialização do professor',
+    example: 'Matemática Aplicada',
+    required: false,
+  })
+  specialization: string | null;
+
+  @ApiProperty({
+    description: 'Anos de experiência',
+    example: 5,
+    required: false,
+  })
+  experience: number | null;
+
+  @ApiProperty({
     description: 'Data de criação',
     example: '2024-01-01T10:00:00.000Z',
   })

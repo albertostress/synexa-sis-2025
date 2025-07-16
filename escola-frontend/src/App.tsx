@@ -13,6 +13,7 @@ import Users from "./pages/Users";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
 import Teachers from "./pages/admin/Teachers";
+import Subjects from "./pages/Subjects";
 
 const queryClient = new QueryClient();
 
@@ -63,7 +64,16 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route path="/subjects" element={<ProtectedRoute><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Disciplinas</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
+              <Route
+                path="/subjects"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA', 'PROFESSOR']}>
+                    <DashboardLayout>
+                      <Subjects />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/classes" element={<ProtectedRoute><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Turmas</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
               <Route path="/enrollments" element={<ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Matrículas</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
               <Route path="/grades" element={<ProtectedRoute><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Notas</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />

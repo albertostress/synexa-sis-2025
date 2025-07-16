@@ -39,7 +39,7 @@ export class TeachersController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles('ADMIN', 'SECRETARIA')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Criar novo professor' })
   @ApiResponse({
     status: 201,
@@ -56,7 +56,7 @@ export class TeachersController {
   }
 
   @Get()
-  @Roles('ADMIN', 'SECRETARIA')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Listar todos os professores' })
   @ApiResponse({
     status: 200,
@@ -89,7 +89,7 @@ export class TeachersController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Buscar professor por ID' })
   @ApiParam({
     name: 'id',
@@ -110,7 +110,7 @@ export class TeachersController {
   }
 
   @Put(':id')
-  @Roles('ADMIN', 'SECRETARIA')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Atualizar professor' })
   @ApiParam({
     name: 'id',
