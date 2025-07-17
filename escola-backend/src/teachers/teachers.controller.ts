@@ -46,9 +46,10 @@ export class TeachersController {
     description: 'Professor criado com sucesso',
     type: TeacherWithUser,
   })
-  @ApiResponse({ status: 400, description: 'Dados inválidos ou usuário não é PROFESSOR' })
-  @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
-  @ApiResponse({ status: 409, description: 'Professor já existe para este usuário' })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Usuário não encontrado, não tem role PROFESSOR, ou já está vinculado a um professor' 
+  })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 403, description: 'Acesso negado - role insuficiente' })
   async create(@Body() createTeacherDto: CreateTeacherDto): Promise<TeacherWithUser> {

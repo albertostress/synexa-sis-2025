@@ -18,7 +18,7 @@ export class CreateTeacherDto {
   })
   @IsOptional()
   @IsString({ message: 'Biografia deve ser uma string' })
-  biography?: string;
+  bio?: string;
 
   @ApiProperty({
     description: 'Qualificação do professor',

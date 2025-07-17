@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, UserCheck, Phone, Mail, Clock } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, UserCheck, Phone, Mail, Clock, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,118 +10,166 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ScheduleManagement } from '@/components/teachers/ScheduleManagement';
+import { api } from '@/lib/api';
+import { Teacher, User, CreateTeacherDto } from '@/types/teacher';
 
-interface Teacher {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  specialization: string;
-  status: 'ACTIVE' | 'INACTIVE';
-  hireDate: string;
-  subjects: string[];
-}
-
-const mockTeachers: Teacher[] = [
-  {
-    id: '1',
-    name: 'Prof. Maria Santos',
-    email: 'maria.santos@school.com',
-    phone: '+351 912 345 678',
-    specialization: 'Matemática',
-    status: 'ACTIVE',
-    hireDate: '2020-09-01',
-    subjects: ['Matemática A', 'Matemática B']
-  },
-  {
-    id: '2',
-    name: 'Prof. João Silva',
-    email: 'joao.silva@school.com',
-    phone: '+351 912 345 679',
-    specialization: 'História',
-    status: 'ACTIVE',
-    hireDate: '2019-09-01',
-    subjects: ['História', 'Geografia']
-  }
-];
+// Interfaces moved to /types/teacher.ts
 
 export default function Teachers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: teachers = mockTeachers, isLoading } = useQuery({
+  // Buscar professores do backend
+  const { data: teachers = [], isLoading } = useQuery({
     queryKey: ['teachers'],
     queryFn: async () => {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return mockTeachers;
+      const response = await api.get('/teachers');
+      return response.data;
     }
   });
 
+  // Buscar usuários com role PROFESSOR quando o modal abrir
+  useEffect(() => {
+    if (isDialogOpen && !editingTeacher) {
+      api.get('/users')
+        .then(res => {
+          // Filtrar apenas usuários com role PROFESSOR
+          const professorUsers = res.data.filter((user: User) => user.role === 'PROFESSOR');
+          setUsers(professorUsers);
+        })
+        .catch((error) => {
+          console.error('Erro ao carregar usuários:', error);
+          toast({
+            title: 'Erro',
+            description: 'Erro ao carregar usuários',
+            variant: 'destructive'
+          });
+        });
+    }
+  }, [isDialogOpen, editingTeacher, toast]);
+
   const createMutation = useMutation({
-    mutationFn: async (newTeacher: Omit<Teacher, 'id'>) => {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return { ...newTeacher, id: Date.now().toString() };
+    mutationFn: async (data: CreateTeacherDto) => {
+      const response = await api.post('/teachers', data);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
       setIsDialogOpen(false);
       setEditingTeacher(null);
-      toast({ title: 'Professor criado com sucesso!' });
+      setSelectedUserId('');
+      toast({ 
+        title: 'Sucesso!',
+        description: 'Professor criado com sucesso!' 
+      });
+    },
+    onError: (error: any) => {
+      console.error('Erro ao criar professor:', error);
+      const errorMessage = error.response?.data?.message || 'Erro ao criar professor';
+      toast({
+        title: 'Erro!',
+        description: errorMessage,
+        variant: 'destructive'
+      });
     }
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (updatedTeacher: Teacher) => {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return updatedTeacher;
+    mutationFn: async (data: { id: string } & Partial<CreateTeacherDto>) => {
+      const { id, ...updateData } = data;
+      const response = await api.put(`/teachers/${id}`, updateData);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
       setIsDialogOpen(false);
       setEditingTeacher(null);
-      toast({ title: 'Professor atualizado com sucesso!' });
+      toast({ 
+        title: 'Sucesso!',
+        description: 'Professor atualizado com sucesso!' 
+      });
+    },
+    onError: (error: any) => {
+      console.error('Erro ao atualizar professor:', error);
+      const errorMessage = error.response?.data?.message || 'Erro ao atualizar professor';
+      toast({
+        title: 'Erro!',
+        description: errorMessage,
+        variant: 'destructive'
+      });
     }
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await api.delete(`/teachers/${id}`);
       return id;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
-      toast({ title: 'Professor removido com sucesso!' });
+      toast({ 
+        title: 'Sucesso!',
+        description: 'Professor removido com sucesso!' 
+      });
+    },
+    onError: (error: any) => {
+      console.error('Erro ao remover professor:', error);
+      const errorMessage = error.response?.data?.message || 'Erro ao remover professor';
+      toast({
+        title: 'Erro!',
+        description: errorMessage,
+        variant: 'destructive'
+      });
     }
   });
 
   const filteredTeachers = teachers.filter(teacher =>
-    teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.specialization.toLowerCase().includes(searchTerm.toLowerCase())
+    teacher.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    teacher.user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (teacher.specialization && teacher.specialization.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const teacherData = {
-      name: formData.get('name') as string,
-      email: formData.get('email') as string,
-      phone: formData.get('phone') as string,
-      specialization: formData.get('specialization') as string,
-      status: formData.get('status') as 'ACTIVE' | 'INACTIVE',
-      hireDate: formData.get('hireDate') as string,
-      subjects: []
-    };
-
+    
     if (editingTeacher) {
-      updateMutation.mutate({ ...editingTeacher, ...teacherData });
+      // Atualizar professor existente
+      const updateData = {
+        id: editingTeacher.id,
+        bio: formData.get('bio') as string,
+        qualification: formData.get('qualification') as string,
+        specialization: formData.get('specialization') as string,
+        experience: parseInt(formData.get('experience') as string) || 0,
+      };
+      updateMutation.mutate(updateData);
     } else {
+      // Criar novo professor
+      if (!selectedUserId) {
+        toast({
+          title: 'Erro!',
+          description: 'Selecione um usuário para vincular ao professor',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      const teacherData: CreateTeacherDto = {
+        userId: selectedUserId,
+        bio: formData.get('bio') as string,
+        qualification: formData.get('qualification') as string,
+        specialization: formData.get('specialization') as string,
+        experience: parseInt(formData.get('experience') as string) || 0,
+      };
       createMutation.mutate(teacherData);
     }
   };
@@ -135,85 +183,113 @@ export default function Teachers() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditingTeacher(null)}>
+            <Button onClick={() => {
+              setEditingTeacher(null);
+              setSelectedUserId('');
+            }}>
               <Plus className="w-4 h-4 mr-2" />
               Adicionar Professor
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <UserIcon className="w-5 h-5" />
                 {editingTeacher ? 'Editar Professor' : 'Novo Professor'}
               </DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Seleção de usuário (apenas para criação) */}
+              {!editingTeacher && (
+                <div className="space-y-2">
+                  <Label htmlFor="userId">Selecionar Usuário</Label>
+                  <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Escolher usuário professor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.map(user => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name} — {user.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {users.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum usuário com role PROFESSOR encontrado
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Informações do professor atual (apenas para edição) */}
+              {editingTeacher && (
+                <div className="p-4 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                      <UserIcon className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{editingTeacher.user.name}</p>
+                      <p className="text-sm text-muted-foreground">{editingTeacher.user.email}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Nome Completo</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    defaultValue={editingTeacher?.name}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    defaultValue={editingTeacher?.email}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phone">Telefone</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    defaultValue={editingTeacher?.phone}
-                    required
-                  />
-                </div>
                 <div>
                   <Label htmlFor="specialization">Especialização</Label>
                   <Input
                     id="specialization"
                     name="specialization"
-                    defaultValue={editingTeacher?.specialization}
-                    required
+                    defaultValue={editingTeacher?.specialization || ''}
+                    placeholder="Ex: Matemática, História, etc."
                   />
                 </div>
                 <div>
-                  <Label htmlFor="hireDate">Data de Contratação</Label>
+                  <Label htmlFor="qualification">Qualificação</Label>
                   <Input
-                    id="hireDate"
-                    name="hireDate"
-                    type="date"
-                    defaultValue={editingTeacher?.hireDate}
-                    required
+                    id="qualification"
+                    name="qualification"
+                    defaultValue={editingTeacher?.qualification || ''}
+                    placeholder="Ex: Licenciatura em Matemática"
                   />
-                </div>
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select name="status" defaultValue={editingTeacher?.status || 'ACTIVE'}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ACTIVE">Ativo</SelectItem>
-                      <SelectItem value="INACTIVE">Inativo</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
               </div>
-              <div className="flex justify-end gap-2">
+
+              <div>
+                <Label htmlFor="experience">Anos de Experiência</Label>
+                <Input
+                  id="experience"
+                  name="experience"
+                  type="number"
+                  min="0"
+                  max="50"
+                  defaultValue={editingTeacher?.experience || ''}
+                  placeholder="Ex: 5"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="bio">Biografia</Label>
+                <Textarea
+                  id="bio"
+                  name="bio"
+                  defaultValue={editingTeacher?.bio || ''}
+                  placeholder="Descreva a experiência e especialidades do professor..."
+                  className="resize-none"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                  {editingTeacher ? 'Atualizar' : 'Criar'}
+                  {createMutation.isPending || updateMutation.isPending ? 'Processando...' : editingTeacher ? 'Atualizar' : 'Criar'}
                 </Button>
               </div>
             </form>
@@ -251,9 +327,9 @@ export default function Teachers() {
                   <TableRow>
                     <TableHead>Professor</TableHead>
                     <TableHead>Especialização</TableHead>
-                    <TableHead>Contacto</TableHead>
+                    <TableHead>Informações</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Data Contratação</TableHead>
+                    <TableHead>Data Criação</TableHead>
                     <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -279,31 +355,31 @@ export default function Teachers() {
                               <UserCheck className="w-4 h-4 text-primary" />
                             </div>
                             <div>
-                              <div className="font-medium">{teacher.name}</div>
-                              <div className="text-sm text-muted-foreground">{teacher.email}</div>
+                              <div className="font-medium">{teacher.user.name}</div>
+                              <div className="text-sm text-muted-foreground">{teacher.user.email}</div>
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>{teacher.specialization}</TableCell>
+                        <TableCell>{teacher.specialization || 'Não informado'}</TableCell>
                         <TableCell>
                           <div className="space-y-1">
                             <div className="flex items-center gap-1 text-sm">
-                              <Phone className="w-3 h-3" />
-                              {teacher.phone}
-                            </div>
-                            <div className="flex items-center gap-1 text-sm">
                               <Mail className="w-3 h-3" />
-                              {teacher.email}
+                              {teacher.user.email}
                             </div>
+                            {teacher.experience && (
+                              <div className="flex items-center gap-1 text-sm">
+                                <Clock className="w-3 h-3" />
+                                {teacher.experience} anos
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={teacher.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                            {teacher.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
-                          </Badge>
+                          <Badge variant="default">Ativo</Badge>
                         </TableCell>
                         <TableCell>
-                          {new Date(teacher.hireDate).toLocaleDateString('pt-PT')}
+                          {new Date(teacher.createdAt).toLocaleDateString('pt-PT')}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -330,7 +406,11 @@ export default function Teachers() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => deleteMutation.mutate(teacher.id)}
+                              onClick={() => {
+                                if (confirm('Tem certeza que deseja remover este professor?')) {
+                                  deleteMutation.mutate(teacher.id);
+                                }
+                              }}
                               disabled={deleteMutation.isPending}
                             >
                               <Trash2 className="w-4 h-4" />

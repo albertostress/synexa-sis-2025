@@ -23,6 +23,7 @@ import { LibraryModule } from './library/library.module';
 import { TransportModule } from './transport/transport.module';
 import { EventsModule } from './events/events.module';
 import { SettingsModule } from './settings/settings.module';
+import { SchedulesModule } from './schedules/schedules.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { SettingsModule } from './settings/settings.module';
     TransportModule,
     EventsModule,
     SettingsModule,
+    SchedulesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

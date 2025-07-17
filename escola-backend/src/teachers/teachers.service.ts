@@ -1,4 +1,5 @@
 import { 
+  BadRequestException,
   ConflictException, 
   Injectable, 
   NotFoundException, 
@@ -14,28 +15,36 @@ export class TeachersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createTeacherDto: CreateTeacherDto): Promise<TeacherWithUser> {
-    const { userId, biography, qualification, specialization, experience } = createTeacherDto;
+    const { userId, bio, qualification, specialization, experience } = createTeacherDto;
 
+    // 1. Verificar se o usuário existe
     const user = await this.prisma.user.findUnique({ 
       where: { id: userId } 
     });
 
-    if (!user || user.role !== 'PROFESSOR') {
-      throw new ForbiddenException('Usuário inválido ou não tem role PROFESSOR');
+    if (!user) {
+      throw new BadRequestException('Usuário não encontrado.');
     }
 
+    // 2. Verificar se o usuário tem role PROFESSOR
+    if (user.role !== 'PROFESSOR') {
+      throw new BadRequestException('Apenas usuários com role PROFESSOR podem ser vinculados.');
+    }
+
+    // 3. Verificar se já existe um professor vinculado a este usuário
     const existing = await this.prisma.teacher.findUnique({ 
       where: { userId } 
     });
 
     if (existing) {
-      throw new ConflictException('Usuário já está vinculado a um professor');
+      throw new BadRequestException('Este usuário já está vinculado a um professor.');
     }
 
+    // 4. Criar o professor
     const teacher = await this.prisma.teacher.create({
       data: {
         userId,
-        bio: biography || null,
+        bio: bio || null,
         qualification: qualification || null,
         specialization: specialization || null,
         experience: experience || null,
@@ -91,8 +100,8 @@ export class TeachersService {
     const teacher = await this.findOne(id);
     
     const updateData: any = {};
-    if (updateTeacherDto.biography !== undefined) {
-      updateData.bio = updateTeacherDto.biography;
+    if (updateTeacherDto.bio !== undefined) {
+      updateData.bio = updateTeacherDto.bio;
     }
     if (updateTeacherDto.qualification !== undefined) {
       updateData.qualification = updateTeacherDto.qualification;
