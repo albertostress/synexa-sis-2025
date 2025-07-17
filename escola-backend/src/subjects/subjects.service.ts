@@ -18,15 +18,35 @@ export class SubjectsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createSubjectDto: CreateSubjectDto): Promise<SubjectWithTeachers> {
-    const { name, description, teacherIds } = createSubjectDto;
+    const { 
+      name, 
+      description, 
+      code, 
+      year, 
+      category, 
+      credits, 
+      workloadHours, 
+      isActive = true, 
+      teacherIds 
+    } = createSubjectDto;
 
-    // Verificar se já existe uma disciplina com esse nome
+    // Verificar se já existe uma disciplina com esse nome ou código
     const existingSubject = await this.prisma.subject.findFirst({
-      where: { name },
+      where: { 
+        OR: [
+          { name },
+          { code }
+        ]
+      },
     });
 
     if (existingSubject) {
-      throw new ConflictException('Já existe uma disciplina com este nome');
+      if (existingSubject.name === name) {
+        throw new ConflictException('Já existe uma disciplina com este nome');
+      }
+      if (existingSubject.code === code) {
+        throw new ConflictException('Já existe uma disciplina com este código');
+      }
     }
 
     // Se teacherIds foram fornecidos, verificar se todos os professores existem
@@ -40,10 +60,19 @@ export class SubjectsService {
       }
     }
 
+    // Converter categoria do enum
+    const prismaCategory = category === 'Obrigatória' ? 'OBRIGATORIA' : 'OPCIONAL';
+
     const subject = await this.prisma.subject.create({
       data: {
         name,
         description: description || null,
+        code,
+        year,
+        category: prismaCategory as any,
+        credits,
+        workloadHours,
+        isActive,
         teachers: teacherIds && teacherIds.length > 0 
           ? { connect: teacherIds.map(id => ({ id })) }
           : undefined,
@@ -66,7 +95,13 @@ export class SubjectsService {
       },
     });
 
-    return subject as SubjectWithTeachers;
+    // Converter categoria do banco para o frontend
+    const formattedSubject = {
+      ...subject,
+      category: subject.category === 'OBRIGATORIA' ? 'Obrigatória' : 'Opcional',
+    };
+
+    return formattedSubject as SubjectWithTeachers;
   }
 
   async findAll(): Promise<SubjectWithTeachers[]> {
@@ -87,12 +122,19 @@ export class SubjectsService {
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [
+        { year: 'asc' },
+        { name: 'asc' },
+      ],
     });
 
-    return subjects as SubjectWithTeachers[];
+    // Converter categorias do banco para o frontend
+    const formattedSubjects = subjects.map(subject => ({
+      ...subject,
+      category: subject.category === 'OBRIGATORIA' ? 'Obrigatória' : 'Opcional',
+    }));
+
+    return formattedSubjects as SubjectWithTeachers[];
   }
 
   async findOne(id: string): Promise<SubjectWithTeachers> {
@@ -120,25 +162,50 @@ export class SubjectsService {
       throw new NotFoundException(`Disciplina com ID ${id} não encontrada`);
     }
 
-    return subject as SubjectWithTeachers;
+    // Converter categoria do banco para o frontend
+    const formattedSubject = {
+      ...subject,
+      category: subject.category === 'OBRIGATORIA' ? 'Obrigatória' : 'Opcional',
+    };
+
+    return formattedSubject as SubjectWithTeachers;
   }
 
   async update(id: string, updateSubjectDto: UpdateSubjectDto): Promise<SubjectWithTeachers> {
     await this.findOne(id); // Verificar se existe
 
-    const { name, description, teacherIds } = updateSubjectDto;
+    const { 
+      name, 
+      description, 
+      code, 
+      year, 
+      category, 
+      credits, 
+      workloadHours, 
+      isActive, 
+      teacherIds 
+    } = updateSubjectDto;
 
-    // Se name foi fornecido, verificar se já existe outra disciplina com esse nome
-    if (name) {
+    // Se name ou code foram fornecidos, verificar se já existe outra disciplina com esses valores
+    if (name || code) {
+      const whereConditions = [];
+      if (name) whereConditions.push({ name });
+      if (code) whereConditions.push({ code });
+
       const existingSubject = await this.prisma.subject.findFirst({
         where: { 
-          name,
+          OR: whereConditions,
           NOT: { id }, // Excluir a disciplina atual da verificação
         },
       });
 
       if (existingSubject) {
-        throw new ConflictException('Já existe uma disciplina com este nome');
+        if (existingSubject.name === name) {
+          throw new ConflictException('Já existe uma disciplina com este nome');
+        }
+        if (existingSubject.code === code) {
+          throw new ConflictException('Já existe uma disciplina com este código');
+        }
       }
     }
 
@@ -162,6 +229,31 @@ export class SubjectsService {
     
     if (description !== undefined) {
       updateData.description = description;
+    }
+
+    if (code !== undefined) {
+      updateData.code = code;
+    }
+
+    if (year !== undefined) {
+      updateData.year = year;
+    }
+
+    if (category !== undefined) {
+      const prismaCategory = category === 'Obrigatória' ? 'OBRIGATORIA' : 'OPCIONAL';
+      updateData.category = prismaCategory;
+    }
+
+    if (credits !== undefined) {
+      updateData.credits = credits;
+    }
+
+    if (workloadHours !== undefined) {
+      updateData.workloadHours = workloadHours;
+    }
+
+    if (isActive !== undefined) {
+      updateData.isActive = isActive;
     }
 
     // Atualizar relacionamentos com professores se fornecidos
@@ -205,7 +297,13 @@ export class SubjectsService {
       },
     });
 
-    return subject as SubjectWithTeachers;
+    // Converter categoria do banco para o frontend
+    const formattedSubject = {
+      ...subject,
+      category: subject.category === 'OBRIGATORIA' ? 'Obrigatória' : 'Opcional',
+    };
+
+    return formattedSubject as SubjectWithTeachers;
   }
 
   async remove(id: string): Promise<SubjectWithTeachers> {

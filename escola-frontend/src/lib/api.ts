@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { CreateStudentDto, Student, StudentResponse, StudentsListResponse } from '../types/student';
 import { Schedule, CreateScheduleDto, UpdateScheduleDto, ScheduleFilters, ScheduleConflict, Weekday } from '../types/schedule';
+import { Subject, SubjectWithTeachers, CreateSubjectDto, UpdateSubjectDto, SubjectFilters } from '../types/subject';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -279,29 +280,39 @@ export const teachersAPI = {
 
 // Subjects API functions
 export const subjectsAPI = {
-  getAll: async (): Promise<any[]> => {
-    const response = await api.get('/subjects');
+  getAll: async (filters?: SubjectFilters): Promise<SubjectWithTeachers[]> => {
+    const params = new URLSearchParams();
+    if (filters?.name) params.append('name', filters.name);
+    if (filters?.teacherId) params.append('teacherId', filters.teacherId);
+    
+    const response = await api.get('/subjects', { 
+      params: Object.fromEntries(params) 
+    });
     return response.data;
   },
   
-  getById: async (id: string): Promise<any> => {
+  getById: async (id: string): Promise<SubjectWithTeachers> => {
     const response = await api.get(`/subjects/${id}`);
     return response.data;
   },
   
-  create: async (subjectData: any): Promise<any> => {
+  getMySubjects: async (): Promise<Subject[]> => {
+    const response = await api.get('/subjects/my-subjects');
+    return response.data;
+  },
+  
+  create: async (subjectData: CreateSubjectDto): Promise<SubjectWithTeachers> => {
     const response = await api.post('/subjects', subjectData);
     return response.data;
   },
   
-  update: async (id: string, subjectData: any): Promise<any> => {
+  update: async (id: string, subjectData: UpdateSubjectDto): Promise<SubjectWithTeachers> => {
     const response = await api.patch(`/subjects/${id}`, subjectData);
     return response.data;
   },
   
-  delete: async (id: string): Promise<any> => {
-    const response = await api.delete(`/subjects/${id}`);
-    return response.data;
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/subjects/${id}`);
   }
 };
 

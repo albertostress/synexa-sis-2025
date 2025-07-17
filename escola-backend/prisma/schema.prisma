@@ -93,15 +93,21 @@ model Teacher {
 }
 
 model Subject {
-  id          String    @id @default(uuid())
-  name        String
-  description String?
-  teachers    Teacher[] @relation("TeacherSubjects")
-  grades      Grade[]
-  attendances Attendance[]
-  schedules   Schedule[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String            @id @default(uuid())
+  name          String
+  description   String?
+  code          String            @unique
+  year          String
+  category      SubjectCategory   @default(OBRIGATORIA)
+  credits       Int               @default(1)
+  workloadHours Int               @default(30)
+  isActive      Boolean           @default(true)
+  teachers      Teacher[]         @relation("TeacherSubjects")
+  grades        Grade[]
+  attendances   Attendance[]
+  schedules     Schedule[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@map("subjects")
 }
@@ -171,6 +177,11 @@ enum Shift {
   MORNING
   AFTERNOON
   EVENING
+}
+
+enum SubjectCategory {
+  OBRIGATORIA
+  OPCIONAL
 }
 
 enum EnrollmentStatus {
