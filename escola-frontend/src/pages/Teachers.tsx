@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -42,8 +42,10 @@ export default function Teachers() {
     if (isDialogOpen && !editingTeacher) {
       api.get('/users')
         .then(res => {
-          // Filtrar apenas usuários com role PROFESSOR
-          const professorUsers = res.data.filter((user: User) => user.role === 'PROFESSOR');
+          // Filtrar apenas usuários com role PROFESSOR e IDs válidos
+          const professorUsers = res.data.filter((user: User) => 
+            user.role === 'PROFESSOR' && user.id && user.id.trim() !== ''
+          );
           setUsers(professorUsers);
         })
         .catch((error) => {
@@ -197,6 +199,12 @@ export default function Teachers() {
                 <UserIcon className="w-5 h-5" />
                 {editingTeacher ? 'Editar Professor' : 'Novo Professor'}
               </DialogTitle>
+              <DialogDescription>
+                {editingTeacher 
+                  ? 'Modifique as informações do professor conforme necessário.'
+                  : 'Selecione um usuário e preencha as informações do professor.'
+                }
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Seleção de usuário (apenas para criação) */}
@@ -208,11 +216,17 @@ export default function Teachers() {
                       <SelectValue placeholder="Escolher usuário professor" />
                     </SelectTrigger>
                     <SelectContent>
-                      {users.map(user => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.name} — {user.email}
-                        </SelectItem>
-                      ))}
+                      {users.length === 0 ? (
+                        <SelectItem value="empty" disabled>Nenhum usuário professor encontrado</SelectItem>
+                      ) : (
+                        users
+                          .filter(user => user.id && user.id.trim() !== '')
+                          .map(user => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.name} — {user.email}
+                            </SelectItem>
+                          ))
+                      )}
                     </SelectContent>
                   </Select>
                   {users.length === 0 && (
@@ -439,7 +453,7 @@ export default function Teachers() {
               </div>
               <ScheduleManagement 
                 teacherId={selectedTeacher.id}
-                teacherName={selectedTeacher.name}
+                teacherName={selectedTeacher.user.name}
               />
             </div>
           ) : (

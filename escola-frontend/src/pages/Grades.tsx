@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -259,6 +259,12 @@ export default function Grades() {
               <DialogTitle>
                 {editingGrade ? 'Editar Avaliação' : 'Nova Avaliação'}
               </DialogTitle>
+              <DialogDescription>
+                {editingGrade 
+                  ? 'Modifique as informações da avaliação conforme necessário.'
+                  : 'Preencha os campos para criar uma nova avaliação no sistema.'
+                }
+              </DialogDescription>
             </DialogHeader>
             
             <Form {...form}>

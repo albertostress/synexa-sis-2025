@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { CreateStudentDto, Student, StudentResponse, StudentsListResponse } from '../types/student';
+import { Schedule, CreateScheduleDto, UpdateScheduleDto, ScheduleFilters, ScheduleConflict, Weekday } from '../types/schedule';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -244,6 +245,117 @@ export const financialAPI = {
   
   getDefaulters: async () => {
     const response = await api.get('/financial/defaulters');
+    return response.data;
+  }
+};
+
+// Teachers API functions
+export const teachersAPI = {
+  getAll: async (): Promise<any[]> => {
+    const response = await api.get('/teachers');
+    return response.data;
+  },
+  
+  getById: async (id: string): Promise<any> => {
+    const response = await api.get(`/teachers/${id}`);
+    return response.data;
+  },
+  
+  create: async (teacherData: any): Promise<any> => {
+    const response = await api.post('/teachers', teacherData);
+    return response.data;
+  },
+  
+  update: async (id: string, teacherData: any): Promise<any> => {
+    const response = await api.put(`/teachers/${id}`, teacherData);
+    return response.data;
+  },
+  
+  delete: async (id: string): Promise<any> => {
+    const response = await api.delete(`/teachers/${id}`);
+    return response.data;
+  }
+};
+
+// Subjects API functions
+export const subjectsAPI = {
+  getAll: async (): Promise<any[]> => {
+    const response = await api.get('/subjects');
+    return response.data;
+  },
+  
+  getById: async (id: string): Promise<any> => {
+    const response = await api.get(`/subjects/${id}`);
+    return response.data;
+  },
+  
+  create: async (subjectData: any): Promise<any> => {
+    const response = await api.post('/subjects', subjectData);
+    return response.data;
+  },
+  
+  update: async (id: string, subjectData: any): Promise<any> => {
+    const response = await api.patch(`/subjects/${id}`, subjectData);
+    return response.data;
+  },
+  
+  delete: async (id: string): Promise<any> => {
+    const response = await api.delete(`/subjects/${id}`);
+    return response.data;
+  }
+};
+
+// Schedules API functions
+export const schedulesAPI = {
+  getAll: async (filters?: ScheduleFilters): Promise<Schedule[]> => {
+    const params = new URLSearchParams();
+    if (filters?.teacherId) params.append('teacherId', filters.teacherId);
+    if (filters?.weekday) params.append('weekday', filters.weekday);
+    if (filters?.subjectId) params.append('subjectId', filters.subjectId);
+    
+    const response = await api.get('/schedules', { 
+      params: Object.fromEntries(params) 
+    });
+    return response.data;
+  },
+  
+  getById: async (id: string): Promise<Schedule> => {
+    const response = await api.get(`/schedules/${id}`);
+    return response.data;
+  },
+  
+  create: async (scheduleData: CreateScheduleDto): Promise<Schedule> => {
+    const response = await api.post('/schedules', scheduleData);
+    return response.data;
+  },
+  
+  update: async (id: string, scheduleData: UpdateScheduleDto): Promise<Schedule> => {
+    const response = await api.patch(`/schedules/${id}`, scheduleData);
+    return response.data;
+  },
+  
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/schedules/${id}`);
+  },
+  
+  getByTeacher: async (teacherId: string): Promise<Schedule[]> => {
+    const response = await api.get(`/schedules/teacher/${teacherId}`);
+    return response.data;
+  },
+  
+  checkConflicts: async (
+    teacherId: string, 
+    weekday: Weekday, 
+    startTime: string, 
+    endTime: string
+  ): Promise<ScheduleConflict> => {
+    const params = new URLSearchParams({
+      weekday,
+      startTime,
+      endTime
+    });
+    
+    const response = await api.get(`/schedules/conflicts/${teacherId}?${params}`);
     return response.data;
   }
 };

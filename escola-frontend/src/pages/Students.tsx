@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -276,6 +276,12 @@ export default function Students() {
                 <UserCircle className="w-5 h-5" />
                 {editingStudent ? 'Editar Aluno' : 'Adicionar Aluno'}
               </DialogTitle>
+              <DialogDescription>
+                {editingStudent 
+                  ? 'Modifique as informações do aluno conforme necessário.'
+                  : 'Preencha os campos para criar um novo aluno no sistema.'
+                }
+              </DialogDescription>
             </DialogHeader>
             
             <Form {...form}>

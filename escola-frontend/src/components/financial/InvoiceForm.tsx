@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -87,6 +87,9 @@ export default function InvoiceForm() {
             <FileText className="w-5 h-5" />
             Criar Nova Fatura
           </DialogTitle>
+          <DialogDescription>
+            Preencha os campos para criar uma nova fatura para o aluno.
+          </DialogDescription>
         </DialogHeader>
         
         <Form {...form}>

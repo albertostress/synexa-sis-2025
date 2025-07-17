@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -209,6 +209,12 @@ export default function Transport() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>{editingRoute ? 'Editar Rota' : 'Nova Rota'}</DialogTitle>
+              <DialogDescription>
+                {editingRoute 
+                  ? 'Modifique as informações da rota de transporte conforme necessário.'
+                  : 'Preencha os campos para criar uma nova rota de transporte no sistema.'
+                }
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>

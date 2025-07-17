@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -234,6 +234,12 @@ export default function Events() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>{editingEvent ? 'Editar Evento' : 'Novo Evento'}</DialogTitle>
+              <DialogDescription>
+                {editingEvent 
+                  ? 'Modifique as informações do evento conforme necessário.'
+                  : 'Preencha os campos para criar um novo evento no sistema.'
+                }
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
