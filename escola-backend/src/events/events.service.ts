@@ -112,8 +112,9 @@ export class EventsService {
               student: {
                 select: {
                   id: true,
-                  name: true,
-                  email: true,
+                  firstName: true,
+                  lastName: true,
+                  parentEmail: true,
                   schoolClass: {
                     select: {
                       id: true,
@@ -157,8 +158,9 @@ export class EventsService {
             student: {
               select: {
                 id: true,
-                name: true,
-                email: true,
+                firstName: true,
+              lastName: true,
+                parentEmail: true,
                 schoolClass: {
                   select: {
                     id: true,
@@ -170,7 +172,7 @@ export class EventsService {
           },
           orderBy: {
             student: {
-              name: 'asc',
+              firstName: 'asc',
             },
           },
         },
@@ -233,8 +235,9 @@ export class EventsService {
             student: {
               select: {
                 id: true,
-                name: true,
-                email: true,
+                firstName: true,
+              lastName: true,
+                parentEmail: true,
                 schoolClass: {
                   select: {
                     id: true,
@@ -297,12 +300,12 @@ export class EventsService {
         studentId: { in: studentIds },
       },
       include: {
-        student: { select: { name: true } },
+        student: { select: { firstName: true, lastName: true } },
       },
     });
 
     if (existingParticipations.length > 0) {
-      const alreadyRegistered = existingParticipations.map(p => p.student.name);
+      const alreadyRegistered = existingParticipations.map(p => `${p.student.firstName} ${p.student.lastName}`);
       throw new ConflictException(
         `Os seguintes alunos já estão registados no evento: ${alreadyRegistered.join(', ')}`
       );
@@ -321,8 +324,9 @@ export class EventsService {
             student: {
               select: {
                 id: true,
-                name: true,
-                email: true,
+                firstName: true,
+              lastName: true,
+                parentEmail: true,
                 schoolClass: {
                   select: {
                     id: true,
@@ -358,8 +362,9 @@ export class EventsService {
         students: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
           },
         },
       },
@@ -382,12 +387,12 @@ export class EventsService {
         studentId: { in: studentIds },
       },
       include: {
-        student: { select: { name: true } },
+        student: { select: { firstName: true, lastName: true } },
       },
     });
 
     if (existingParticipations.length > 0) {
-      const alreadyRegistered = existingParticipations.map(p => p.student.name);
+      const alreadyRegistered = existingParticipations.map(p => `${p.student.firstName} ${p.student.lastName}`);
       throw new ConflictException(
         `Os seguintes alunos da turma já estão registados no evento: ${alreadyRegistered.join(', ')}`
       );
@@ -406,8 +411,9 @@ export class EventsService {
             student: {
               select: {
                 id: true,
-                name: true,
-                email: true,
+                firstName: true,
+              lastName: true,
+                parentEmail: true,
                 schoolClass: {
                   select: {
                     id: true,
@@ -480,8 +486,9 @@ export class EventsService {
           student: {
             select: {
               id: true,
-              name: true,
-              email: true,
+              firstName: true,
+              lastName: true,
+              parentEmail: true,
               schoolClass: {
                 select: {
                   id: true,
@@ -502,7 +509,7 @@ export class EventsService {
         },
         orderBy: {
           student: {
-            name: 'asc',
+            firstName: 'asc',
           },
         },
       }),
@@ -548,8 +555,9 @@ export class EventsService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             schoolClass: {
               select: {
                 id: true,
@@ -603,8 +611,9 @@ export class EventsService {
             student: {
               select: {
                 id: true,
-                name: true,
-                email: true,
+                firstName: true,
+              lastName: true,
+                parentEmail: true,
                 schoolClass: {
                   select: {
                     id: true,
@@ -626,7 +635,7 @@ export class EventsService {
       where: { id: participationId },
       include: {
         event: true,
-        student: { select: { name: true } },
+        student: { select: { firstName: true, lastName: true } },
       },
     });
 
@@ -645,14 +654,14 @@ export class EventsService {
     });
 
     return {
-      message: `Participação de ${participation.student.name} removida com sucesso`,
+      message: `Participação de ${`${participation.student.firstName} ${participation.student.lastName}`} removida com sucesso`,
     };
   }
 
   async getStudentEvents(studentId: string) {
     const student = await this.prisma.student.findUnique({
       where: { id: studentId },
-      select: { id: true, name: true },
+      select: { id: true, firstName: true, lastName: true },
     });
 
     if (!student) {

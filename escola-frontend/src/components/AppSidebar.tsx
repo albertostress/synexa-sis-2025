@@ -1,3 +1,4 @@
+
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -14,9 +15,9 @@ import {
   Bus,
   CalendarDays,
   Settings,
-  LogOut,
   UserCheck,
-  BarChart3
+  BarChart3,
+  UsersRound
 } from 'lucide-react';
 
 import {
@@ -31,9 +32,6 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { authAPI } from '@/lib/api';
-import { useNavigate } from 'react-router-dom';
 
 interface NavigationItem {
   title: string;
@@ -54,6 +52,12 @@ const navigationItems: NavigationItem[] = [
     url: '/users',
     icon: Users,
     roles: ['ADMIN'],
+  },
+  {
+    title: 'Alunos',
+    url: '/students',
+    icon: UsersRound,
+    roles: ['ADMIN', 'SECRETARIA', 'PROFESSOR'],
   },
   {
     title: 'Professores',
@@ -151,31 +155,20 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const { user, hasAnyRole } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const currentPath = location.pathname;
   const collapsed = state === 'collapsed';
-
-  const handleLogout = () => {
-    authAPI.logout();
-    navigate('/login');
-  };
 
   const filteredItems = navigationItems.filter(item => 
     user && hasAnyRole(item.roles)
   );
 
-  const getNavClass = (isActive: boolean) => 
-    isActive 
-      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" 
-      : "hover:bg-sidebar-accent/50";
-
   return (
-    <Sidebar className={collapsed ? "w-16" : "w-64"}>
+    <Sidebar>
       <SidebarContent>
         {/* Header */}
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-lg flex items-center justify-center">
               <GraduationCap className="w-4 h-4 text-primary-foreground" />
             </div>
             {!collapsed && (
@@ -196,13 +189,10 @@ export function AppSidebar() {
                 const isActive = currentPath === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink 
-                        to={item.url} 
-                        className={getNavClass(isActive)}
-                      >
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <NavLink to={item.url}>
                         <item.icon className="w-4 h-4" />
-                        {!collapsed && <span>{item.title}</span>}
+                        <span>{item.title}</span>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -212,7 +202,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* User Info & Logout */}
+        {/* User Info */}
         <div className="mt-auto p-4 border-t border-sidebar-border">
           {!collapsed && user && (
             <div className="mb-3">
@@ -224,15 +214,6 @@ export function AppSidebar() {
               </p>
             </div>
           )}
-          <Button
-            variant="ghost"
-            size={collapsed ? "icon" : "sm"}
-            className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent"
-            onClick={handleLogout}
-          >
-            <LogOut className="w-4 h-4" />
-            {!collapsed && <span className="ml-2">Sair</span>}
-          </Button>
         </div>
       </SidebarContent>
     </Sidebar>

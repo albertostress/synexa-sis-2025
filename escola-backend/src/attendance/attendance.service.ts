@@ -180,7 +180,7 @@ export class AttendanceService {
       where: { id: classId },
       include: {
         students: {
-          orderBy: { name: 'asc' },
+          orderBy: { firstName: 'asc' },
         },
       },
     });
@@ -218,7 +218,7 @@ export class AttendanceService {
       const attendance = attendanceMap.get(student.id);
       return {
         studentId: student.id,
-        studentName: student.name,
+        studentName: `${student.firstName} ${student.lastName}`,
         present: attendance?.present ?? false,
         justified: attendance?.justified ?? false,
         note: attendance?.note || undefined,
@@ -262,6 +262,7 @@ export class AttendanceService {
     // Verificar se o aluno existe
     const student = await this.prisma.student.findUnique({
       where: { id: studentId },
+      select: { id: true, firstName: true, lastName: true, parentEmail: true },
     });
 
     if (!student) {
@@ -346,8 +347,8 @@ export class AttendanceService {
     return {
       student: {
         id: student.id,
-        name: student.name,
-        email: student.email,
+        name: `${student.firstName} ${student.lastName}`,
+        email: student.parentEmail,
       },
       totalClasses,
       totalPresent,
@@ -395,7 +396,9 @@ export class AttendanceService {
       this.prisma.attendance.findMany({
         where: whereClause,
         include: {
-          student: true,
+          student: {
+            select: { id: true, firstName: true, lastName: true, parentEmail: true },
+          },
           class: true,
           subject: true,
           teacher: {
@@ -407,7 +410,7 @@ export class AttendanceService {
         orderBy: [
           { date: 'desc' },
           { class: { name: 'asc' } },
-          { student: { name: 'asc' } },
+          { student: { firstName: 'asc' } },
         ],
         skip,
         take: limit,
@@ -421,8 +424,8 @@ export class AttendanceService {
       date: attendance.date.toISOString().split('T')[0] || '',
       student: {
         id: attendance.student.id,
-        name: attendance.student.name,
-        email: attendance.student.email,
+        name: `${attendance.student.firstName} ${attendance.student.lastName}`,
+        email: attendance.student.parentEmail,
       },
       class: {
         id: attendance.class.id,
@@ -501,7 +504,9 @@ export class AttendanceService {
         updatedAt: new Date(),
       },
       include: {
-        student: true,
+        student: {
+          select: { id: true, firstName: true, lastName: true, parentEmail: true },
+        },
         class: true,
         subject: true,
         teacher: {
@@ -517,8 +522,8 @@ export class AttendanceService {
       date: updated.date.toISOString().split('T')[0] || '',
       student: {
         id: updated.student.id,
-        name: updated.student.name,
-        email: updated.student.email,
+        name: `${updated.student.firstName} ${updated.student.lastName}`,
+        email: updated.student.parentEmail,
       },
       class: {
         id: updated.class.id,

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 
@@ -14,10 +15,11 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (token: string) => void;
+  login: (token: string, user: User) => void;
   logout: () => void;
   hasRole: (role: UserRole) => boolean;
   hasAnyRole: (roles: UserRole[]) => boolean;
+  isAdmin: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,26 +42,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing token on app load
+    // Check for existing token in localStorage
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
-
+    
     if (storedToken && storedUser) {
       try {
-        // Verify token is not expired
-        const decoded = jwtDecode(storedToken);
-        const currentTime = Date.now() / 1000;
-        
-        if (decoded.exp && decoded.exp > currentTime) {
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
-        } else {
-          // Token expired, clear storage
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-        }
+        const userData = JSON.parse(storedUser);
+        setToken(storedToken);
+        setUser(userData);
       } catch (error) {
-        // Invalid token, clear storage
+        console.error('Error parsing stored user data:', error);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }
@@ -68,15 +61,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(false);
   }, []);
 
-  const login = (newToken: string) => {
+  const login = (newToken: string, userData: User) => {
     try {
-      const decoded: any = jwtDecode(newToken);
-      const userData: User = {
-        id: decoded.sub || decoded.id,
-        email: decoded.email,
-        name: decoded.name,
-        role: decoded.role as UserRole,
-      };
+      // Verificar se o token é válido decodificando-o
+      jwtDecode(newToken);
 
       setToken(newToken);
       setUser(userData);
@@ -104,6 +92,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return user ? roles.includes(user.role) : false;
   };
 
+  const isAdmin = (): boolean => {
+    return hasRole('ADMIN');
+  };
+
   const value: AuthContextType = {
     user,
     token,
@@ -112,6 +104,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout,
     hasRole,
     hasAnyRole,
+    isAdmin,
   };
 
   return (

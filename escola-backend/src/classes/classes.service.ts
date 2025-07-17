@@ -82,8 +82,9 @@ export class ClassesService {
         students: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },
@@ -114,8 +115,9 @@ export class ClassesService {
         students: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },
@@ -150,8 +152,9 @@ export class ClassesService {
         students: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },
@@ -248,7 +251,7 @@ export class ClassesService {
       // Primeiro desmatricular todos os alunos da turma
       await this.prisma.student.updateMany({
         where: { classId: id },
-        data: { classId: null },
+        data: { classId: '' },
       });
 
       // Depois matricular os novos alunos (se houver)
@@ -286,8 +289,9 @@ export class ClassesService {
         students: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },
@@ -318,7 +322,7 @@ export class ClassesService {
     // Primeiro desmatricular todos os alunos da turma
     await this.prisma.student.updateMany({
       where: { classId: id },
-      data: { classId: null },
+      data: { classId: '' },
     });
 
     const schoolClass = await this.prisma.schoolClass.delete({
@@ -327,8 +331,9 @@ export class ClassesService {
         students: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },

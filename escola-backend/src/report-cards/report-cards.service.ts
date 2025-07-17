@@ -18,6 +18,7 @@ export class ReportCardsService {
     // Verificar se o aluno existe
     const student = await this.prisma.student.findUnique({
       where: { id: studentId },
+      select: { id: true, firstName: true, lastName: true, parentEmail: true, birthDate: true },
     });
 
     if (!student) {
@@ -73,8 +74,8 @@ export class ReportCardsService {
     // Montar informações do aluno
     const studentInfo: StudentInfo = {
       id: student.id,
-      name: student.name,
-      email: student.email,
+      name: `${student.firstName} ${student.lastName}`,
+      email: student.parentEmail,
       birthDate: student.birthDate,
     };
 
@@ -143,19 +144,21 @@ export class ReportCardsService {
         status: 'ACTIVE',
       },
       include: {
-        student: true,
+        student: {
+          select: { id: true, firstName: true, lastName: true, parentEmail: true, birthDate: true },
+        },
       },
       orderBy: {
         student: {
-          name: 'asc',
+          firstName: 'asc',
         },
       },
     });
 
     return enrollments.map(enrollment => ({
       id: enrollment.student.id,
-      name: enrollment.student.name,
-      email: enrollment.student.email,
+      name: `${enrollment.student.firstName} ${enrollment.student.lastName}`,
+      email: enrollment.student.parentEmail,
       birthDate: enrollment.student.birthDate,
     }));
   }

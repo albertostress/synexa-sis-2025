@@ -1,0 +1,81 @@
+{
+  "name": "Synexa-SIS Context7 Integration",
+  "version": "1.0.0",
+  "description": "Configuração Context7 MCP para o projeto Synexa-SIS",
+  "shortcuts": {
+    "nestjs": {
+      "description": "Documentação NestJS completa",
+      "command": "resolve-library-id nestjs",
+      "category": "backend"
+    },
+    "prisma": {
+      "description": "Documentação Prisma ORM",
+      "command": "resolve-library-id prisma",
+      "category": "database"
+    },
+    "react": {
+      "description": "Documentação React",
+      "command": "resolve-library-id react",
+      "category": "frontend"
+    },
+    "tailwind": {
+      "description": "Documentação Tailwind CSS",
+      "command": "resolve-library-id tailwindcss",
+      "category": "styling"
+    },
+    "vite": {
+      "description": "Documentação Vite",
+      "command": "resolve-library-id vite",
+      "category": "tooling"
+    },
+    "typescript": {
+      "description": "Documentação TypeScript",
+      "command": "resolve-library-id typescript",
+      "category": "language"
+    },
+    "jwt": {
+      "description": "Documentação JWT/Auth",
+      "command": "resolve-library-id jsonwebtoken",
+      "category": "auth"
+    },
+    "swagger": {
+      "description": "Documentação Swagger/OpenAPI",
+      "command": "resolve-library-id swagger",
+      "category": "documentation"
+    },
+    "playwright": {
+      "description": "Documentação Playwright",
+      "command": "resolve-library-id playwright",
+      "category": "testing"
+    },
+    "handlebars": {
+      "description": "Documentação Handlebars",
+      "command": "resolve-library-id handlebars",
+      "category": "templating"
+    }
+  },
+  "custom_commands": {
+    "docs": {
+      "description": "Buscar documentação rápida",
+      "usage": "docs <library-name>",
+      "example": "docs nestjs"
+    },
+    "quick": {
+      "description": "Buscar documentação com tópico específico",
+      "usage": "quick <library-name> <topic>",
+      "example": "quick nestjs guards"
+    },
+    "check": {
+      "description": "Verificar se biblioteca está disponível",
+      "usage": "check <library-name>",
+      "example": "check prisma"
+    }
+  },
+  "favorites": [
+    "nestjs",
+    "prisma",
+    "react",
+    "typescript",
+    "tailwind"
+  ]
+}

@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff, GraduationCap, Loader2 } from 'lucide-react';
-import { jwtDecode } from 'jwt-decode';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,31 +43,13 @@ export default function Login() {
     try {
       const response = await authAPI.login(data.email, data.password);
       
-      if (response.accessToken) {
-        login(response.accessToken);
-        
-        // Decode token to get user role for role-based routing
-        const decoded: any = jwtDecode(response.accessToken);
-        const userRole = decoded.role;
-        
-        // Role-based redirect
-        let redirectPath = '/dashboard';
-        if (userRole === 'ADMIN') {
-          redirectPath = '/dashboard';
-        } else if (userRole === 'SECRETARIA') {
-          redirectPath = '/dashboard';
-        } else if (userRole === 'PROFESSOR') {
-          redirectPath = '/dashboard';
-        } else if (userRole === 'DIRETOR') {
-          redirectPath = '/dashboard';
-        }
-        
+      if (response.accessToken && response.user) {
+        login(response.accessToken, response.user);
         toast({
           title: 'Login realizado com sucesso',
           description: 'Bem-vindo ao Synexa-SIS!',
         });
-        
-        navigate(redirectPath, { replace: true });
+        navigate(from, { replace: true });
       }
     } catch (error: any) {
       toast({

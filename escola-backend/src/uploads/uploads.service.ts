@@ -254,7 +254,7 @@ export class UploadsService {
         orderBy: { createdAt: 'desc' },
         include: {
           student: {
-            select: { id: true, name: true, email: true },
+            select: { id: true, firstName: true, lastName: true, studentNumber: true },
           },
           teacher: {
             select: { id: true, user: { select: { name: true, email: true } } },
@@ -331,7 +331,7 @@ export class UploadsService {
       where: { id: fileId },
       include: {
         student: {
-          select: { id: true, name: true, email: true },
+          select: { id: true, firstName: true, lastName: true, studentNumber: true },
         },
         teacher: {
           select: { id: true, user: { select: { name: true, email: true } } },

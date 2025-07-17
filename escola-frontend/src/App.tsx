@@ -10,10 +10,24 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Users from "./pages/Users";
+import Students from "./pages/students";
+import Teachers from "./pages/Teachers";
+import Subjects from "./pages/Subjects";
+import Classes from "./pages/Classes";
+import Enrollments from "./pages/Enrollments";
+import Grades from "./pages/Grades";
+import Reports from "./pages/Reports";
+import Documents from "./pages/Documents";
+import Attendance from "./pages/Attendance";
+import Communication from "./pages/Communication";
+import Financial from "./pages/Financial";
+import Library from "./pages/Library";
+import Transport from "./pages/Transport";
+import Events from "./pages/Events";
+import Analytics from "./pages/Analytics";
+import Settings from "./pages/Settings";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
-import Teachers from "./pages/admin/Teachers";
-import Subjects from "./pages/Subjects";
 
 const queryClient = new QueryClient();
 
@@ -30,8 +44,10 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
               
+              {/* Redirect root to login */}
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              
               {/* Protected Routes */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route
                 path="/dashboard"
                 element={
@@ -52,8 +68,16 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              
-              {/* Placeholder routes for future implementation */}
+              <Route
+                path="/students"
+                element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <Students />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/teachers"
                 element={
@@ -67,26 +91,143 @@ const App = () => (
               <Route
                 path="/subjects"
                 element={
-                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA', 'PROFESSOR']}>
+                  <ProtectedRoute>
                     <DashboardLayout>
                       <Subjects />
                     </DashboardLayout>
                   </ProtectedRoute>
                 }
               />
-              <Route path="/classes" element={<ProtectedRoute><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Turmas</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
-              <Route path="/enrollments" element={<ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Matrículas</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
-              <Route path="/grades" element={<ProtectedRoute><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Notas</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
-              <Route path="/reports" element={<ProtectedRoute><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Boletins</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
-              <Route path="/documents" element={<ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Documentos</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
-              <Route path="/attendance" element={<ProtectedRoute><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Presenças</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
-              <Route path="/communication" element={<ProtectedRoute><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Comunicação</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
-              <Route path="/financial" element={<ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Financeiro</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
-              <Route path="/library" element={<ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Biblioteca</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
-              <Route path="/transport" element={<ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Transporte</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
-              <Route path="/events" element={<ProtectedRoute><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Eventos</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
-              <Route path="/analytics" element={<ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Relatórios</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><div className="text-center py-8"><h2 className="text-2xl font-bold">Configurações</h2><p className="text-muted-foreground">Em desenvolvimento</p></div></DashboardLayout></ProtectedRoute>} />
+              <Route
+                path="/classes"
+                element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <Classes />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/enrollments"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}>
+                    <DashboardLayout>
+                      <Enrollments />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/grades"
+                element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <Grades />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <Reports />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/documents"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}>
+                    <DashboardLayout>
+                      <Documents />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/attendance"
+                element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <Attendance />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/communication"
+                element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <Communication />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/financial"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}>
+                    <DashboardLayout>
+                      <Financial />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/library"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}>
+                    <DashboardLayout>
+                      <Library />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/transport"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}>
+                    <DashboardLayout>
+                      <Transport />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/events"
+                element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <Events />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/analytics"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}>
+                    <DashboardLayout>
+                      <Analytics />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                    <DashboardLayout>
+                      <Settings />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
               
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -51,10 +51,11 @@ export function SecretariaDashboard() {
   ]);
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-PT', {
+    return new Intl.NumberFormat('pt-AO', {
       style: 'currency',
-      currency: 'EUR'
-    }).format(value);
+      currency: 'AOA',
+      minimumFractionDigits: 2
+    }).format(value).replace('AOA', 'Kz');
   };
 
   const getPriorityColor = (priority: string) => {
@@ -82,7 +83,7 @@ export function SecretariaDashboard() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Painel da Secretaria</h1>
           <p className="text-muted-foreground mt-2">
-            Gestão acadêmica e administrativa
+            Gestão académica e administrativa
           </p>
         </div>
         <div className="flex gap-3">
@@ -141,7 +142,7 @@ export function SecretariaDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(stats.monthlyRevenue)}</div>
             <p className="text-xs text-warning flex items-center mt-1">
-              {stats.overdueInvoices} faturas em atraso
+              {stats.overdueInvoices} facturas em atraso
             </p>
           </CardContent>
         </Card>

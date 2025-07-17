@@ -76,8 +76,9 @@ export class EnrollmentService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },
@@ -95,8 +96,9 @@ export class EnrollmentService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },
@@ -118,8 +120,9 @@ export class EnrollmentService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },
@@ -151,8 +154,9 @@ export class EnrollmentService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },
@@ -214,8 +218,9 @@ export class EnrollmentService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },
@@ -238,8 +243,9 @@ export class EnrollmentService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },
@@ -258,8 +264,9 @@ export class EnrollmentService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },
@@ -290,8 +297,9 @@ export class EnrollmentService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             birthDate: true,
             createdAt: true,
           },

@@ -100,10 +100,11 @@ export function AdminDashboard() {
   };
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-PT', {
+    return new Intl.NumberFormat('pt-AO', {
       style: 'currency',
-      currency: 'EUR'
-    }).format(value);
+      currency: 'AOA',
+      minimumFractionDigits: 2
+    }).format(value).replace('AOA', 'Kz');
   };
 
   const formatRelativeTime = (date: Date) => {
@@ -121,7 +122,7 @@ export function AdminDashboard() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard Administrativo</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Painel Administrativo</h1>
           <p className="text-muted-foreground mt-2">
             Visão geral da gestão escolar e métricas principais
           </p>
@@ -161,7 +162,7 @@ export function AdminDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalTeachers}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {stats.activeClasses} turmas ativas
+              {stats.activeClasses} turmas activas
             </p>
           </CardContent>
         </Card>
@@ -174,7 +175,7 @@ export function AdminDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(stats.totalRevenue)}</div>
             <p className="text-xs text-warning flex items-center mt-1">
-              {stats.pendingInvoices} faturas pendentes
+              {stats.pendingInvoices} facturas pendentes
             </p>
           </CardContent>
         </Card>

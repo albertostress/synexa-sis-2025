@@ -1,652 +1,367 @@
-import { useEffect, useState, useMemo } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Plus, Search, Edit, Trash2, BookOpen, Clock, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useNavigate } from 'react-router-dom';
-import { 
-  BookOpen, 
-  Users, 
-  Search, 
-  Plus,
-  Pencil,
-  Trash2
-} from 'lucide-react';
-import { api } from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 
 interface Subject {
   id: string;
   name: string;
-  description?: string;
-  createdAt: string;
-  updatedAt: string;
-  teachers: Teacher[];
+  code: string;
+  description: string;
+  credits: number;
+  workload: number;
+  category: 'CORE' | 'ELECTIVE' | 'OPTIONAL';
+  grade: string;
+  active: boolean;
 }
 
-interface Teacher {
-  id: string;
-  userId: string;
-  bio?: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  };
-}
+const mockSubjects: Subject[] = [
+  {
+    id: '1',
+    name: 'Matemática A',
+    code: 'MAT001',
+    description: 'Matemática aplicada para ensino secundário',
+    credits: 6,
+    workload: 120,
+    category: 'CORE',
+    grade: '12º Ano',
+    active: true
+  },
+  {
+    id: '2',
+    name: 'História',
+    code: 'HIS001',
+    description: 'História contemporânea e moderna',
+    credits: 4,
+    workload: 80,
+    category: 'CORE',
+    grade: '11º Ano',
+    active: true
+  }
+];
 
-// Componente KPI Card
-function KpiCard({ title, value, icon: Icon, description, className = "" }) {
-  return (
-    <Card className={className}>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-              {title}
-            </p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-              {value}
-            </p>
-            {description && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {description}
-              </p>
-            )}
-          </div>
-          <div className="flex-shrink-0">
-            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
-              <Icon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Componente PageHeader
-function PageHeader({ title, subtitle, children }) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {title}
-        </h1>
-        {subtitle && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {subtitle}
-          </p>
-        )}
-      </div>
-      {children && (
-        <div className="flex gap-2">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Componente SubjectActions
-function SubjectActions({ subject, onEdit, onDelete }) {
-  const handleEdit = () => {
-    if (onEdit) {
-      onEdit(subject);
-    }
-  };
-
-  const handleDelete = () => {
-    if (onDelete) {
-      onDelete(subject);
-    }
-  };
-
-  return (
-    <div className="flex items-center justify-end space-x-1">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleEdit}
-            className="h-8 w-8 hover:bg-gray-100 dark:hover:bg-gray-800"
-            aria-label={`Editar ${subject.name}`}
-          >
-            <Pencil className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Editar Disciplina</TooltipContent>
-      </Tooltip>
-
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleDelete}
-            className="h-8 w-8 hover:bg-red-100 dark:hover:bg-red-900/20"
-            aria-label={`Remover ${subject.name}`}
-          >
-            <Trash2 className="h-4 w-4 text-red-500" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Remover Disciplina</TooltipContent>
-      </Tooltip>
-    </div>
-  );
-}
-
-export default function SubjectsPage() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export default function Subjects() {
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Modal states
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
-  const [createLoading, setCreateLoading] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  
-  // Delete dialog states
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [subjectToDelete, setSubjectToDelete] = useState<Subject | null>(null);
-  
-  // Form data
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    teacherIds: [] as string[]
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: subjects = mockSubjects, isLoading } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return mockSubjects;
+    }
   });
 
-  useEffect(() => {
-    if (!['ADMIN', 'SECRETARIA', 'PROFESSOR'].includes(user?.role || '')) {
-      navigate('/unauthorized');
-      return;
+  const createMutation = useMutation({
+    mutationFn: async (newSubject: Omit<Subject, 'id'>) => {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return { ...newSubject, id: Date.now().toString() };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subjects'] });
+      setIsDialogOpen(false);
+      setEditingSubject(null);
+      toast({ title: 'Disciplina criada com sucesso!' });
     }
+  });
 
-    loadData();
-  }, [user, navigate]);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      
-      // Load subjects based on role
-      const subjectsEndpoint = user?.role === 'PROFESSOR' ? '/subjects/my-subjects' : '/subjects';
-      const [subjectsResponse, teachersResponse] = await Promise.all([
-        api.get(subjectsEndpoint),
-        api.get('/teachers')
-      ]);
-      
-      setSubjects(subjectsResponse.data);
-      setTeachers(teachersResponse.data);
-    } catch (err: any) {
-      setError('Erro ao carregar dados');
-      console.error('Erro ao carregar dados:', err);
-    } finally {
-      setLoading(false);
+  const updateMutation = useMutation({
+    mutationFn: async (updatedSubject: Subject) => {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return updatedSubject;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subjects'] });
+      setIsDialogOpen(false);
+      setEditingSubject(null);
+      toast({ title: 'Disciplina atualizada com sucesso!' });
     }
-  };
+  });
 
-  // Filtros e estatísticas
-  const filteredSubjects = useMemo(() => {
-    return subjects.filter(subject => 
-      subject.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [subjects, searchTerm]);
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subjects'] });
+      toast({ title: 'Disciplina removida com sucesso!' });
+    }
+  });
 
-  const stats = useMemo(() => {
-    const totalSubjects = subjects.length;
-    const involvedTeachers = new Set(subjects.flatMap(s => s.teachers?.map(t => t.id) || [])).size;
-    
-    return {
-      totalSubjects,
-      involvedTeachers
-    };
-  }, [subjects]);
+  const filteredSubjects = subjects.filter(subject =>
+    subject.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    subject.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    subject.grade.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  // Form handlers
-  const handleCreateSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
-    if (!formData.name.trim()) {
-      setCreateError('Nome da disciplina é obrigatório');
-      return;
-    }
+    const formData = new FormData(e.currentTarget);
+    const subjectData = {
+      name: formData.get('name') as string,
+      code: formData.get('code') as string,
+      description: formData.get('description') as string,
+      credits: parseInt(formData.get('credits') as string),
+      workload: parseInt(formData.get('workload') as string),
+      category: formData.get('category') as 'CORE' | 'ELECTIVE' | 'OPTIONAL',
+      grade: formData.get('grade') as string,
+      active: formData.get('active') === 'true'
+    };
 
-    setCreateLoading(true);
-    setCreateError(null);
-
-    try {
-      const payload = {
-        name: formData.name,
-        description: formData.description || undefined,
-        teacherIds: formData.teacherIds
-      };
-
-      if (editingSubject) {
-        await api.patch(`/subjects/${editingSubject.id}`, payload);
-      } else {
-        await api.post('/subjects', payload);
-      }
-      
-      // Reload data and close dialog
-      await loadData();
-      handleCloseDialog();
-      
-    } catch (err: any) {
-      setCreateError(err.response?.data?.message || 'Erro ao salvar disciplina');
-    } finally {
-      setCreateLoading(false);
+    if (editingSubject) {
+      updateMutation.mutate({ ...editingSubject, ...subjectData });
+    } else {
+      createMutation.mutate(subjectData);
     }
   };
-
-  const handleEditSubject = (subject: Subject) => {
-    setEditingSubject(subject);
-    setFormData({
-      name: subject.name,
-      description: subject.description || '',
-      teacherIds: subject.teachers?.map(t => t.id) || []
-    });
-    setShowCreateDialog(true);
-  };
-
-  const handleDeleteSubject = (subject: Subject) => {
-    setSubjectToDelete(subject);
-    setShowDeleteDialog(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!subjectToDelete) return;
-    
-    try {
-      await api.delete(`/subjects/${subjectToDelete.id}`);
-      
-      // Update local state
-      setSubjects(prev => prev.filter(s => s.id !== subjectToDelete.id));
-      
-      // Close dialog
-      setShowDeleteDialog(false);
-      setSubjectToDelete(null);
-      
-    } catch (error) {
-      console.error('Erro ao remover disciplina:', error);
-    }
-  };
-
-  const handleCloseDialog = () => {
-    setShowCreateDialog(false);
-    setEditingSubject(null);
-    setFormData({
-      name: '',
-      description: '',
-      teacherIds: []
-    });
-    setCreateError(null);
-  };
-
-  const canManageSubjects = ['ADMIN', 'SECRETARIA'].includes(user?.role || '');
-
-  if (loading) {
-    return (
-      <div className="p-6">
-        <PageHeader 
-          title="Gestão de Disciplinas" 
-          subtitle="Gerencie as disciplinas oferecidas na escola"
-        />
-        
-        {/* KPIs Skeleton */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          {[...Array(2)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-6">
-                <Skeleton className="h-4 w-20 mb-2" />
-                <Skeleton className="h-8 w-12 mb-1" />
-                <Skeleton className="h-3 w-24" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Table Skeleton */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <Skeleton className="h-6 w-full" />
-              <Skeleton className="h-6 w-full" />
-              <Skeleton className="h-6 w-full" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <PageHeader 
-          title="Gestão de Disciplinas" 
-          subtitle="Gerencie as disciplinas oferecidas na escola"
-        />
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-red-500 mb-4">{error}</p>
-            <Button 
-              onClick={loadData} 
-              variant="outline"
-            >
-              Tentar Novamente
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <PageHeader 
-        title="Gestão de Disciplinas" 
-        subtitle="Gerencie as disciplinas oferecidas na escola"
-      >
-        {canManageSubjects && (
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button 
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => setEditingSubject(null)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Nova Disciplina
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingSubject ? 'Editar Disciplina' : 'Criar Nova Disciplina'}
-                </DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleCreateSubmit} className="space-y-4">
-                {createError && (
-                  <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-                    {createError}
-                  </div>
-                )}
-                
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome da Disciplina *</Label>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Disciplinas</h1>
+          <p className="text-muted-foreground">Gerir currículo e disciplinas da escola</p>
+        </div>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => setEditingSubject(null)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Adicionar Disciplina
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>
+                {editingSubject ? 'Editar Disciplina' : 'Nova Disciplina'}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="name">Nome da Disciplina</Label>
                   <Input
                     id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Ex: Matemática"
+                    name="name"
+                    defaultValue={editingSubject?.name}
                     required
                   />
                 </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="description">Descrição</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Descrição da disciplina..."
-                    rows={3}
+                <div>
+                  <Label htmlFor="code">Código</Label>
+                  <Input
+                    id="code"
+                    name="code"
+                    defaultValue={editingSubject?.code}
+                    required
                   />
                 </div>
-                
-                <div className="space-y-2">
-                  <Label>Professores Atribuídos</Label>
-                  <Select 
-                    value={""} 
-                    onValueChange={(value) => {
-                      if (value && !formData.teacherIds.includes(value)) {
-                        setFormData(prev => ({ 
-                          ...prev, 
-                          teacherIds: [...prev.teacherIds, value]
-                        }));
-                      }
-                    }}
-                  >
+                <div>
+                  <Label htmlFor="credits">Créditos</Label>
+                  <Input
+                    id="credits"
+                    name="credits"
+                    type="number"
+                    defaultValue={editingSubject?.credits}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="workload">Carga Horária (horas)</Label>
+                  <Input
+                    id="workload"
+                    name="workload"
+                    type="number"
+                    defaultValue={editingSubject?.workload}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="category">Categoria</Label>
+                  <Select name="category" defaultValue={editingSubject?.category || 'CORE'}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecionar professor..." />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {teachers
-                        .filter(teacher => !formData.teacherIds.includes(teacher.id))
-                        .map((teacher) => (
-                          <SelectItem key={teacher.id} value={teacher.id}>
-                            {teacher.user.name}
-                          </SelectItem>
-                        ))}
+                      <SelectItem value="CORE">Obrigatória</SelectItem>
+                      <SelectItem value="ELECTIVE">Eletiva</SelectItem>
+                      <SelectItem value="OPTIONAL">Opcional</SelectItem>
                     </SelectContent>
                   </Select>
-                  
-                  {/* Selected teachers */}
-                  {formData.teacherIds.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {formData.teacherIds.map((teacherId) => {
-                        const teacher = teachers.find(t => t.id === teacherId);
-                        if (!teacher) return null;
-                        
-                        return (
-                          <Badge 
-                            key={teacherId}
-                            variant="secondary"
-                            className="cursor-pointer"
-                            onClick={() => {
-                              setFormData(prev => ({
-                                ...prev,
-                                teacherIds: prev.teacherIds.filter(id => id !== teacherId)
-                              }));
-                            }}
-                          >
-                            {teacher.user.name} ×
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
-                
-                <div className="flex justify-end space-x-2 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCloseDialog}
-                    disabled={createLoading}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={createLoading}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    {createLoading ? 'Salvando...' : (editingSubject ? 'Atualizar' : 'Criar Disciplina')}
-                  </Button>
+                <div>
+                  <Label htmlFor="grade">Ano Letivo</Label>
+                  <Select name="grade" defaultValue={editingSubject?.grade || '10º Ano'}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10º Ano">10º Ano</SelectItem>
+                      <SelectItem value="11º Ano">11º Ano</SelectItem>
+                      <SelectItem value="12º Ano">12º Ano</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
-      </PageHeader>
-
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <KpiCard
-          title="Total de Disciplinas"
-          value={stats.totalSubjects}
-          icon={BookOpen}
-          description="Disciplinas cadastradas"
-        />
-        <KpiCard
-          title="Professores Envolvidos"
-          value={stats.involvedTeachers}
-          icon={Users}
-          description="Professores atribuídos"
-        />
+              </div>
+              <div>
+                <Label htmlFor="description">Descrição</Label>
+                <Textarea
+                  id="description"
+                  name="description"
+                  defaultValue={editingSubject?.description}
+                  rows={3}
+                />
+              </div>
+              <div>
+                <Label htmlFor="active">Status</Label>
+                <Select name="active" defaultValue={editingSubject?.active ? 'true' : 'false'}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Ativa</SelectItem>
+                    <SelectItem value="false">Inativa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                  {editingSubject ? 'Atualizar' : 'Criar'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Filtros */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Buscar disciplinas..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Lista de Disciplinas</span>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  placeholder="Buscar disciplinas..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 w-64"
+                />
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Lista de Disciplinas */}
-      <Card>
-        <CardContent className="p-0">
-          {filteredSubjects.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium mb-2">Nenhuma disciplina encontrada</p>
-              <p className="text-sm">
-                {searchTerm ? 'Tente ajustar os filtros de busca' : 'Nenhuma disciplina cadastrada no sistema'}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50 dark:bg-gray-800">
-                    <TableHead className="font-semibold">Nome da Disciplina</TableHead>
-                    <TableHead className="font-semibold">Descrição</TableHead>
-                    <TableHead className="font-semibold">Professores</TableHead>
-                    {canManageSubjects && (
-                      <TableHead className="font-semibold text-right">Ações</TableHead>
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredSubjects.map((subject) => (
-                    <TableRow key={subject.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <TableCell>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Disciplina</TableHead>
+                <TableHead>Código</TableHead>
+                <TableHead>Ano</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead>Créditos</TableHead>
+                <TableHead>Carga Horária</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                  </TableCell>
+                </TableRow>
+              ) : filteredSubjects.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    Nenhuma disciplina encontrada
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredSubjects.map((subject) => (
+                  <TableRow key={subject.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                          <BookOpen className="w-4 h-4 text-primary" />
+                        </div>
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {subject.name}
-                          </p>
+                          <div className="font-medium">{subject.name}</div>
+                          <div className="text-sm text-muted-foreground">{subject.description}</div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
-                          {subject.description || 'Sem descrição'}
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1 max-w-xs">
-                          {subject.teachers?.slice(0, 3).map((teacher, index) => (
-                            <Badge 
-                              key={index}
-                              variant="secondary" 
-                              className="text-xs"
-                            >
-                              {teacher.user.name}
-                            </Badge>
-                          ))}
-                          {subject.teachers && subject.teachers.length > 3 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{subject.teachers.length - 3}
-                            </Badge>
-                          )}
-                          {(!subject.teachers || subject.teachers.length === 0) && (
-                            <span className="text-xs text-gray-500">Nenhum professor</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      {canManageSubjects && (
-                        <TableCell className="text-right">
-                          <TooltipProvider>
-                            <SubjectActions
-                              subject={subject}
-                              onEdit={handleEditSubject}
-                              onDelete={handleDeleteSubject}
-                            />
-                          </TooltipProvider>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <code className="bg-muted px-2 py-1 rounded text-sm">{subject.code}</code>
+                    </TableCell>
+                    <TableCell>{subject.grade}</TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        subject.category === 'CORE' ? 'default' :
+                        subject.category === 'ELECTIVE' ? 'secondary' : 'outline'
+                      }>
+                        {subject.category === 'CORE' ? 'Obrigatória' :
+                         subject.category === 'ELECTIVE' ? 'Eletiva' : 'Opcional'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{subject.credits}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {subject.workload}h
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={subject.active ? 'default' : 'secondary'}>
+                        {subject.active ? 'Ativa' : 'Inativa'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditingSubject(subject);
+                            setIsDialogOpen(true);
+                          }}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteMutation.mutate(subject.id)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
-
-      {/* Rodapé com informações */}
-      <div className="text-center text-sm text-gray-500">
-        Mostrando {filteredSubjects.length} de {subjects.length} disciplinas
-      </div>
-
-      {/* AlertDialog para confirmação de remoção */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remover Disciplina</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja remover a disciplina{' '}
-              <strong>{subjectToDelete?.name}</strong>?
-              <br />
-              Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowDeleteDialog(false)}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              Remover
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

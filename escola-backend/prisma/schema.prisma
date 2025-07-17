@@ -11,23 +11,46 @@ datasource db {
 }
 
 model Student {
-  id          String         @id @default(uuid())
-  name        String
-  email       String         @unique
-  birthDate   DateTime
-  schoolClass SchoolClass?   @relation("ClassStudents", fields: [classId], references: [id])
-  classId     String?
-  enrollments Enrollment[]
-  grades      Grade[]
-  invoices    Invoice[]
-  parents     Parent[]       @relation("StudentParents")
-  documents   Document[]
-  attendances Attendance[]
-  uploadedFiles UploadedFile[]
-  loans       Loan[]
-  transport   StudentTransport?
+  id              String         @id @default(uuid())
+  firstName       String
+  lastName        String
+  gender          Gender
+  birthDate       DateTime
+  phone           String
+  bloodType       String?
+  studentNumber   String         @unique
+  academicYear    String
+  classId         String
+  profilePhotoUrl String?
+
+  // Guardian information
+  guardianName    String
+  guardianPhone   String
+
+  // Address information
+  municipality    String
+  province        String
+  country         String         @default("Angola")
+  
+  // Parent contact
+  parentEmail     String
+  parentPhone     String
+
+  // Relations
+  schoolClass     SchoolClass    @relation("ClassStudents", fields: [classId], references: [id])
+  enrollments     Enrollment[]
+  grades          Grade[]
+  invoices        Invoice[]
+  parents         Parent[]       @relation("StudentParents")
+  documents       Document[]
+  attendances     Attendance[]
+  uploadedFiles   UploadedFile[]
+  loans           Loan[]
+  transport       StudentTransport?
   eventParticipations EventParticipation[]
-  createdAt   DateTime       @default(now())
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@map("students")
 }
@@ -135,6 +158,11 @@ enum Role {
   PROFESSOR
   DIRETOR
   PARENT
+}
+
+enum Gender {
+  MASCULINO
+  FEMININO
 }
 
 enum Shift {

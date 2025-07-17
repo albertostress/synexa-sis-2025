@@ -69,3 +69,26 @@ build/
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Frontend specific
+escola-frontend/node_modules/
+escola-frontend/dist/
+escola-frontend/.vite/
+escola-frontend/vite-env.d.ts
+
+# Backend specific  
+escola-backend/node_modules/
+escola-backend/dist/
+escola-backend/uploads/
+
+# Docker volumes (se usar volumes nomeados)
+postgres_data/
+uploads_data/
+
+# Arquivos de desenvolvimento local
+.local/
+*.local
+
+# Backup files
+*.bak
+*.backup

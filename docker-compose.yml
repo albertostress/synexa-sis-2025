@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  escola-db:
+    image: postgres:15-alpine
+    container_name: escola-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: escola
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - escola-network
+
+  escola-backend:
+    build: ./escola-backend
+    container_name: escola-backend
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@escola-db:5432/escola
+    ports:
+      - "3000:3000"
+    depends_on:
+      - escola-db
+    volumes:
+      - ./escola-backend:/app
+      - /app/node_modules
+    networks:
+      - escola-network
+    command: npm run start:dev
+
+  escola-frontend:
+    container_name: escola-frontend
+    build:
+      context: ./escola-frontend
+    ports:
+      - '3001:3001'
+    volumes:
+      - ./escola-frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_BASE_URL=http://host.docker.internal:3000
+    networks:
+      - escola-network
+    depends_on:
+      - escola-backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+
+networks:
+  escola-network:
+    driver: bridge

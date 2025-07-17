@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { CreateStudentDto, Student, StudentResponse, StudentsListResponse } from '../types/student';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE_URL = 'http://localhost:3000';
 
 // Create axios instance
 export const api = axios.create({
@@ -75,13 +76,33 @@ export const usersAPI = {
 
 // Students API functions
 export const studentsAPI = {
-  getAll: async () => {
+  getAll: async (): Promise<Student[]> => {
     const response = await api.get('/students');
     return response.data;
   },
   
-  getById: async (id: string) => {
+  getById: async (id: string): Promise<StudentResponse> => {
     const response = await api.get(`/students/${id}`);
+    return response.data;
+  },
+  
+  create: async (studentData: CreateStudentDto): Promise<StudentResponse> => {
+    const response = await api.post('/students', studentData);
+    return response.data;
+  },
+  
+  update: async (id: string, studentData: Partial<CreateStudentDto>): Promise<StudentResponse> => {
+    const response = await api.put(`/students/${id}`, studentData);
+    return response.data;
+  },
+  
+  delete: async (id: string): Promise<void> => {
+    const response = await api.delete(`/students/${id}`);
+    return response.data;
+  },
+  
+  getByClass: async (classId: string): Promise<StudentResponse[]> => {
+    const response = await api.get(`/students/class/${classId}`);
     return response.data;
   }
 };
@@ -146,8 +167,8 @@ export const documentsAPI = {
 
 // Financial API functions
 export const financialAPI = {
-  getInvoices: async () => {
-    const response = await api.get('/financial/invoices');
+  getInvoices: async (filters?: any) => {
+    const response = await api.get('/financial/invoices', { params: filters });
     return response.data;
   },
   
@@ -156,8 +177,73 @@ export const financialAPI = {
     return response.data;
   },
   
+  updateInvoice: async (id: string, invoiceData: any) => {
+    const response = await api.put(`/financial/invoices/${id}`, invoiceData);
+    return response.data;
+  },
+  
+  cancelInvoice: async (id: string, reason: string) => {
+    const response = await api.put(`/financial/invoices/${id}/cancel`, { reason });
+    return response.data;
+  },
+  
+  getPaymentPlans: async () => {
+    const response = await api.get('/financial/payment-plans');
+    return response.data;
+  },
+  
+  createPaymentPlan: async (planData: any) => {
+    const response = await api.post('/financial/payment-plans', planData);
+    return response.data;
+  },
+  
+  generateBatchInvoices: async (planId: string, targetDate: string) => {
+    const response = await api.post('/financial/batch-invoices', { planId, targetDate });
+    return response.data;
+  },
+  
+  recordPayment: async (paymentData: any) => {
+    const response = await api.post('/financial/payments', paymentData);
+    return response.data;
+  },
+  
+  cancelPayment: async (id: string, reason: string) => {
+    const response = await api.put(`/financial/payments/${id}/cancel`, { reason });
+    return response.data;
+  },
+  
+  getPayments: async (filters?: any) => {
+    const response = await api.get('/financial/payments', { params: filters });
+    return response.data;
+  },
+  
+  applyExemption: async (invoiceId: string, exemptionData: any) => {
+    const response = await api.post(`/financial/invoices/${invoiceId}/exemption`, exemptionData);
+    return response.data;
+  },
+  
+  applyDiscount: async (invoiceId: string, discountData: any) => {
+    const response = await api.post(`/financial/invoices/${invoiceId}/discount`, discountData);
+    return response.data;
+  },
+  
+  getFinancialReports: async (reportType: string, filters?: any) => {
+    const response = await api.get(`/financial/reports/${reportType}`, { params: filters });
+    return response.data;
+  },
+  
   getStats: async () => {
     const response = await api.get('/financial/stats');
+    return response.data;
+  },
+  
+  generateReceipt: async (paymentId: string) => {
+    const response = await api.get(`/financial/payments/${paymentId}/receipt`);
+    return response.data;
+  },
+  
+  getDefaulters: async () => {
+    const response = await api.get('/financial/defaulters');
     return response.data;
   }
 };

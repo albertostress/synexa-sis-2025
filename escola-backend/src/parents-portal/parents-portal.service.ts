@@ -26,7 +26,12 @@ export class ParentsPortalService {
       where: { id: parentId },
       include: {
         students: {
-          include: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
+            birthDate: true,
             schoolClass: true,
           },
         },
@@ -44,8 +49,8 @@ export class ParentsPortalService {
       phone: parent.phone || undefined,
       students: parent.students.map((student) => ({
         id: student.id,
-        name: student.name,
-        email: student.email,
+        name: `${student.firstName} ${student.lastName}`,
+        email: student.parentEmail,
         birthDate: student.birthDate.toISOString().split('T')[0] || '',
         schoolClass: student.schoolClass
           ? {
@@ -110,8 +115,8 @@ export class ParentsPortalService {
     return {
       student: {
         id: student.id,
-        name: student.name,
-        email: student.email,
+        name: `${student.firstName} ${student.lastName}`,
+        email: student.parentEmail,
         birthDate: student.birthDate.toISOString().split('T')[0] || '',
         schoolClass: student.schoolClass
           ? {
@@ -198,8 +203,8 @@ export class ParentsPortalService {
     return {
       student: {
         id: student.id,
-        name: student.name,
-        email: student.email,
+        name: `${student.firstName} ${student.lastName}`,
+        email: student.parentEmail,
         birthDate: student.birthDate.toISOString().split('T')[0] || '',
         schoolClass: student.schoolClass
           ? {

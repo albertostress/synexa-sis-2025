@@ -107,8 +107,9 @@ export class TransportService {
               student: {
                 select: {
                   id: true,
-                  name: true,
-                  email: true,
+                  firstName: true,
+                  lastName: true,
+                  parentEmail: true,
                   schoolClass: {
                     select: {
                       id: true,
@@ -147,8 +148,9 @@ export class TransportService {
             student: {
               select: {
                 id: true,
-                name: true,
-                email: true,
+                firstName: true,
+                lastName: true,
+                parentEmail: true,
                 schoolClass: {
                   select: {
                     id: true,
@@ -224,8 +226,9 @@ export class TransportService {
             student: {
               select: {
                 id: true,
-                name: true,
-                email: true,
+                firstName: true,
+                lastName: true,
+                parentEmail: true,
                 schoolClass: {
                   select: {
                     id: true,
@@ -291,13 +294,13 @@ export class TransportService {
       where: { studentId: { in: studentIds } },
       include: {
         route: { select: { name: true } },
-        student: { select: { name: true } },
+        student: { select: { firstName: true, lastName: true } },
       },
     });
 
     if (existingTransports.length > 0) {
       const conflictMessages = existingTransports.map(
-        t => `${t.student.name} já está atribuído à rota "${t.route.name}"`
+        t => `${t.student.firstName} ${t.student.lastName} já está atribuído à rota "${t.route.name}"`
       );
       throw new ConflictException(
         `Conflitos encontrados: ${conflictMessages.join(', ')}`
@@ -318,8 +321,9 @@ export class TransportService {
             student: {
               select: {
                 id: true,
-                name: true,
-                email: true,
+                firstName: true,
+                lastName: true,
+                parentEmail: true,
                 schoolClass: {
                   select: {
                     id: true,
@@ -354,8 +358,9 @@ export class TransportService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             schoolClass: {
               select: {
                 id: true,
@@ -417,8 +422,9 @@ export class TransportService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
             schoolClass: {
               select: {
                 id: true,
@@ -513,8 +519,9 @@ export class TransportService {
           student: {
             select: {
               id: true,
-              name: true,
-              email: true,
+              firstName: true,
+              lastName: true,
+              parentEmail: true,
               schoolClass: {
                 select: {
                   id: true,
@@ -537,7 +544,7 @@ export class TransportService {
         },
         orderBy: {
           student: {
-            name: 'asc',
+            firstName: 'asc',
           },
         },
       }),

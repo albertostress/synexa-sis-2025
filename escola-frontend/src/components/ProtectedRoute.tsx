@@ -1,5 +1,6 @@
+
 import { ReactNode } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 
 interface ProtectedRouteProps {
@@ -14,7 +15,6 @@ export function ProtectedRoute({
   requireAuth = true 
 }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth();
-  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -25,8 +25,8 @@ export function ProtectedRoute({
   }
 
   if (requireAuth && !user) {
-    // Redirect to login page with return url
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    // Redirect to login page
+    return <Navigate to="/login" replace />;
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {

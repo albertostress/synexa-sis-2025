@@ -62,6 +62,24 @@ export class StudentBasicInfo {
     example: 'joao.santos@email.com',
   })
   email: string;
+
+  @ApiProperty({
+    description: 'Primeiro nome do aluno',
+    example: 'João',
+  })
+  firstName: string;
+
+  @ApiProperty({
+    description: 'Último nome do aluno', 
+    example: 'Silva Santos',
+  })
+  lastName: string;
+
+  @ApiProperty({
+    description: 'Email dos pais',
+    example: 'pais.joao@email.com',
+  })
+  parentEmail: string;
 }
 
 export class InvoiceEntity {

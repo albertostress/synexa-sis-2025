@@ -71,7 +71,7 @@ export class DocumentsService {
 
     const certificateData: CertificateData = {
       documentType: 'CERTIFICADO_CONCLUSAO',
-      studentName: student.name,
+      studentName: `${student.firstName} ${student.lastName}`,
       birthDate: student.birthDate.toISOString().split('T')[0] || '',
       className: enrollment.class.name,
       shift: shiftTranslation[enrollment.class.shift] || enrollment.class.shift,
@@ -124,7 +124,7 @@ export class DocumentsService {
 
     const declarationData: DeclarationData = {
       documentType: 'DECLARACAO_MATRICULA',
-      studentName: student.name,
+      studentName: `${student.firstName} ${student.lastName}`,
       birthDate: student.birthDate.toISOString().split('T')[0] || '',
       className: enrollment.class.name,
       shift: shiftTranslation[enrollment.class.shift] || enrollment.class.shift,
@@ -245,7 +245,7 @@ export class DocumentsService {
 
     const transcriptData: TranscriptData = {
       documentType: 'HISTORICO_ESCOLAR',
-      studentName: student.name,
+      studentName: `${student.firstName} ${student.lastName}`,
       birthDate: student.birthDate.toISOString().split('T')[0] || '',
       rg: '12.345.678-9', // Placeholder - adicionar campo no modelo Student se necessário
       cpf: '123.456.789-00', // Placeholder - adicionar campo no modelo Student se necessário

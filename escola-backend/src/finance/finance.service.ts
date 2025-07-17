@@ -22,6 +22,7 @@ export class FinanceService {
     // Verificar se o aluno existe
     const student = await this.prisma.student.findUnique({
       where: { id: createInvoiceDto.studentId },
+      select: { id: true, firstName: true, lastName: true, parentEmail: true },
     });
 
     if (!student) {
@@ -39,7 +40,7 @@ export class FinanceService {
 
     if (existingInvoice) {
       throw new BadRequestException(
-        `Já existe uma fatura para ${student.name} no mês ${createInvoiceDto.month}/${createInvoiceDto.year}`
+        `Já existe uma fatura para ${student.firstName} ${student.lastName} no mês ${createInvoiceDto.month}/${createInvoiceDto.year}`
       );
     }
 
@@ -57,8 +58,9 @@ export class FinanceService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
           },
         },
         payments: true,
@@ -115,8 +117,9 @@ export class FinanceService {
           student: {
             select: {
               id: true,
-              name: true,
-              email: true,
+              firstName: true,
+              lastName: true,
+              parentEmail: true,
             },
           },
           payments: true,
@@ -151,8 +154,9 @@ export class FinanceService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
           },
         },
         payments: true,
@@ -184,8 +188,9 @@ export class FinanceService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
           },
         },
       },
@@ -242,8 +247,9 @@ export class FinanceService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
           },
         },
         payments: true,
@@ -259,8 +265,9 @@ export class FinanceService {
       where: { id: studentId },
       select: {
         id: true,
-        name: true,
-        email: true,
+        firstName: true,
+        lastName: true,
+        parentEmail: true,
       },
     });
 
@@ -275,8 +282,9 @@ export class FinanceService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
           },
         },
         payments: true,
@@ -305,7 +313,11 @@ export class FinanceService {
     summary.totalPending = summary.totalAmount - summary.totalPaid;
 
     return {
-      student,
+      student: {
+        ...student,
+        name: `${student.firstName} ${student.lastName}`,
+        email: student.parentEmail,
+      },
       invoices: mappedInvoices,
       summary,
     };
@@ -334,8 +346,9 @@ export class FinanceService {
         student: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
           },
         },
         payments: true,
@@ -399,8 +412,11 @@ export class FinanceService {
       year: invoice.year,
       student: {
         id: invoice.student.id,
-        name: invoice.student.name,
-        email: invoice.student.email,
+        name: `${invoice.student.firstName} ${invoice.student.lastName}`,
+        email: invoice.student.parentEmail,
+        firstName: invoice.student.firstName,
+        lastName: invoice.student.lastName,
+        parentEmail: invoice.student.parentEmail,
       },
       payments: invoice.payments.map((payment: any) => ({
         id: payment.id,

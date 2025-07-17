@@ -131,7 +131,7 @@ export class LibraryService {
           where: { status: LoanStatus.ACTIVE },
           include: {
             student: {
-              select: { id: true, name: true, email: true },
+              select: { id: true, firstName: true, lastName: true, parentEmail: true },
             },
             teacher: {
               select: { id: true, user: { select: { name: true, email: true } } },
@@ -283,7 +283,7 @@ export class LibraryService {
           select: { id: true, title: true, author: true, isbn: true },
         },
         student: {
-          select: { id: true, name: true },
+          select: { id: true, firstName: true, lastName: true },
         },
         teacher: {
           select: { id: true, user: { select: { name: true } } },
@@ -319,7 +319,7 @@ export class LibraryService {
     if (loan.student) {
       borrower = {
         id: loan.student.id,
-        name: loan.student.name,
+        name: `${loan.student.firstName} ${loan.student.lastName}`,
         type: 'student' as const,
       };
     } else if (loan.teacher) {
@@ -409,7 +409,7 @@ export class LibraryService {
             select: { id: true, title: true, author: true, isbn: true },
           },
           student: {
-            select: { id: true, name: true, email: true },
+            select: { id: true, firstName: true, lastName: true, parentEmail: true },
           },
           teacher: {
             select: { id: true, user: { select: { name: true, email: true } } },
@@ -441,8 +441,8 @@ export class LibraryService {
         daysOverdue,
         borrower: loan.student ? {
           id: loan.student.id,
-          name: loan.student.name,
-          email: loan.student.email,
+          name: `${loan.student.firstName} ${loan.student.lastName}`,
+          email: loan.student.parentEmail,
           type: 'student',
         } : loan.teacher ? {
           id: loan.teacher.id,
