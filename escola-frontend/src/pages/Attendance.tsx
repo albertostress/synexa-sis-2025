@@ -48,7 +48,7 @@ import {
   MarkAttendanceDto
 } from '@/types/attendance';
 
-export default function AttendanceAngolan() {
+export default function Attendance() {
   const { user, hasRole } = useAuth();
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
@@ -717,7 +717,7 @@ export default function AttendanceAngolan() {
                 <li>• <span className="text-green-600 font-medium">≥ 90%:</span> Excelente</li>
                 <li>• <span className="text-green-600 font-medium">75-89%:</span> Adequada</li>
                 <li>• <span className="text-yellow-600 font-medium">60-74%:</span> Em Risco</li>
-                <li>• <span className="text-red-600 font-medium">< 60%:</span> Insuficiente</li>
+                <li>• <span className="text-red-600 font-medium">&lt; 60%:</span> Insuficiente</li>
               </ul>
             </div>
           </div>
