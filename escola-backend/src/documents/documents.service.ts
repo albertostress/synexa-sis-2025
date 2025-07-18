@@ -14,6 +14,8 @@ import { PdfService } from './pdf/pdf.service';
 import { CertificateData, CertificateSubject } from './templates/certificate.template';
 import { DeclarationData } from './templates/declaration.template';
 import { TranscriptData, TranscriptYear, TranscriptSubject } from './templates/transcript.template';
+import { ReportCardData, getReportCardTemplate } from './templates/report-card.template';
+import { ReportCard } from '../report-cards/entities/report-card.entity';
 
 @Injectable()
 export class DocumentsService {
@@ -310,6 +312,32 @@ export class DocumentsService {
   }> {
     const data = await this.generateTranscript(studentId, startYear, endYear);
     const pdf = await this.pdfService.generateTranscriptPdf(data);
+    return { data, pdf };
+  }
+
+  // ============= MÉTODO PARA BOLETIM ESCOLAR ANGOLANO =============
+
+  async generateReportCardPdf(reportCard: ReportCard): Promise<Buffer> {
+    const html = getReportCardTemplate(reportCard as ReportCardData);
+    return this.pdfService.generatePdfFromHtml(html, {
+      format: 'A4',
+      margin: {
+        top: '15mm',
+        right: '15mm',
+        bottom: '15mm',
+        left: '15mm',
+      },
+      displayHeaderFooter: false,
+      printBackground: true,
+    });
+  }
+
+  async generateReportCardWithPdf(studentId: string, year: number, term?: number): Promise<{
+    data: ReportCard;
+    pdf: Buffer;
+  }> {
+    const data = await this.reportCardsService.generateReportCard(studentId, year, term);
+    const pdf = await this.generateReportCardPdf(data);
     return { data, pdf };
   }
 }

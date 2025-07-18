@@ -421,84 +421,179 @@ export const documentsAPI = {
 
 // Financial API functions
 export const financialAPI = {
-  getInvoices: async (filters?: any) => {
-    const response = await api.get('/financial/invoices', { params: filters });
+  // ============= FATURAS =============
+  getInvoices: async (filters?: {
+    studentId?: string;
+    status?: string;
+    month?: number;
+    year?: number;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const response = await api.get('/finance/invoices', { params: filters });
     return response.data;
   },
   
-  createInvoice: async (invoiceData: any) => {
-    const response = await api.post('/financial/invoices', invoiceData);
+  getInvoiceById: async (id: string) => {
+    const response = await api.get(`/finance/invoice/${id}`);
     return response.data;
   },
   
-  updateInvoice: async (id: string, invoiceData: any) => {
-    const response = await api.put(`/financial/invoices/${id}`, invoiceData);
+  createInvoice: async (invoiceData: {
+    studentId: string;
+    amount: number;
+    dueDate: string;
+    description: string;
+    month: number;
+    year: number;
+  }) => {
+    const response = await api.post('/finance/invoice', invoiceData);
     return response.data;
   },
   
-  cancelInvoice: async (id: string, reason: string) => {
-    const response = await api.put(`/financial/invoices/${id}/cancel`, { reason });
+  cancelInvoice: async (id: string) => {
+    const response = await api.post(`/finance/invoice/${id}/cancel`);
     return response.data;
   },
   
-  getPaymentPlans: async () => {
-    const response = await api.get('/financial/payment-plans');
+  deleteInvoice: async (id: string) => {
+    const response = await api.delete(`/finance/invoice/${id}`);
     return response.data;
   },
   
-  createPaymentPlan: async (planData: any) => {
-    const response = await api.post('/financial/payment-plans', planData);
+  // ============= PAGAMENTOS =============
+  payInvoice: async (id: string, paymentData: {
+    amount: number;
+    method: string;
+    reference?: string;
+  }) => {
+    const response = await api.post(`/finance/invoice/${id}/pay`, paymentData);
     return response.data;
   },
   
-  generateBatchInvoices: async (planId: string, targetDate: string) => {
-    const response = await api.post('/financial/batch-invoices', { planId, targetDate });
+  // ============= HISTÓRICO FINANCEIRO =============
+  getStudentHistory: async (studentId: string) => {
+    const response = await api.get(`/finance/student/${studentId}/history`);
     return response.data;
   },
   
-  recordPayment: async (paymentData: any) => {
-    const response = await api.post('/financial/payments', paymentData);
+  // ============= PDF GENERATION =============
+  generateInvoicePdf: async (invoiceId: string): Promise<Blob> => {
+    const response = await api.get(`/finance/invoice/${invoiceId}/pdf`, {
+      responseType: 'blob'
+    });
     return response.data;
   },
   
-  cancelPayment: async (id: string, reason: string) => {
-    const response = await api.put(`/financial/payments/${id}/cancel`, { reason });
-    return response.data;
+  // ============= FUNÇÕES AUXILIARES =============
+  
+  // Formatar moeda angolana
+  formatCurrency: (amount: number): string => {
+    return new Intl.NumberFormat('pt-AO', {
+      style: 'currency',
+      currency: 'AOA',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
   },
   
-  getPayments: async (filters?: any) => {
-    const response = await api.get('/financial/payments', { params: filters });
-    return response.data;
+  // Calcular status da fatura
+  calculateInvoiceStatus: (invoice: any): string => {
+    if (invoice.status === 'CANCELADA') return 'CANCELADA';
+    if (invoice.paidAmount >= invoice.amount) return 'PAGA';
+    if (invoice.paidAmount > 0 && invoice.paidAmount < invoice.amount) return 'PARCIAL';
+    if (new Date(invoice.dueDate) < new Date() && invoice.paidAmount === 0) return 'VENCIDA';
+    return 'PENDENTE';
   },
   
-  applyExemption: async (invoiceId: string, exemptionData: any) => {
-    const response = await api.post(`/financial/invoices/${invoiceId}/exemption`, exemptionData);
-    return response.data;
+  // Calcular idade da dívida em dias
+  calculateDebtAge: (dueDate: string): number => {
+    const due = new Date(dueDate);
+    const today = new Date();
+    const diffTime = Math.abs(today.getTime() - due.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   },
   
-  applyDiscount: async (invoiceId: string, discountData: any) => {
-    const response = await api.post(`/financial/invoices/${invoiceId}/discount`, discountData);
-    return response.data;
+  // Verificar se fatura está vencida
+  isOverdue: (dueDate: string): boolean => {
+    return new Date(dueDate) < new Date();
   },
   
-  getFinancialReports: async (reportType: string, filters?: any) => {
-    const response = await api.get(`/financial/reports/${reportType}`, { params: filters });
-    return response.data;
+  // Formatar número da fatura
+  formatInvoiceNumber: (id: string, month: number, year: number): string => {
+    const monthStr = month.toString().padStart(2, '0');
+    const shortId = id.substring(0, 8).toUpperCase();
+    return `FAT-${year}${monthStr}-${shortId}`;
   },
   
-  getStats: async () => {
-    const response = await api.get('/financial/stats');
-    return response.data;
+  // Gerar referência Multicaixa mock
+  generateMulticaixaReference: (invoiceId: string, amount: number): string => {
+    // Simular geração de referência Multicaixa
+    const entity = '00324'; // Entidade bancária
+    const reference = Math.floor(Math.random() * 999999999).toString().padStart(9, '0');
+    return `${entity} ${reference}`;
   },
   
-  generateReceipt: async (paymentId: string) => {
-    const response = await api.get(`/financial/payments/${paymentId}/receipt`);
-    return response.data;
+  // Validar IBAN angolano
+  validateAngolanIBAN: (iban: string): boolean => {
+    // IBAN angolano: AO06 seguido de 21 dígitos
+    const angolanIBANRegex = /^AO06\d{21}$/;
+    return angolanIBANRegex.test(iban.replace(/\s/g, ''));
   },
   
-  getDefaulters: async () => {
-    const response = await api.get('/financial/defaulters');
-    return response.data;
+  // Obter métodos de pagamento populares em Angola
+  getPaymentMethods: () => [
+    { value: 'DINHEIRO', label: 'Dinheiro', icon: '💵' },
+    { value: 'TRANSFERENCIA', label: 'Transferência Bancária', icon: '🏦' },
+    { value: 'MULTICAIXA', label: 'Multicaixa', icon: '💳' },
+    { value: 'EXPRESS', label: 'Multicaixa Express', icon: '📱' },
+    { value: 'PAYWAY', label: 'PayWay', icon: '💰' },
+    { value: 'CARTAO', label: 'Cartão', icon: '💳' },
+    { value: 'CHEQUE', label: 'Cheque', icon: '📝' },
+  ],
+  
+  // Helper para fazer download de PDF
+  downloadInvoicePdf: async (invoiceId: string, filename: string) => {
+    try {
+      const blob = await financialAPI.generateInvoicePdf(invoiceId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || `fatura_${invoiceId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Erro ao baixar PDF:', error);
+      throw error;
+    }
+  },
+  
+  // Verificar permissões
+  canManageFinance: (userRole: string): boolean => {
+    return ['ADMIN', 'SECRETARIA'].includes(userRole);
+  },
+  
+  canViewFinance: (userRole: string): boolean => {
+    return ['ADMIN', 'SECRETARIA', 'DIRETOR'].includes(userRole);
+  },
+  
+  // Constantes para Angola
+  constants: {
+    currency: {
+      code: 'AOA',
+      symbol: 'Kz',
+      locale: 'pt-AO',
+    },
+    academicPeriod: {
+      startMonth: 2,  // Fevereiro
+      endMonth: 11,   // Novembro
+    },
+    gracePeriodDays: 5,
+    latePaymentFee: 0.02, // 2% ao mês
   }
 };
 

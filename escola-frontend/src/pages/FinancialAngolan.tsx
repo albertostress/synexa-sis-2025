@@ -79,7 +79,7 @@ const paymentSchema = z.object({
 type InvoiceFormData = z.infer<typeof invoiceSchema>;
 type PaymentFormData = z.infer<typeof paymentSchema>;
 
-export default function Financial() {
+export default function FinancialAngolan() {
   const { user, hasRole } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -583,14 +583,14 @@ export default function Financial() {
 
             {/* Filtro de Mês */}
             <Select 
-              value={monthFilter?.toString() || 'all'} 
-              onValueChange={(value) => setMonthFilter(value === 'all' ? undefined : parseInt(value))}
+              value={monthFilter?.toString() || ''} 
+              onValueChange={(value) => setMonthFilter(value ? parseInt(value) : undefined)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Mês" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os Meses</SelectItem>
+                <SelectItem value="">Todos os Meses</SelectItem>
                 {MONTHS_PT.map((month, index) => (
                   <SelectItem key={index + 1} value={(index + 1).toString()}>
                     {month}

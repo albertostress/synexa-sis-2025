@@ -6,9 +6,10 @@ import { Module } from '@nestjs/common';
 import { ReportCardsService } from './report-cards.service';
 import { ReportCardsController } from './report-cards.controller';
 import { PrismaModule } from '../prisma/prisma.module';
+import { DocumentsModule } from '../documents/documents.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, DocumentsModule],
   controllers: [ReportCardsController],
   providers: [ReportCardsService],
   exports: [ReportCardsService],

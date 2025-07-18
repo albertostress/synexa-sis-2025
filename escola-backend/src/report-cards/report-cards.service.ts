@@ -1,5 +1,5 @@
 /**
- * Report Cards Service - Geração de boletins escolares
+ * Report Cards Service - Geração de boletins escolares (Sistema Angolano)
  * Referência: context7 mcp - NestJS Services Pattern
  */
 import { 
@@ -7,18 +7,19 @@ import {
   NotFoundException, 
   BadRequestException 
 } from '@nestjs/common';
+import { GradeType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { ReportCard, SubjectGrade, StudentInfo, ClassInfo } from './entities/report-card.entity';
+import { ReportCard, SubjectGrade, StudentInfo, ClassInfo, AngolanGradeDetail } from './entities/report-card.entity';
 
 @Injectable()
 export class ReportCardsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async generateReportCard(studentId: string, year: number): Promise<ReportCard> {
+  async generateReportCard(studentId: string, year: number, term?: number): Promise<ReportCard> {
     // Verificar se o aluno existe
     const student = await this.prisma.student.findUnique({
       where: { id: studentId },
-      select: { id: true, firstName: true, lastName: true, parentEmail: true, birthDate: true },
+      select: { id: true, firstName: true, lastName: true, parentEmail: true, studentNumber: true, birthDate: true },
     });
 
     if (!student) {
@@ -41,12 +42,19 @@ export class ReportCardsService {
       throw new BadRequestException(`Aluno não possui matrícula ativa no ano ${year}`);
     }
 
-    // Buscar todas as notas do aluno no ano especificado
+    // Definir filtro de notas baseado no trimestre
+    const gradeFilter: any = {
+      studentId,
+      year,
+    };
+
+    if (term) {
+      gradeFilter.term = term;
+    }
+
+    // Buscar todas as notas do aluno no ano/trimestre especificado
     const grades = await this.prisma.grade.findMany({
-      where: {
-        studentId,
-        year,
-      },
+      where: gradeFilter,
       include: {
         subject: true,
         teacher: {
@@ -60,22 +68,41 @@ export class ReportCardsService {
           },
         },
       },
-      orderBy: {
-        subject: {
-          name: 'asc',
-        },
-      },
+      orderBy: [
+        { subject: { name: 'asc' } },
+        { term: 'asc' },
+        { type: 'asc' },
+      ],
     });
 
     if (grades.length === 0) {
-      throw new BadRequestException(`Nenhuma nota encontrada para o aluno no ano ${year}`);
+      const periodText = term ? `no ${term}º trimestre do ano ${year}` : `no ano ${year}`;
+      throw new BadRequestException(`Nenhuma nota encontrada para o aluno ${periodText}`);
     }
+
+    // Buscar presenças para calcular frequência
+    const attendanceFilter: any = {
+      studentId,
+      date: {
+        gte: new Date(`${year}-01-01`),
+        lte: new Date(`${year}-12-31`),
+      },
+    };
+
+    const attendances = await this.prisma.attendance.findMany({
+      where: attendanceFilter,
+    });
+
+    const totalClasses = attendances.length;
+    const presentClasses = attendances.filter(a => a.present).length;
+    const attendancePercentage = totalClasses > 0 ? (presentClasses / totalClasses) * 100 : 100;
 
     // Montar informações do aluno
     const studentInfo: StudentInfo = {
       id: student.id,
       name: `${student.firstName} ${student.lastName}`,
-      email: student.parentEmail,
+      parentEmail: student.parentEmail,
+      studentNumber: student.studentNumber,
       birthDate: student.birthDate,
     };
 
@@ -87,26 +114,74 @@ export class ReportCardsService {
       capacity: enrollment.class.capacity,
     };
 
-    // Montar notas por disciplina
-    const subjects: SubjectGrade[] = grades.map(grade => ({
-      subjectId: grade.subject.id,
-      subjectName: grade.subject.name,
-      subjectDescription: grade.subject.description || undefined,
-      grade: grade.value,
-      teacherName: grade.teacher.user.name,
-      teacherEmail: grade.teacher.user.email,
-    }));
+    // Agrupar notas por disciplina
+    const subjectMap = new Map<string, {
+      subject: any;
+      teacher: any;
+      grades: AngolanGradeDetail[];
+      absences: number;
+    }>();
 
-    // Calcular média geral
-    const totalGrades = grades.reduce((sum, grade) => sum + grade.value, 0);
-    const averageGrade = Math.round((totalGrades / grades.length) * 100) / 100; // Arredondar para 2 casas decimais
+    for (const grade of grades) {
+      const key = grade.subject.id;
+      
+      if (!subjectMap.has(key)) {
+        subjectMap.set(key, {
+          subject: grade.subject,
+          teacher: grade.teacher,
+          grades: [],
+          absences: 0,
+        });
+      }
 
-    // Determinar status de aprovação
+      const subjectData = subjectMap.get(key)!;
+      
+      if (grade.type === GradeType.FAL) {
+        subjectData.absences = grade.value;
+      } else {
+        subjectData.grades.push({
+          type: grade.type,
+          value: grade.value,
+          term: grade.term,
+        });
+      }
+    }
+
+    // Montar notas por disciplina no formato angolano
+    const subjects: SubjectGrade[] = Array.from(subjectMap.values()).map(data => {
+      // Calcular média da disciplina (apenas notas MT)
+      const mtGrades = data.grades.filter(g => g.type === GradeType.MT);
+      const averageGrade = mtGrades.length > 0 
+        ? mtGrades.reduce((sum, g) => sum + g.value, 0) / mtGrades.length
+        : undefined;
+
+      return {
+        subjectId: data.subject.id,
+        subjectName: data.subject.name,
+        subjectDescription: data.subject.description || undefined,
+        grades: data.grades,
+        averageGrade: averageGrade ? Math.round(averageGrade * 100) / 100 : undefined,
+        absences: data.absences,
+        teacherName: data.teacher.user.name,
+        teacherEmail: data.teacher.user.email,
+      };
+    });
+
+    // Calcular média geral (baseada nas médias trimestrais)
+    const subjectAverages = subjects
+      .map(s => s.averageGrade)
+      .filter((avg): avg is number => avg !== undefined);
+    
+    const averageGrade = subjectAverages.length > 0
+      ? Math.round((subjectAverages.reduce((sum, avg) => sum + avg, 0) / subjectAverages.length) * 100) / 100
+      : 0;
+
+    // Determinar status de aprovação (Sistema Angolano 0-20)
     let status: 'APROVADO' | 'REPROVADO' | 'EM_RECUPERACAO';
     
-    if (averageGrade >= 7.0) {
+    if (averageGrade >= 10.0) {
       status = 'APROVADO';
-    } else if (averageGrade >= 5.0) {
+    } else if (averageGrade >= 8.0) {
       status = 'EM_RECUPERACAO';
     } else {
       status = 'REPROVADO';
@@ -117,9 +192,16 @@ export class ReportCardsService {
       student: studentInfo,
       class: classInfo,
       year,
+      term,
       subjects,
       averageGrade,
+      attendancePercentage: Math.round(attendancePercentage * 100) / 100,
       status,
+      school: {
+        name: 'Complexo Escolar Privado Casa Inglesa',
+        province: 'Luanda',
+        municipality: 'Belas',
+      },
       generatedAt: new Date(),
     };
 
@@ -145,7 +227,7 @@ export class ReportCardsService {
       },
       include: {
         student: {
-          select: { id: true, firstName: true, lastName: true, parentEmail: true, birthDate: true },
+          select: { id: true, firstName: true, lastName: true, parentEmail: true, studentNumber: true, birthDate: true },
         },
       },
       orderBy: {
@@ -158,19 +240,20 @@ export class ReportCardsService {
     return enrollments.map(enrollment => ({
       id: enrollment.student.id,
       name: `${enrollment.student.firstName} ${enrollment.student.lastName}`,
-      email: enrollment.student.parentEmail,
+      parentEmail: enrollment.student.parentEmail,
+      studentNumber: enrollment.student.studentNumber,
       birthDate: enrollment.student.birthDate,
     }));
   }
 
-  async generateClassReportCards(classId: string, year: number): Promise<ReportCard[]> {
+  async generateClassReportCards(classId: string, year: number, term?: number): Promise<ReportCard[]> {
     const students = await this.getStudentsByClass(classId, year);
     
     const reportCards: ReportCard[] = [];
     
     for (const student of students) {
       try {
-        const reportCard = await this.generateReportCard(student.id, year);
+        const reportCard = await this.generateReportCard(student.id, year, term);
         reportCards.push(reportCard);
       } catch (error) {
         // Se um aluno não tem notas, pular e continuar com os outros

@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  escola-db:
+    image: postgres:15-alpine
+    container_name: escola-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: escola
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - escola-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  escola-backend:
+    build: 
+      context: ./escola-backend
+      dockerfile: Dockerfile
+    container_name: escola-backend
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@escola-db:5432/escola
+      - NODE_ENV=development
+    ports:
+      - "3000:3000"
+    depends_on:
+      escola-db:
+        condition: service_healthy
+    volumes:
+      - ./escola-backend:/app
+      - /app/node_modules
+      - /app/dist
+    networks:
+      - escola-network
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:dev"
+    restart: unless-stopped
+
+  escola-frontend:
+    container_name: escola-frontend
+    build:
+      context: ./escola-frontend
+      dockerfile: Dockerfile
+    ports:
+      - '3001:3001'
+    volumes:
+      - ./escola-frontend:/app
+      - /app/node_modules
+      - /app/.vite
+    environment:
+      - VITE_API_BASE_URL=http://localhost:3000
+      - CHOKIDAR_USEPOLLING=true
+    networks:
+      - escola-network
+    depends_on:
+      - escola-backend
+    command: npm run dev -- --host 0.0.0.0 --port 3001
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+
+networks:
+  escola-network:
+    driver: bridge

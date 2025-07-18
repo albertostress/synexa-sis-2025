@@ -1,8 +1,30 @@
 /**
- * Report Card Entity - Entidade Boletim Escolar
+ * Report Card Entity - Entidade Boletim Escolar (Sistema Angolano)
  * Referência: context7 mcp - Entity Pattern
  */
 import { ApiProperty } from '@nestjs/swagger';
+import { GradeType } from '@prisma/client';
+
+export class AngolanGradeDetail {
+  @ApiProperty({
+    description: 'Tipo de avaliação',
+    enum: GradeType,
+    example: GradeType.MAC,
+  })
+  type: GradeType;
+
+  @ApiProperty({
+    description: 'Valor da nota (0-20)',
+    example: 16.5,
+  })
+  value: number;
+
+  @ApiProperty({
+    description: 'Trimestre (1, 2, 3)',
+    example: 1,
+  })
+  term: number;
+}
 
 export class SubjectGrade {
   @ApiProperty({
@@ -25,10 +47,23 @@ export class SubjectGrade {
   subjectDescription?: string;
 
   @ApiProperty({
-    description: 'Nota do aluno na disciplina',
-    example: 8.5,
+    description: 'Notas por tipo (MAC, NPP, NPT, MT, FAL)',
+    type: [AngolanGradeDetail],
   })
-  grade: number;
+  grades: AngolanGradeDetail[];
+
+  @ApiProperty({
+    description: 'Média Trimestral calculada (MT)',
+    example: 16.0,
+    required: false,
+  })
+  averageGrade?: number;
+
+  @ApiProperty({
+    description: 'Total de faltas',
+    example: 3,
+  })
+  absences: number;
 
   @ApiProperty({
     description: 'Nome do professor responsável',
@@ -57,10 +92,16 @@ export class StudentInfo {
   name: string;
 
   @ApiProperty({
-    description: 'Email do aluno',
-    example: 'joao.silva@email.com',
+    description: 'Email dos pais/responsáveis',
+    example: 'pais.joao@email.com',
   })
-  email: string;
+  parentEmail: string;
+
+  @ApiProperty({
+    description: 'Número de estudante',
+    example: 'EST2024001',
+  })
+  studentNumber: string;
 
   @ApiProperty({
     description: 'Data de nascimento do aluno',
@@ -116,16 +157,29 @@ export class ReportCard {
   year: number;
 
   @ApiProperty({
-    description: 'Notas por disciplina',
+    description: 'Trimestre específico (1, 2, 3) ou null para boletim final',
+    example: 1,
+    required: false,
+  })
+  term?: number;
+
+  @ApiProperty({
+    description: 'Notas por disciplina (Sistema Angolano)',
     type: [SubjectGrade],
   })
   subjects: SubjectGrade[];
 
   @ApiProperty({
-    description: 'Média geral do aluno',
-    example: 7.8,
+    description: 'Média geral do aluno (0-20)',
+    example: 15.8,
   })
   averageGrade: number;
+
+  @ApiProperty({
+    description: 'Percentual de frequência',
+    example: 94.5,
+  })
+  attendancePercentage: number;
 
   @ApiProperty({
     description: 'Status de aprovação',
@@ -133,6 +187,21 @@ export class ReportCard {
     enum: ['APROVADO', 'REPROVADO', 'EM_RECUPERACAO'],
   })
   status: 'APROVADO' | 'REPROVADO' | 'EM_RECUPERACAO';
+
+  @ApiProperty({
+    description: 'Informações da escola',
+    type: 'object',
+    properties: {
+      name: { type: 'string', example: 'Complexo Escolar Privado Casa Inglesa' },
+      province: { type: 'string', example: 'Luanda' },
+      municipality: { type: 'string', example: 'Belas' },
+    },
+  })
+  school: {
+    name: string;
+    province: string;
+    municipality: string;
+  };
 
   @ApiProperty({
     description: 'Data de geração do boletim',

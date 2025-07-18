@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { MultiSelectSimple, Option } from '@/components/ui/multi-select-simple';
 import { useToast } from '@/hooks/use-toast';
 import { subjectsAPI, teachersAPI } from '@/lib/api';
 import { SubjectWithTeachers, CreateSubjectDto, UpdateSubjectDto } from '@/types/subject';
@@ -227,13 +228,6 @@ export default function Subjects() {
     }
   };
 
-  const handleTeacherToggle = (teacherId: string) => {
-    setSelectedTeachers(prev => 
-      prev.includes(teacherId)
-        ? prev.filter(id => id !== teacherId)
-        : [...prev, teacherId]
-    );
-  };
 
   const handleEdit = (subject: SubjectWithTeachers) => {
     setEditingSubject(subject);
@@ -398,41 +392,19 @@ export default function Subjects() {
                   </div>
 
                   <div>
-                    <Label>Professores Associados</Label>
-                    <div className="mt-2 border rounded-lg p-4 max-h-40 overflow-y-auto">
-                      {loadingTeachers ? (
-                        <div className="text-center py-4">
-                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
-                          <p className="text-sm text-muted-foreground mt-2">Carregando professores...</p>
-                        </div>
-                      ) : teachers.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          Nenhum professor encontrado
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {teachers.map((teacher) => (
-                            <div key={teacher.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`teacher-${teacher.id}`}
-                                checked={selectedTeachers.includes(teacher.id)}
-                                onCheckedChange={() => handleTeacherToggle(teacher.id)}
-                              />
-                              <Label 
-                                htmlFor={`teacher-${teacher.id}`}
-                                className="text-sm cursor-pointer flex-1"
-                              >
-                                {teacher.user?.name || 'Nome não disponível'}
-                                {teacher.user?.email && (
-                                  <span className="text-muted-foreground ml-2">
-                                    ({teacher.user.email})
-                                  </span>
-                                )}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                    <Label htmlFor="teachers">Professores Associados</Label>
+                    <div className="mt-2">
+                      <MultiSelectSimple
+                        options={teachers.map(teacher => ({
+                          value: teacher.id,
+                          label: `${teacher.user?.name || 'Nome não disponível'}${teacher.user?.email ? ` (${teacher.user.email})` : ''}`,
+                        }))}
+                        selected={selectedTeachers}
+                        onChange={setSelectedTeachers}
+                        placeholder={loadingTeachers ? "Carregando professores..." : "Selecione os professores..."}
+                        disabled={loadingTeachers}
+                        className="w-full"
+                      />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       Selecione os professores que irão lecionar esta disciplina
@@ -484,6 +456,7 @@ export default function Subjects() {
                   <TableHead>Código</TableHead>
                   <TableHead>Ano</TableHead>
                   <TableHead>Categoria</TableHead>
+                  <TableHead>Professores</TableHead>
                   <TableHead>Créditos</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Ações</TableHead>
@@ -492,13 +465,13 @@ export default function Subjects() {
               <TableBody>
                 {loadingSubjects ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                     </TableCell>
                   </TableRow>
                 ) : filteredSubjects.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       {searchTerm ? 'Nenhuma disciplina encontrada para a busca' : 'Nenhuma disciplina cadastrada'}
                     </TableCell>
                   </TableRow>
@@ -540,6 +513,28 @@ export default function Subjects() {
                         >
                           {subject.category}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm">
+                            {subject.teachers?.length || 0} professor{(subject.teachers?.length || 0) !== 1 ? 'es' : ''}
+                          </span>
+                          {subject.teachers && subject.teachers.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {subject.teachers.slice(0, 2).map((teacher) => (
+                                <Badge key={teacher.id} variant="outline" className="text-xs">
+                                  {teacher.user?.name?.split(' ')[0] || 'N/A'}
+                                </Badge>
+                              ))}
+                              {subject.teachers.length > 2 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{subject.teachers.length - 2}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm font-medium">
