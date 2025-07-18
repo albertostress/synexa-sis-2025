@@ -1,4 +1,5 @@
 // Types para o módulo de Notas (Grades)
+// Sistema Angolano de Avaliação
 
 // Interface para User (simplificada)
 export interface User {
@@ -51,6 +52,15 @@ export interface SchoolClass {
   updatedAt: string;
 }
 
+// Enum para tipos de avaliação (Sistema Angolano)
+export enum GradeType {
+  MAC = 'MAC',  // Média das Avaliações Contínuas
+  NPP = 'NPP',  // Nota da Prova do Professor
+  NPT = 'NPT',  // Nota da Prova Trimestral
+  MT = 'MT',    // Média Trimestral
+  FAL = 'FAL'   // Faltas
+}
+
 // Interface básica para Grade (conforme backend)
 export interface Grade {
   id: string;
@@ -58,8 +68,10 @@ export interface Grade {
   subjectId: string;
   teacherId: string;
   classId: string;
+  type: GradeType;
+  term: number;     // Trimestre: 1, 2, 3
   year: number;
-  value: number;
+  value: number;    // 0-20 (Sistema Angolano)
   createdAt: string;
   updatedAt: string;
 }
@@ -78,6 +90,8 @@ export interface CreateGradeDto {
   subjectId: string;
   teacherId: string;
   classId: string;
+  type: GradeType;
+  term: number;
   year: number;
   value: number;
 }
@@ -91,6 +105,8 @@ export interface GradeFilters {
   subjectId?: string;
   teacherId?: string;
   classId?: string;
+  type?: GradeType;
+  term?: number;
   year?: number;
 }
 
@@ -139,7 +155,7 @@ export const formatTeacherName = (teacher: Teacher): string => {
   return teacher.user.name;
 };
 
-// Helper function para obter classificação qualitativa da nota
+// Helper function para obter classificação qualitativa da nota (Sistema Angolano 0-20)
 export const getGradeClassification = (value: number): { label: string; color: string } => {
   if (value >= 17) return { label: 'Excelente', color: 'text-green-700' };
   if (value >= 14) return { label: 'Muito Bom', color: 'text-green-600' };
@@ -166,9 +182,26 @@ export const formatSchoolYear = (year: number): string => {
   return `${year}/${year + 1}`;
 };
 
-// Helper function para validar nota
+// Helper function para obter nome do tipo de avaliação
+export const getGradeTypeName = (type: GradeType): string => {
+  const names: Record<GradeType, string> = {
+    [GradeType.MAC]: 'Média das Avaliações Contínuas',
+    [GradeType.NPP]: 'Nota da Prova do Professor',
+    [GradeType.NPT]: 'Nota da Prova Trimestral',
+    [GradeType.MT]: 'Média Trimestral',
+    [GradeType.FAL]: 'Faltas'
+  };
+  return names[type] || type;
+};
+
+// Helper function para formatar trimestre
+export const formatTerm = (term: number): string => {
+  return `${term}º Trimestre`;
+};
+
+// Helper function para validar nota (Sistema Angolano 0-20)
 export const isValidGrade = (value: number): boolean => {
-  return value >= 0 && value <= 10;
+  return value >= 0 && value <= 20;
 };
 
 // Helper function para determinar se o aluno passou

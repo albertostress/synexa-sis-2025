@@ -12,6 +12,9 @@ import {
   Delete,
   UseGuards,
   ParseUUIDPipe,
+  Query,
+  ParseIntPipe,
+  ParseEnumPipe,
 } from '@nestjs/common';
 import { 
   ApiTags, 
@@ -19,7 +22,9 @@ import {
   ApiResponse, 
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
+import { GradeType } from '@prisma/client';
 import { GradesService } from './grades.service';
 import { CreateGradeDto } from './dto/create-grade.dto';
 import { UpdateGradeDto } from './dto/update-grade.dto';
@@ -194,5 +199,127 @@ export class GradesController {
     @CurrentUser() user: CurrentUserData,
   ): Promise<GradeWithRelations> {
     return this.gradesService.remove(id, user.id);
+  }
+
+  // ==================== ENDPOINTS ESPECÍFICOS SISTEMA ANGOLANO ====================
+
+  @Get('angola/student/:studentId/term/:term')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
+  @ApiOperation({ 
+    summary: 'Buscar notas de um aluno por trimestre (Sistema Angolano)',
+    description: 'Retorna todas as notas de um aluno em um trimestre específico, organizadas por disciplina e tipo (MAC, NPP, NPT, MT, FAL)'
+  })
+  @ApiParam({ name: 'studentId', description: 'ID do aluno' })
+  @ApiParam({ name: 'term', description: 'Trimestre (1, 2 ou 3)' })
+  @ApiQuery({ name: 'year', description: 'Ano letivo', required: false, type: 'number' })
+  @ApiResponse({
+    status: 200,
+    description: 'Notas do aluno no trimestre retornadas com sucesso',
+    type: [GradeWithRelations],
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Aluno não encontrado',
+  })
+  async findByStudentAndTerm(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Param('term', ParseIntPipe) term: number,
+    @Query('year', ParseIntPipe) year?: number,
+  ): Promise<GradeWithRelations[]> {
+    const currentYear = year || new Date().getFullYear();
+    return this.gradesService.findByStudentAndTerm(studentId, term, currentYear);
+  }
+
+  @Get('angola/type/:type')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
+  @ApiOperation({ 
+    summary: 'Buscar notas por tipo de avaliação (Sistema Angolano)',
+    description: 'Retorna todas as notas de um tipo específico (MAC, NPP, NPT, MT, FAL)'
+  })
+  @ApiParam({ 
+    name: 'type', 
+    description: 'Tipo de avaliação (MAC, NPP, NPT, MT, FAL)',
+    enum: GradeType
+  })
+  @ApiQuery({ name: 'year', description: 'Ano letivo', required: false, type: 'number' })
+  @ApiResponse({
+    status: 200,
+    description: 'Notas do tipo retornadas com sucesso',
+    type: [GradeWithRelations],
+  })
+  async findByType(
+    @Param('type', new ParseEnumPipe(GradeType)) type: GradeType,
+    @Query('year', ParseIntPipe) year?: number,
+  ): Promise<GradeWithRelations[]> {
+    return this.gradesService.findByType(type, year);
+  }
+
+  @Get('angola/class/:classId/term/:term')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
+  @ApiOperation({ 
+    summary: 'Buscar notas de uma turma por trimestre (Sistema Angolano)',
+    description: 'Retorna todas as notas de uma turma em um trimestre específico, organizadas por aluno e disciplina'
+  })
+  @ApiParam({ name: 'classId', description: 'ID da turma' })
+  @ApiParam({ name: 'term', description: 'Trimestre (1, 2 ou 3)' })
+  @ApiQuery({ name: 'year', description: 'Ano letivo', required: false, type: 'number' })
+  @ApiResponse({
+    status: 200,
+    description: 'Notas da turma no trimestre retornadas com sucesso',
+    type: [GradeWithRelations],
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Turma não encontrada',
+  })
+  async findByClassAndTerm(
+    @Param('classId', ParseUUIDPipe) classId: string,
+    @Param('term', ParseIntPipe) term: number,
+    @Query('year', ParseIntPipe) year?: number,
+  ): Promise<GradeWithRelations[]> {
+    const currentYear = year || new Date().getFullYear();
+    return this.gradesService.findByClassAndTerm(classId, term, currentYear);
+  }
+
+  @Get('angola/calculate-mt/:studentId/:subjectId/:term')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
+  @ApiOperation({ 
+    summary: 'Calcular Média Trimestral (MT) - Sistema Angolano',
+    description: 'Calcula a média trimestral de um aluno em uma disciplina baseado nas notas MAC, NPP e NPT. Fórmula: (MAC + NPP + NPT) / 3'
+  })
+  @ApiParam({ name: 'studentId', description: 'ID do aluno' })
+  @ApiParam({ name: 'subjectId', description: 'ID da disciplina' })
+  @ApiParam({ name: 'term', description: 'Trimestre (1, 2 ou 3)' })
+  @ApiQuery({ name: 'year', description: 'Ano letivo', required: false, type: 'number' })
+  @ApiResponse({
+    status: 200,
+    description: 'Média trimestral calculada com sucesso',
+    schema: {
+      type: 'object',
+      properties: {
+        mt: { type: 'number', example: 16.5, description: 'Média Trimestral calculada' },
+        studentId: { type: 'string', example: 'uuid' },
+        subjectId: { type: 'string', example: 'uuid' },
+        term: { type: 'number', example: 1 },
+        year: { type: 'number', example: 2024 },
+      },
+    },
+  })
+  async calculateMT(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Param('subjectId', ParseUUIDPipe) subjectId: string,
+    @Param('term', ParseIntPipe) term: number,
+    @Query('year', ParseIntPipe) year?: number,
+  ): Promise<{ mt: number | null; studentId: string; subjectId: string; term: number; year: number }> {
+    const currentYear = year || new Date().getFullYear();
+    const mt = await this.gradesService.calculateMT(studentId, subjectId, term, currentYear);
+    
+    return {
+      mt,
+      studentId,
+      subjectId,
+      term,
+      year: currentYear,
+    };
   }
 }

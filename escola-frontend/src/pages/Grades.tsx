@@ -16,13 +16,16 @@ import {
   GradeWithRelations, 
   CreateGradeDto, 
   UpdateGradeDto, 
+  GradeType,
   formatStudentName,
   formatTeacherName,
   formatGradeDate,
   formatSchoolYear,
   getGradeClassification,
   getGradeBadgeVariant,
-  calculateGradeStats
+  calculateGradeStats,
+  getGradeTypeName,
+  formatTerm
 } from '@/types/grade';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -242,6 +245,8 @@ export default function Grades() {
       subjectId: formData.get('subjectId') as string,
       teacherId: formData.get('teacherId') as string,
       classId: formData.get('classId') as string,
+      type: formData.get('type') as GradeType,
+      term: parseInt(formData.get('term') as string) || 1,
       year: parseInt(formData.get('year') as string) || new Date().getFullYear(),
       value: parseFloat(formData.get('value') as string) || 0,
     };
@@ -292,10 +297,28 @@ export default function Grades() {
       return;
     }
 
-    if (gradeData.value < 0 || gradeData.value > 10) {
+    if (!gradeData.type) {
       toast({
         title: 'Erro',
-        description: 'Nota deve estar entre 0 e 10',
+        description: 'Tipo de avaliação é obrigatório',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!gradeData.term || gradeData.term < 1 || gradeData.term > 3) {
+      toast({
+        title: 'Erro',
+        description: 'Trimestre deve ser 1, 2 ou 3',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (gradeData.value < 0 || gradeData.value > 20) {
+      toast({
+        title: 'Erro',
+        description: 'Nota deve estar entre 0 e 20',
         variant: 'destructive'
       });
       return;
@@ -450,13 +473,51 @@ export default function Grades() {
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="value">Nota (0-10)</Label>
+                    <Label htmlFor="type">Tipo de Avaliação</Label>
+                    <Select name="type" defaultValue={editingGrade?.type || GradeType.MAC}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={GradeType.MAC}>
+                          {getGradeTypeName(GradeType.MAC)}
+                        </SelectItem>
+                        <SelectItem value={GradeType.NPP}>
+                          {getGradeTypeName(GradeType.NPP)}
+                        </SelectItem>
+                        <SelectItem value={GradeType.NPT}>
+                          {getGradeTypeName(GradeType.NPT)}
+                        </SelectItem>
+                        <SelectItem value={GradeType.MT}>
+                          {getGradeTypeName(GradeType.MT)}
+                        </SelectItem>
+                        <SelectItem value={GradeType.FAL}>
+                          {getGradeTypeName(GradeType.FAL)}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="term">Trimestre</Label>
+                    <Select name="term" defaultValue={editingGrade?.term?.toString() || '1'}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o trimestre" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1º Trimestre</SelectItem>
+                        <SelectItem value="2">2º Trimestre</SelectItem>
+                        <SelectItem value="3">3º Trimestre</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="value">Nota (0-20)</Label>
                     <Input
                       type="number"
                       name="value"
                       min="0"
-                      max="10"
-                      step="0.1"
+                      max="20"
+                      step="0.5"
                       defaultValue={editingGrade?.value || ''}
                       placeholder="Digite a nota"
                     />
@@ -574,6 +635,8 @@ export default function Grades() {
                   <TableHead>Disciplina</TableHead>
                   <TableHead>Professor</TableHead>
                   <TableHead>Turma</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Trimestre</TableHead>
                   <TableHead>Nota</TableHead>
                   <TableHead>Classificação</TableHead>
                   <TableHead>Data</TableHead>
@@ -583,13 +646,13 @@ export default function Grades() {
               <TableBody>
                 {loadingGrades ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={10} className="text-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                     </TableCell>
                   </TableRow>
                 ) : filteredGrades.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                       Nenhuma nota encontrada
                     </TableCell>
                   </TableRow>
@@ -612,6 +675,14 @@ export default function Grades() {
                             <GraduationCap className="w-4 h-4" />
                             <span>{grade.class.name}</span>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {grade.type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span>{formatTerm(grade.term)}</span>
                         </TableCell>
                         <TableCell>
                           <Badge variant={getGradeBadgeVariant(grade.value)}>

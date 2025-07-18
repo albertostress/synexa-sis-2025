@@ -1,9 +1,9 @@
 /**
- * Grade Entity - Entidade Nota
+ * Grade Entity - Entidade Nota (Sistema Angolano)
  * Referência: context7 mcp - Entity Pattern
  */
 import { ApiProperty } from '@nestjs/swagger';
-import { Grade as PrismaGrade, Student, Subject, Teacher, User, SchoolClass } from '@prisma/client';
+import { Grade as PrismaGrade, Student, Subject, Teacher, User, SchoolClass, GradeType } from '@prisma/client';
 
 export class Grade implements PrismaGrade {
   @ApiProperty({
@@ -37,14 +37,27 @@ export class Grade implements PrismaGrade {
   classId: string;
 
   @ApiProperty({
+    description: 'Tipo de avaliação',
+    enum: GradeType,
+    example: GradeType.MAC,
+  })
+  type: GradeType;
+
+  @ApiProperty({
+    description: 'Trimestre (1, 2 ou 3)',
+    example: 1,
+  })
+  term: number;
+
+  @ApiProperty({
     description: 'Ano letivo',
     example: 2024,
   })
   year: number;
 
   @ApiProperty({
-    description: 'Valor da nota',
-    example: 8.5,
+    description: 'Valor da nota (0-20 - Sistema Angolano)',
+    example: 16.5,
   })
   value: number;
 

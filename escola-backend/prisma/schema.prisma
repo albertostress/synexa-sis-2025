@@ -152,12 +152,24 @@ model Grade {
   teacherId String
   class     SchoolClass @relation(fields: [classId], references: [id])
   classId   String
+  type      GradeType   // Tipo de avaliação: MAC, NPP, NPT, MT, FAL
+  term      Int         // Trimestre: 1, 2, 3
   year      Int
-  value     Float
+  value     Float       // Nota de 0 a 20 (sistema angolano)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
-
+  
+  // Garantir que cada aluno só tenha uma nota por tipo/disciplina/trimestre/ano
+  @@unique([studentId, subjectId, type, term, year])
   @@map("grades")
+}
+
+enum GradeType {
+  MAC  // Média das Avaliações Contínuas
+  NPP  // Nota da Prova do Professor
+  NPT  // Nota da Prova Trimestral
+  MT   // Média Trimestral
+  FAL  // Faltas
 }
 
 enum Role {

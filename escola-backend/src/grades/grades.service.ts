@@ -9,6 +9,7 @@ import {
   BadRequestException,
   ForbiddenException 
 } from '@nestjs/common';
+import { GradeType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGradeDto } from './dto/create-grade.dto';
 import { UpdateGradeDto } from './dto/update-grade.dto';
@@ -19,7 +20,7 @@ export class GradesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createGradeDto: CreateGradeDto, currentUserId: string): Promise<GradeWithRelations> {
-    const { studentId, subjectId, teacherId, classId, year, value } = createGradeDto;
+    const { studentId, subjectId, teacherId, classId, type, term, year, value } = createGradeDto;
 
     // Verificar se o professor existe e pertence ao usuário logado
     const teacher = await this.prisma.teacher.findUnique({
@@ -90,19 +91,19 @@ export class GradesService {
       throw new BadRequestException('Aluno não está matriculado nesta turma no ano especificado');
     }
 
-    // Verificar se já existe uma nota para este aluno/disciplina/professor/turma/ano
+    // Verificar se já existe uma nota para este aluno/disciplina/tipo/trimestre/ano (Sistema Angolano)
     const existingGrade = await this.prisma.grade.findFirst({
       where: {
         studentId,
         subjectId,
-        teacherId,
-        classId,
+        type,
+        term,
         year,
       },
     });
 
     if (existingGrade) {
-      throw new ConflictException('Já existe uma nota lançada para este aluno nesta disciplina');
+      throw new ConflictException(`Já existe uma nota ${type} para este aluno nesta disciplina no ${term}º trimestre`);
     }
 
     const grade = await this.prisma.grade.create({
@@ -111,6 +112,8 @@ export class GradesService {
         subjectId,
         teacherId,
         classId,
+        type,
+        term,
         year,
         value,
       },
@@ -462,5 +465,189 @@ export class GradesService {
     });
 
     return deletedGrade as GradeWithRelations;
+  }
+
+  // Métodos específicos para o Sistema de Avaliação Angolano
+
+  async findByStudentAndTerm(studentId: string, term: number, year: number): Promise<GradeWithRelations[]> {
+    // Verificar se o aluno existe
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+    });
+
+    if (!student) {
+      throw new NotFoundException(`Aluno com ID ${studentId} não encontrado`);
+    }
+
+    const grades = await this.prisma.grade.findMany({
+      where: { 
+        studentId, 
+        term, 
+        year 
+      },
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
+            birthDate: true,
+            createdAt: true,
+          },
+        },
+        subject: true,
+        teacher: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            },
+          },
+        },
+        class: true,
+      },
+      orderBy: [
+        { subject: { name: 'asc' } },
+        { type: 'asc' },
+      ],
+    });
+
+    return grades as GradeWithRelations[];
+  }
+
+  async findByType(type: GradeType, year?: number): Promise<GradeWithRelations[]> {
+    const whereClause: any = { type };
+    if (year) {
+      whereClause.year = year;
+    }
+
+    const grades = await this.prisma.grade.findMany({
+      where: whereClause,
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
+            birthDate: true,
+            createdAt: true,
+          },
+        },
+        subject: true,
+        teacher: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            },
+          },
+        },
+        class: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return grades as GradeWithRelations[];
+  }
+
+  async findByClassAndTerm(classId: string, term: number, year: number): Promise<GradeWithRelations[]> {
+    // Verificar se a turma existe
+    const schoolClass = await this.prisma.schoolClass.findUnique({
+      where: { id: classId },
+    });
+
+    if (!schoolClass) {
+      throw new NotFoundException(`Turma com ID ${classId} não encontrada`);
+    }
+
+    const grades = await this.prisma.grade.findMany({
+      where: { 
+        classId, 
+        term, 
+        year 
+      },
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            parentEmail: true,
+            birthDate: true,
+            createdAt: true,
+          },
+        },
+        subject: true,
+        teacher: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            },
+          },
+        },
+        class: true,
+      },
+      orderBy: [
+        { student: { firstName: 'asc' } },
+        { subject: { name: 'asc' } },
+        { type: 'asc' },
+      ],
+    });
+
+    return grades as GradeWithRelations[];
+  }
+
+  // Método para calcular médias trimestrais (MT) automaticamente
+  async calculateMT(studentId: string, subjectId: string, term: number, year: number): Promise<number | null> {
+    const grades = await this.prisma.grade.findMany({
+      where: {
+        studentId,
+        subjectId,
+        term,
+        year,
+        type: {
+          in: [GradeType.MAC, GradeType.NPP, GradeType.NPT],
+        },
+      },
+    });
+
+    if (grades.length === 0) {
+      return null;
+    }
+
+    // Cálculo conforme sistema angolano: (MAC + NPP + NPT) / 3
+    const macGrade = grades.find(g => g.type === GradeType.MAC);
+    const nppGrade = grades.find(g => g.type === GradeType.NPP);
+    const nptGrade = grades.find(g => g.type === GradeType.NPT);
+
+    if (!macGrade || !nppGrade || !nptGrade) {
+      return null; // Precisa de todas as 3 notas para calcular MT
+    }
+
+    const mt = (macGrade.value + nppGrade.value + nptGrade.value) / 3;
+    return Math.round(mt * 100) / 100; // Arredondar para 2 casas decimais
   }
 }
