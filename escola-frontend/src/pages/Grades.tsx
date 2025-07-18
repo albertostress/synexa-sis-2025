@@ -5,569 +5,658 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Plus, Edit, Trash2, FileText, GraduationCap } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Plus, Edit, Trash2, FileText, GraduationCap, Search, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { gradesAPI, studentsAPI, subjectsAPI, classesAPI, teachersAPI } from '@/lib/api';
+import { 
+  GradeWithRelations, 
+  CreateGradeDto, 
+  UpdateGradeDto, 
+  formatStudentName,
+  formatTeacherName,
+  formatGradeDate,
+  formatSchoolYear,
+  getGradeClassification,
+  getGradeBadgeVariant,
+  calculateGradeStats
+} from '@/types/grade';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
-const gradeSchema = z.object({
-  studentId: z.string().min(1, 'Aluno é obrigatório'),
-  subjectId: z.string().min(1, 'Disciplina é obrigatória'),
-  classId: z.string().min(1, 'Turma é obrigatória'),
-  gradeType: z.enum(['MAC', 'NPP', 'NPT', 'MT', 'FAL']),
-  value: z.number().min(0).max(20, 'Nota deve estar entre 0 e 20'),
-  description: z.string().optional(),
-  date: z.string().min(1, 'Data é obrigatória'),
-  term: z.enum(['1', '2', '3']),
-});
 
-type GradeFormData = z.infer<typeof gradeSchema>;
-
-interface Grade {
-  id: string;
-  studentId: string;
-  studentName: string;
-  subjectId: string;
-  subjectName: string;
-  classId: string;
-  className: string;
-  gradeType: 'MAC' | 'NPP' | 'NPT' | 'MT' | 'FAL';
-  value: number;
-  description?: string;
-  date: string;
-  term: '1' | '2' | '3';
-}
-
-const mockGrades: Grade[] = [
-  {
-    id: '1',
-    studentId: 'ST001',
-    studentName: 'Ana Silva',
-    subjectId: 'SUB001',
-    subjectName: 'Língua Portuguesa',
-    classId: 'C001',
-    className: '10ª Classe',
-    gradeType: 'MAC',
-    value: 16,
-    description: 'Média das avaliações contínuas',
-    date: '2024-01-15',
-    term: '1',
-  },
-  {
-    id: '2',
-    studentId: 'ST002',
-    studentName: 'João Santos',
-    subjectId: 'SUB002',
-    subjectName: 'Matemática',
-    classId: 'C001',
-    className: '10ª Classe',
-    gradeType: 'NPP',
-    value: 14,
-    description: 'Nota da prova do professor',
-    date: '2024-01-20',
-    term: '1',
-  },
-];
-
-// Disciplinas curriculares angolanas
-const angolanSubjects = [
-  { id: 'SUB001', name: 'Língua Portuguesa' },
-  { id: 'SUB002', name: 'Matemática' },
-  { id: 'SUB003', name: 'Educação Manual e Plástica' },
-  { id: 'SUB004', name: 'Educação Musical' },
-  { id: 'SUB005', name: 'Estudo do Meio' },
-  { id: 'SUB006', name: 'Educação Física' },
-  { id: 'SUB007', name: 'Língua de Origem Africana' },
-  { id: 'SUB008', name: 'História' },
-  { id: 'SUB009', name: 'Geografia' },
-  { id: 'SUB010', name: 'Biologia' },
-  { id: 'SUB011', name: 'Física' },
-  { id: 'SUB012', name: 'Química' },
-  { id: 'SUB013', name: 'Francês' },
-  { id: 'SUB014', name: 'Inglês' },
-];
-
-const mockStudents = [
-  { id: 'ST001', name: 'Ana Silva' },
-  { id: 'ST002', name: 'João Santos' },
-  { id: 'ST003', name: 'Maria Costa' },
-];
-
-const mockClasses = [
-  { id: 'C001', name: '10ª Classe' },
-  { id: 'C002', name: '11ª Classe' },
-  { id: 'C003', name: '12ª Classe' },
-  { id: 'C004', name: '13ª Classe' },
-];
 
 export default function Grades() {
+  // Grades component - fixed and working
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingGrade, setEditingGrade] = useState<Grade | null>(null);
+  const [editingGrade, setEditingGrade] = useState<GradeWithRelations | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const form = useForm<GradeFormData>({
-    resolver: zodResolver(gradeSchema),
-    defaultValues: {
-      studentId: '',
-      subjectId: '',
-      classId: '',
-      gradeType: 'MAC',
-      value: 0,
-      description: '',
-      date: '',
-      term: '1',
+  // Carregar notas do backend
+  const { data: grades = [], isLoading: loadingGrades, refetch } = useQuery({
+    queryKey: ['grades', selectedYear, selectedClassId, selectedSubjectId],
+    queryFn: () => {
+      console.log('📊 Carregando notas...');
+      const filters = {
+        ...(selectedYear && { year: selectedYear }),
+        ...(selectedClassId && { classId: selectedClassId }),
+        ...(selectedSubjectId && { subjectId: selectedSubjectId })
+      };
+      return gradesAPI.getAll(filters);
     },
-  });
-
-  const { data: grades = [] } = useQuery({
-    queryKey: ['grades'],
-    queryFn: () => Promise.resolve(mockGrades),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: GradeFormData) => {
-      console.log('Creating grade:', data);
-      return Promise.resolve({
-        id: Date.now().toString(),
-        ...data,
-        studentName: mockStudents.find(s => s.id === data.studentId)?.name || '',
-        subjectName: angolanSubjects.find(s => s.id === data.subjectId)?.name || '',
-        className: mockClasses.find(c => c.id === data.classId)?.name || '',
+    onSuccess: (data) => {
+      console.log('✅ Notas carregadas:', data?.length, 'notas');
+    },
+    onError: (error: any) => {
+      console.error('❌ Erro ao carregar notas:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar as notas',
+        variant: 'destructive'
       });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['grades'] });
-      toast({ title: 'Nota registada com sucesso!' });
-      setIsDialogOpen(false);
-      form.reset();
-    },
+    }
   });
 
-  const updateMutation = useMutation({
-    mutationFn: (data: { id: string } & GradeFormData) => {
-      console.log('Updating grade:', data);
-      return Promise.resolve(data);
+  // Carregar estudantes para seleção
+  const { data: students = [], isLoading: loadingStudents } = useQuery({
+    queryKey: ['students'],
+    queryFn: () => studentsAPI.getAll(),
+    enabled: isDialogOpen,
+    onError: (error: any) => {
+      console.error('Erro ao carregar estudantes:', error);
+    }
+  });
+
+  // Carregar disciplinas para seleção
+  const { data: subjects = [], isLoading: loadingSubjects } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: () => subjectsAPI.getAll(),
+    enabled: isDialogOpen,
+    onError: (error: any) => {
+      console.error('Erro ao carregar disciplinas:', error);
+    }
+  });
+
+  // Carregar turmas para seleção
+  const { data: classes = [], isLoading: loadingClasses } = useQuery({
+    queryKey: ['classes'],
+    queryFn: () => classesAPI.getAll(),
+    enabled: isDialogOpen,
+    onError: (error: any) => {
+      console.error('Erro ao carregar turmas:', error);
+    }
+  });
+
+  // Carregar professores para seleção
+  const { data: teachers = [], isLoading: loadingTeachers } = useQuery({
+    queryKey: ['teachers'],
+    queryFn: () => teachersAPI.getAll(),
+    enabled: isDialogOpen,
+    onError: (error: any) => {
+      console.error('Erro ao carregar professores:', error);
+    }
+  });
+
+  // Mutation para criar nota
+  const createMutation = useMutation({
+    mutationFn: (data: CreateGradeDto) => {
+      console.log('🚀 Criando nota:', data);
+      return gradesAPI.create(data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['grades'] });
-      toast({ title: 'Nota actualizada com sucesso!' });
+    onSuccess: (result) => {
+      console.log('✅ Nota criada com sucesso:', result);
+      refetch();
       setIsDialogOpen(false);
       setEditingGrade(null);
-      form.reset();
+      toast({ 
+        title: 'Sucesso!',
+        description: 'Nota lançada com sucesso!' 
+      });
     },
+    onError: (error: any) => {
+      console.error('❌ Erro ao criar nota:', error);
+      const errorMessage = error.response?.data?.message || 'Erro ao lançar nota';
+      
+      if (error.response?.status === 403) {
+        toast({
+          title: 'Erro de Permissão',
+          description: 'Você não tem permissão para lançar notas desta disciplina',
+          variant: 'destructive'
+        });
+      } else if (error.response?.status === 409) {
+        toast({
+          title: 'Conflito',
+          description: 'Já existe uma nota lançada para este aluno nesta disciplina',
+          variant: 'destructive'
+        });
+      } else if (error.response?.status === 400) {
+        toast({
+          title: 'Erro de Validação',
+          description: 'Aluno não está matriculado nesta turma no ano especificado',
+          variant: 'destructive'
+        });
+      } else {
+        toast({
+          title: 'Erro!',
+          description: errorMessage,
+          variant: 'destructive'
+        });
+      }
+    }
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => {
-      console.log('Deleting grade:', id);
-      return Promise.resolve();
-    },
+  // Mutation para atualizar nota
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateGradeDto }) => 
+      gradesAPI.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['grades'] });
-      toast({ title: 'Nota removida com sucesso!' });
+      refetch();
+      setIsDialogOpen(false);
+      setEditingGrade(null);
+      toast({ 
+        title: 'Sucesso!',
+        description: 'Nota atualizada com sucesso!' 
+      });
     },
+    onError: (error: any) => {
+      console.error('Erro ao atualizar nota:', error);
+      const errorMessage = error.response?.data?.message || 'Erro ao atualizar nota';
+      
+      if (error.response?.status === 403) {
+        toast({
+          title: 'Erro de Permissão',
+          description: 'Você só pode atualizar notas que você mesmo lançou',
+          variant: 'destructive'
+        });
+      } else {
+        toast({
+          title: 'Erro!',
+          description: errorMessage,
+          variant: 'destructive'
+        });
+      }
+    }
   });
 
-  const onSubmit = (data: GradeFormData) => {
+  // Mutation para remover nota
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => gradesAPI.delete(id),
+    onSuccess: () => {
+      refetch();
+      toast({ 
+        title: 'Sucesso!',
+        description: 'Nota removida com sucesso!' 
+      });
+    },
+    onError: (error: any) => {
+      console.error('Erro ao remover nota:', error);
+      const errorMessage = error.response?.data?.message || 'Erro ao remover nota';
+      
+      if (error.response?.status === 403) {
+        toast({
+          title: 'Erro de Permissão',
+          description: 'Você só pode remover notas que você mesmo lançou',
+          variant: 'destructive'
+        });
+      } else {
+        toast({
+          title: 'Erro!',
+          description: errorMessage,
+          variant: 'destructive'
+        });
+      }
+    }
+  });
+
+  // Filtrar notas
+  const filteredGrades = grades.filter(grade => {
+    const studentName = formatStudentName(grade.student);
+    const subjectName = grade.subject.name;
+    const className = grade.class.name;
+    const teacherName = formatTeacherName(grade.teacher);
+    
+    return (
+      studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      subjectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      className.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      teacherName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
+
+  // Calcular estatísticas
+  const stats = calculateGradeStats(filteredGrades);
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    const gradeData: CreateGradeDto = {
+      studentId: formData.get('studentId') as string,
+      subjectId: formData.get('subjectId') as string,
+      teacherId: formData.get('teacherId') as string,
+      classId: formData.get('classId') as string,
+      year: parseInt(formData.get('year') as string) || new Date().getFullYear(),
+      value: parseFloat(formData.get('value') as string) || 0,
+    };
+
+    // Validações básicas
+    if (!gradeData.studentId) {
+      toast({
+        title: 'Erro',
+        description: 'Aluno é obrigatório',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!gradeData.subjectId) {
+      toast({
+        title: 'Erro',
+        description: 'Disciplina é obrigatória',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!gradeData.teacherId) {
+      toast({
+        title: 'Erro',
+        description: 'Professor é obrigatório',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!gradeData.classId) {
+      toast({
+        title: 'Erro',
+        description: 'Turma é obrigatória',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (gradeData.year < 2020) {
+      toast({
+        title: 'Erro',
+        description: 'Ano deve ser 2020 ou posterior',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (gradeData.value < 0 || gradeData.value > 10) {
+      toast({
+        title: 'Erro',
+        description: 'Nota deve estar entre 0 e 10',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     if (editingGrade) {
-      updateMutation.mutate({ ...data, id: editingGrade.id });
+      updateMutation.mutate({ 
+        id: editingGrade.id, 
+        data: gradeData 
+      });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(gradeData);
     }
   };
 
-  const handleEdit = (grade: Grade) => {
+  const handleEdit = (grade: GradeWithRelations) => {
     setEditingGrade(grade);
-    form.reset({
-      studentId: grade.studentId,
-      subjectId: grade.subjectId,
-      classId: grade.classId,
-      gradeType: grade.gradeType,
-      value: grade.value,
-      description: grade.description || '',
-      date: grade.date,
-      term: grade.term,
-    });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja remover esta nota?')) {
-      deleteMutation.mutate(id);
+  const handleDelete = (grade: GradeWithRelations) => {
+    if (confirm(`Tem certeza que deseja remover a nota de "${formatStudentName(grade.student)}" na disciplina "${grade.subject.name}"?`)) {
+      deleteMutation.mutate(grade.id);
     }
   };
 
-  const getGradeTypeBadge = (type: string) => {
-    const variants = {
-      MAC: 'default',
-      NPP: 'secondary',
-      NPT: 'outline',
-      MT: 'destructive',
-      FAL: 'outline',
-    };
-    
-    const labels = {
-      MAC: 'MAC - Média das Avaliações Contínuas',
-      NPP: 'NPP - Nota da Prova do Professor',
-      NPT: 'NPT - Nota da Prova Trimestral',
-      MT: 'MT - Média Trimestral',
-      FAL: 'FAL - Faltas',
-    };
-
-    return (
-      <Badge variant={variants[type as keyof typeof variants] as any}>
-        {type}
-      </Badge>
-    );
+  const resetForm = () => {
+    setEditingGrade(null);
+    setIsDialogOpen(false);
   };
 
-  const getGradeClassification = (value: number) => {
-    if (value >= 17) return { label: 'Excelente', color: 'text-green-700' };
-    if (value >= 14) return { label: 'Muito Bom', color: 'text-green-600' };
-    if (value >= 12) return { label: 'Bom', color: 'text-blue-600' };
-    if (value >= 10) return { label: 'Satisfatório', color: 'text-yellow-600' };
-    return { label: 'Não Satisfatório', color: 'text-red-600' };
-  };
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Sistema de Avaliação - MINED</h1>
-          <p className="text-muted-foreground">Gestão de notas conforme regulamentação do Ministério da Educação</p>
-        </div>
-        
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => {
-              setEditingGrade(null);
-              form.reset();
-            }}>
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Avaliação
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {editingGrade ? 'Editar Avaliação' : 'Nova Avaliação'}
-              </DialogTitle>
-              <DialogDescription>
-                {editingGrade 
-                  ? 'Modifique as informações da avaliação conforme necessário.'
-                  : 'Preencha os campos para criar uma nova avaliação no sistema.'
-                }
-              </DialogDescription>
-            </DialogHeader>
-            
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="studentId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Aluno</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar aluno" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {mockStudents.map((student) => (
+    <ErrorBoundary>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Sistema de Notas</h1>
+            <p className="text-muted-foreground">Gestão de notas e avaliações dos alunos</p>
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setEditingGrade(null)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Nova Nota
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingGrade ? 'Editar Nota' : 'Nova Nota'}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingGrade 
+                    ? 'Modifique as informações da nota conforme necessário.'
+                    : 'Preencha os campos para lançar uma nova nota no sistema.'
+                  }
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="studentId">Aluno</Label>
+                    <Select name="studentId" defaultValue={editingGrade?.studentId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um aluno" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {loadingStudents ? (
+                          <div className="text-center p-2">Carregando...</div>
+                        ) : (
+                          students.map(student => (
                             <SelectItem key={student.id} value={student.id}>
-                              {student.name}
+                              {formatStudentName(student)}
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="subjectId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Disciplina</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar disciplina" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {angolanSubjects.map((subject) => (
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="subjectId">Disciplina</Label>
+                    <Select name="subjectId" defaultValue={editingGrade?.subjectId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma disciplina" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {loadingSubjects ? (
+                          <div className="text-center p-2">Carregando...</div>
+                        ) : (
+                          subjects.map(subject => (
                             <SelectItem key={subject.id} value={subject.id}>
                               {subject.name}
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="classId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Classe</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar classe" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {mockClasses.map((classItem) => (
-                            <SelectItem key={classItem.id} value={classItem.id}>
-                              {classItem.name}
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="teacherId">Professor</Label>
+                    <Select name="teacherId" defaultValue={editingGrade?.teacherId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um professor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {loadingTeachers ? (
+                          <div className="text-center p-2">Carregando...</div>
+                        ) : (
+                          teachers.map(teacher => (
+                            <SelectItem key={teacher.id} value={teacher.id}>
+                              {formatTeacherName(teacher)}
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="gradeType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo de Avaliação</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="MAC">MAC - Média das Avaliações Contínuas</SelectItem>
-                          <SelectItem value="NPP">NPP - Nota da Prova do Professor</SelectItem>
-                          <SelectItem value="NPT">NPT - Nota da Prova Trimestral</SelectItem>
-                          <SelectItem value="MT">MT - Média Trimestral</SelectItem>
-                          <SelectItem value="FAL">FAL - Faltas</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="value"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nota (0-20)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          min="0" 
-                          max="20" 
-                          step="0.1"
-                          {...field}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="term"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Trimestre</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="1">1º Trimestre</SelectItem>
-                          <SelectItem value="2">2º Trimestre</SelectItem>
-                          <SelectItem value="3">3º Trimestre</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Data</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Observações</FormLabel>
-                      <FormControl>
-                        <Textarea {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="classId">Turma</Label>
+                    <Select name="classId" defaultValue={editingGrade?.classId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma turma" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {loadingClasses ? (
+                          <div className="text-center p-2">Carregando...</div>
+                        ) : (
+                          classes.map(cls => (
+                            <SelectItem key={cls.id} value={cls.id}>
+                              {cls.name} ({formatSchoolYear(cls.year)})
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="year">Ano Letivo</Label>
+                    <Select name="year" defaultValue={editingGrade?.year?.toString() || new Date().getFullYear().toString()}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o ano" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({length: 11}, (_, i) => 2020 + i).map(year => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {formatSchoolYear(year)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="value">Nota (0-10)</Label>
+                    <Input
+                      type="number"
+                      name="value"
+                      min="0"
+                      max="10"
+                      step="0.1"
+                      defaultValue={editingGrade?.value || ''}
+                      placeholder="Digite a nota"
+                    />
+                  </div>
+                </div>
                 <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
-                  >
+                  <Button type="button" variant="outline" onClick={resetForm}>
                     Cancelar
                   </Button>
-                  <Button type="submit">
-                    {editingGrade ? 'Actualizar' : 'Registar'}
+                  <Button type="submit" disabled={isSubmitting}>
+                    {editingGrade ? 'Atualizar' : 'Lançar'}
                   </Button>
                 </div>
               </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
-      </div>
+            </DialogContent>
+          </Dialog>
+        </div>
 
-      {/* Legenda do Sistema de Avaliação */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <GraduationCap className="w-5 h-5" />
-            Sistema de Classificação - MINED Angola
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-            <div>
-              <h4 className="font-semibold mb-2">Tipos de Avaliação:</h4>
-              <ul className="space-y-1">
-                <li><strong>MAC</strong> - Média das Avaliações Contínuas</li>
-                <li><strong>NPP</strong> - Nota da Prova do Professor</li>
-                <li><strong>NPT</strong> - Nota da Prova Trimestral</li>
-                <li><strong>MT</strong> - Média Trimestral</li>
-                <li><strong>FAL</strong> - Faltas</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-2">Classificação Qualitativa:</h4>
-              <ul className="space-y-1">
-                <li><strong>17-20:</strong> Excelente</li>
-                <li><strong>14-16:</strong> Muito Bom</li>
-                <li><strong>12-13:</strong> Bom</li>
-                <li><strong>10-11:</strong> Satisfatório</li>
-                <li><strong>0-9:</strong> Não Satisfatório</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-2">Observações:</h4>
-              <p className="text-muted-foreground">
-                Sistema de avaliação conforme o regulamento do Ministério da Educação de Angola.
-                Escala de 0 a 20 valores.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Estatísticas */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Total de Notas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalGrades}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Média Geral</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{stats.averageGrade.toFixed(1)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Aprovados</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{stats.passedStudents}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Reprovados</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{stats.failedStudents}</div>
+            </CardContent>
+          </Card>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            Registo de Avaliações
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Aluno</TableHead>
-                <TableHead>Disciplina</TableHead>
-                <TableHead>Classe</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Nota</TableHead>
-                <TableHead>Classificação</TableHead>
-                <TableHead>Trimestre</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Acções</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {grades.map((grade) => {
-                const classification = getGradeClassification(grade.value);
-                return (
-                  <TableRow key={grade.id}>
-                    <TableCell className="font-medium">{grade.studentName}</TableCell>
-                    <TableCell>{grade.subjectName}</TableCell>
-                    <TableCell>{grade.className}</TableCell>
-                    <TableCell>{getGradeTypeBadge(grade.gradeType)}</TableCell>
-                    <TableCell>
-                      <span className={`font-bold ${classification.color}`}>
-                        {grade.value} valores
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className={classification.color}>
-                        {classification.label}
-                      </span>
-                    </TableCell>
-                    <TableCell>{grade.term}º Trimestre</TableCell>
-                    <TableCell>{new Date(grade.date).toLocaleDateString('pt-AO')}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(grade)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(grade.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Lista de Notas</span>
+              <div className="flex items-center gap-2">
+                <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({length: 11}, (_, i) => 2020 + i).map(year => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={selectedClassId || 'ALL'} onValueChange={(value) => setSelectedClassId(value === 'ALL' ? '' : value)}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Turma" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todas as Turmas</SelectItem>
+                    {classes.map(cls => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={selectedSubjectId || 'ALL'} onValueChange={(value) => setSelectedSubjectId(value === 'ALL' ? '' : value)}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Disciplina" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todas as Disciplinas</SelectItem>
+                    {subjects.map(subject => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input
+                    placeholder="Buscar notas..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 w-64"
+                  />
+                </div>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Aluno</TableHead>
+                  <TableHead>Disciplina</TableHead>
+                  <TableHead>Professor</TableHead>
+                  <TableHead>Turma</TableHead>
+                  <TableHead>Nota</TableHead>
+                  <TableHead>Classificação</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loadingGrades ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                     </TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
+                ) : filteredGrades.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      Nenhuma nota encontrada
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredGrades.map((grade) => {
+                    const classification = getGradeClassification(grade.value);
+                    return (
+                      <TableRow key={grade.id}>
+                        <TableCell>
+                          <div className="font-medium">{formatStudentName(grade.student)}</div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-medium">{grade.subject.name}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span>{formatTeacherName(grade.teacher)}</span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <GraduationCap className="w-4 h-4" />
+                            <span>{grade.class.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getGradeBadgeVariant(grade.value)}>
+                            {grade.value.toFixed(1)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className={classification.color}>
+                            {classification.label}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4" />
+                            <span className="text-sm">{formatGradeDate(grade.createdAt)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(grade)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(grade)}
+                              disabled={deleteMutation.isPending}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </ErrorBoundary>
   );
 }

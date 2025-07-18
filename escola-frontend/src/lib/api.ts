@@ -4,6 +4,7 @@ import { Schedule, CreateScheduleDto, UpdateScheduleDto, ScheduleFilters, Schedu
 import { Subject, SubjectWithTeachers, CreateSubjectDto, UpdateSubjectDto, SubjectFilters } from '../types/subject';
 import { SchoolClass, SchoolClassWithRelations, CreateClassDto, UpdateClassDto, ClassFilters } from '../types/class';
 import { EnrollmentWithRelations, CreateEnrollmentDto, UpdateEnrollmentDto, EnrollmentFilters } from '../types/enrollment';
+import { GradeWithRelations, CreateGradeDto, UpdateGradeDto, GradeFilters } from '../types/grade';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -156,23 +157,6 @@ export const classesAPI = {
   }
 };
 
-// Grades API functions
-export const gradesAPI = {
-  getByClass: async (classId: string) => {
-    const response = await api.get(`/grades/class/${classId}`);
-    return response.data;
-  },
-  
-  create: async (gradeData: any) => {
-    const response = await api.post('/grades', gradeData);
-    return response.data;
-  },
-  
-  update: async (id: string, gradeData: any) => {
-    const response = await api.put(`/grades/${id}`, gradeData);
-    return response.data;
-  }
-};
 
 // Attendance API functions
 export const attendanceAPI = {
@@ -452,6 +436,58 @@ export const enrollmentAPI = {
   
   delete: async (id: string): Promise<EnrollmentWithRelations> => {
     const response = await api.delete(`/enrollment/${id}`);
+    return response.data;
+  }
+};
+
+// Grades API functions
+export const gradesAPI = {
+  getAll: async (filters?: GradeFilters): Promise<GradeWithRelations[]> => {
+    const params = new URLSearchParams();
+    if (filters?.studentId) params.append('studentId', filters.studentId);
+    if (filters?.subjectId) params.append('subjectId', filters.subjectId);
+    if (filters?.teacherId) params.append('teacherId', filters.teacherId);
+    if (filters?.classId) params.append('classId', filters.classId);
+    if (filters?.year) params.append('year', filters.year.toString());
+    
+    const response = await api.get('/grades', { 
+      params: Object.fromEntries(params) 
+    });
+    return response.data;
+  },
+  
+  getById: async (id: string): Promise<GradeWithRelations> => {
+    const response = await api.get(`/grades/${id}`);
+    return response.data;
+  },
+  
+  getByStudent: async (studentId: string): Promise<GradeWithRelations[]> => {
+    const response = await api.get(`/grades/by-student/${studentId}`);
+    return response.data;
+  },
+  
+  getByClass: async (classId: string): Promise<GradeWithRelations[]> => {
+    const response = await api.get(`/grades/by-class/${classId}`);
+    return response.data;
+  },
+  
+  getBySubject: async (subjectId: string): Promise<GradeWithRelations[]> => {
+    const response = await api.get(`/grades/by-subject/${subjectId}`);
+    return response.data;
+  },
+  
+  create: async (gradeData: CreateGradeDto): Promise<GradeWithRelations> => {
+    const response = await api.post('/grades', gradeData);
+    return response.data;
+  },
+  
+  update: async (id: string, gradeData: UpdateGradeDto): Promise<GradeWithRelations> => {
+    const response = await api.patch(`/grades/${id}`, gradeData);
+    return response.data;
+  },
+  
+  delete: async (id: string): Promise<GradeWithRelations> => {
+    const response = await api.delete(`/grades/${id}`);
     return response.data;
   }
 };
