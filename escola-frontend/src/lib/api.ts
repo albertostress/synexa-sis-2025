@@ -5,6 +5,7 @@ import { Subject, SubjectWithTeachers, CreateSubjectDto, UpdateSubjectDto, Subje
 import { SchoolClass, SchoolClassWithRelations, CreateClassDto, UpdateClassDto, ClassFilters } from '../types/class';
 import { EnrollmentWithRelations, CreateEnrollmentDto, UpdateEnrollmentDto, EnrollmentFilters } from '../types/enrollment';
 import { GradeWithRelations, CreateGradeDto, UpdateGradeDto, GradeFilters } from '../types/grade';
+import { ReportCard, StudentInfo, GetReportCardDto, ReportFilters } from '../types/report';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -174,13 +175,122 @@ export const attendanceAPI = {
 
 // Documents API functions
 export const documentsAPI = {
-  getByStudent: async (studentId: string) => {
-    const response = await api.get(`/documents/student/${studentId}`);
+  // ============= CERTIFICADOS =============
+  generateCertificate: async (studentId: string, year: number) => {
+    const response = await api.post('/documents/certificate', {
+      studentId,
+      year
+    });
     return response.data;
   },
-  
-  generate: async (documentData: any) => {
-    const response = await api.post('/documents/generate', documentData);
+
+  generateCertificatePdf: async (studentId: string, year: number): Promise<Blob> => {
+    const response = await api.post('/documents/certificate/pdf', {
+      studentId,
+      year
+    }, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
+  generateCertificateWithPdf: async (studentId: string, year: number) => {
+    const response = await api.post('/documents/certificate/with-pdf', {
+      studentId,
+      year
+    });
+    return response.data;
+  },
+
+  // ============= DECLARAÇÕES =============
+  generateDeclaration: async (studentId: string, year: number, purpose: string) => {
+    const response = await api.post('/documents/declaration', {
+      studentId,
+      year,
+      purpose
+    });
+    return response.data;
+  },
+
+  generateDeclarationPdf: async (studentId: string, year: number, purpose: string): Promise<Blob> => {
+    const response = await api.post('/documents/declaration/pdf', {
+      studentId,
+      year,
+      purpose
+    }, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
+  generateDeclarationWithPdf: async (studentId: string, year: number, purpose: string) => {
+    const response = await api.post('/documents/declaration/with-pdf', {
+      studentId,
+      year,
+      purpose
+    });
+    return response.data;
+  },
+
+  // ============= HISTÓRICOS ESCOLARES =============
+  generateTranscript: async (studentId: string, startYear?: number, endYear?: number) => {
+    const response = await api.post('/documents/transcript', {
+      studentId,
+      startYear,
+      endYear
+    });
+    return response.data;
+  },
+
+  generateTranscriptPdf: async (studentId: string, startYear?: number, endYear?: number): Promise<Blob> => {
+    const response = await api.post('/documents/transcript/pdf', {
+      studentId,
+      startYear,
+      endYear
+    }, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
+  generateTranscriptWithPdf: async (studentId: string, startYear?: number, endYear?: number) => {
+    const response = await api.post('/documents/transcript/with-pdf', {
+      studentId,
+      startYear,
+      endYear
+    });
+    return response.data;
+  },
+
+  // ============= SERVIÇOS DE SISTEMA =============
+  getPdfHealth: async () => {
+    const response = await api.get('/documents/pdf/health');
+    return response.data;
+  },
+
+  clearPdfCache: async () => {
+    const response = await api.post('/documents/pdf/clear-cache');
+    return response.data;
+  },
+
+  // ============= HELPER FUNCTIONS =============
+  downloadFile: (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  // Função para gerar boletim PDF (reutiliza do reportsAPI)
+  generateReportCardPdf: async (studentId: string, year: number, term?: number): Promise<Blob> => {
+    const params = { year, ...(term && { term }) };
+    const response = await api.post(`/report-cards/${studentId}/pdf`, params, {
+      responseType: 'blob'
+    });
     return response.data;
   }
 };
@@ -489,5 +599,83 @@ export const gradesAPI = {
   delete: async (id: string): Promise<GradeWithRelations> => {
     const response = await api.delete(`/grades/${id}`);
     return response.data;
+  }
+};
+
+// ==================== REPORTS API ====================
+
+export const reportsAPI = {
+  // Gerar boletim de um aluno
+  getReportCard: async (studentId: string, params: GetReportCardDto): Promise<ReportCard> => {
+    const queryParams = new URLSearchParams({
+      year: params.year.toString(),
+      ...(params.term && { term: params.term.toString() })
+    });
+    
+    const response = await api.get(`/report-cards/${studentId}?${queryParams}`);
+    return response.data;
+  },
+
+  // Listar alunos de uma turma para seleção
+  getStudentsByClass: async (classId: string, year: number): Promise<StudentInfo[]> => {
+    const response = await api.get(`/report-cards/class/${classId}/students?year=${year}`);
+    return response.data;
+  },
+
+  // Gerar boletins de toda uma turma
+  getClassReportCards: async (classId: string, params: GetReportCardDto): Promise<ReportCard[]> => {
+    const queryParams = new URLSearchParams({
+      year: params.year.toString(),
+      ...(params.term && { term: params.term.toString() })
+    });
+    
+    const response = await api.get(`/report-cards/class/${classId}?${queryParams}`);
+    return response.data;
+  },
+
+  // Baixar PDF do boletim
+  downloadReportCardPdf: async (studentId: string, params: GetReportCardDto): Promise<Blob> => {
+    const response = await api.post(`/report-cards/${studentId}/pdf`, params, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  // Baixar PDF com nome personalizado
+  downloadReportCardPdfWithFilename: async (
+    studentId: string, 
+    params: GetReportCardDto
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const response = await api.post(`/report-cards/${studentId}/pdf`, params, {
+      responseType: 'blob',
+    });
+    
+    // Extrair nome do arquivo do header Content-Disposition
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `boletim_${studentId}_${params.year}.pdf`;
+    
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+    
+    return {
+      blob: response.data,
+      filename,
+    };
+  },
+
+  // Helper para fazer download direto
+  triggerDownload: (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 };
