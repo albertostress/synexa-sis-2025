@@ -2,6 +2,8 @@ import axios from 'axios';
 import { CreateStudentDto, Student, StudentResponse, StudentsListResponse } from '../types/student';
 import { Schedule, CreateScheduleDto, UpdateScheduleDto, ScheduleFilters, ScheduleConflict, Weekday } from '../types/schedule';
 import { Subject, SubjectWithTeachers, CreateSubjectDto, UpdateSubjectDto, SubjectFilters } from '../types/subject';
+import { SchoolClass, SchoolClassWithRelations, CreateClassDto, UpdateClassDto, ClassFilters } from '../types/class';
+import { EnrollmentWithRelations, CreateEnrollmentDto, UpdateEnrollmentDto, EnrollmentFilters } from '../types/enrollment';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -109,13 +111,45 @@ export const studentsAPI = {
   }
 };
 
-// Classes API functions  
+// Classes API functions
 export const classesAPI = {
-  getAll: async () => {
-    const response = await api.get('/classes');
+  getAll: async (filters?: ClassFilters): Promise<SchoolClassWithRelations[]> => {
+    const params = new URLSearchParams();
+    if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.shift) params.append('shift', filters.shift);
+    if (filters?.name) params.append('name', filters.name);
+    
+    const response = await api.get('/classes', { 
+      params: Object.fromEntries(params) 
+    });
     return response.data;
   },
   
+  getById: async (id: string): Promise<SchoolClassWithRelations> => {
+    const response = await api.get(`/classes/${id}`);
+    return response.data;
+  },
+  
+  getByYear: async (year: number): Promise<SchoolClassWithRelations[]> => {
+    const response = await api.get(`/classes/by-year?year=${year}`);
+    return response.data;
+  },
+  
+  create: async (classData: CreateClassDto): Promise<SchoolClassWithRelations> => {
+    const response = await api.post('/classes', classData);
+    return response.data;
+  },
+  
+  update: async (id: string, classData: UpdateClassDto): Promise<SchoolClassWithRelations> => {
+    const response = await api.patch(`/classes/${id}`, classData);
+    return response.data;
+  },
+  
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/classes/${id}`);
+  },
+  
+  // Legacy function for backwards compatibility
   getByProfessor: async (professorId: string) => {
     const response = await api.get(`/classes/professor/${professorId}`);
     return response.data;
@@ -367,6 +401,57 @@ export const schedulesAPI = {
     });
     
     const response = await api.get(`/schedules/conflicts/${teacherId}?${params}`);
+    return response.data;
+  }
+};
+
+// Enrollment API functions
+export const enrollmentAPI = {
+  getAll: async (filters?: EnrollmentFilters): Promise<EnrollmentWithRelations[]> => {
+    const params = new URLSearchParams();
+    if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.studentId) params.append('studentId', filters.studentId);
+    if (filters?.classId) params.append('classId', filters.classId);
+    
+    const response = await api.get('/enrollment', { 
+      params: Object.fromEntries(params) 
+    });
+    return response.data;
+  },
+  
+  getById: async (id: string): Promise<EnrollmentWithRelations> => {
+    const response = await api.get(`/enrollment/${id}`);
+    return response.data;
+  },
+  
+  getByYear: async (year: number): Promise<EnrollmentWithRelations[]> => {
+    const response = await api.get(`/enrollment/by-year?year=${year}`);
+    return response.data;
+  },
+  
+  getByClass: async (classId: string): Promise<EnrollmentWithRelations[]> => {
+    const response = await api.get(`/enrollment/by-class/${classId}`);
+    return response.data;
+  },
+  
+  getByStudent: async (studentId: string): Promise<EnrollmentWithRelations[]> => {
+    const response = await api.get(`/enrollment/by-student/${studentId}`);
+    return response.data;
+  },
+  
+  create: async (enrollmentData: CreateEnrollmentDto): Promise<EnrollmentWithRelations> => {
+    const response = await api.post('/enrollment', enrollmentData);
+    return response.data;
+  },
+  
+  update: async (id: string, enrollmentData: UpdateEnrollmentDto): Promise<EnrollmentWithRelations> => {
+    const response = await api.patch(`/enrollment/${id}`, enrollmentData);
+    return response.data;
+  },
+  
+  delete: async (id: string): Promise<EnrollmentWithRelations> => {
+    const response = await api.delete(`/enrollment/${id}`);
     return response.data;
   }
 };
