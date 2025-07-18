@@ -161,14 +161,138 @@ export const classesAPI = {
 
 // Attendance API functions
 export const attendanceAPI = {
-  getByClass: async (classId: string, date?: string) => {
-    const params = date ? { date } : {};
-    const response = await api.get(`/attendance/class/${classId}`, { params });
+  // ============= REGISTRAR PRESENÇAS =============
+  markAttendance: async (data: {
+    date: string;
+    classId: string;
+    subjectId: string;
+    attendances: Array<{
+      studentId: string;
+      present: boolean;
+      justified?: boolean;
+      note?: string;
+    }>;
+  }) => {
+    const response = await api.post('/attendance/mark', data);
     return response.data;
   },
+
+  // ============= CONSULTAR PRESENÇAS =============
+  getClassAttendance: async (classId: string, date: string, subjectId?: string) => {
+    const params = new URLSearchParams({ date });
+    if (subjectId) params.append('subjectId', subjectId);
+    
+    const response = await api.get(`/attendance/class/${classId}?${params}`);
+    return response.data;
+  },
+
+  getStudentAttendance: async (studentId: string, filters?: {
+    startDate?: string;
+    endDate?: string;
+    subjectId?: string;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters?.startDate) params.append('startDate', filters.startDate);
+    if (filters?.endDate) params.append('endDate', filters.endDate);
+    if (filters?.subjectId) params.append('subjectId', filters.subjectId);
+
+    const response = await api.get(`/attendance/student/${studentId}?${params}`);
+    return response.data;
+  },
+
+  // ============= LISTAR PRESENÇAS =============
+  listAttendances: async (filters?: {
+    startDate?: string;
+    endDate?: string;
+    subjectId?: string;
+    studentId?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters?.startDate) params.append('startDate', filters.startDate);
+    if (filters?.endDate) params.append('endDate', filters.endDate);
+    if (filters?.subjectId) params.append('subjectId', filters.subjectId);
+    if (filters?.studentId) params.append('studentId', filters.studentId);
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+
+    const response = await api.get(`/attendance?${params}`);
+    return response.data;
+  },
+
+  // ============= EDITAR PRESENÇAS =============
+  updateAttendance: async (attendanceId: string, data: {
+    present?: boolean;
+    justified?: boolean;
+    note?: string;
+  }) => {
+    const response = await api.patch(`/attendance/${attendanceId}`, data);
+    return response.data;
+  },
+
+  // ============= DELETAR PRESENÇAS (ADMIN) =============
+  deleteAttendance: async (attendanceId: string) => {
+    const response = await api.delete(`/attendance/${attendanceId}`);
+    return response.data;
+  },
+
+  // ============= FUNCÕES AUXILIARES =============
   
-  record: async (attendanceData: any) => {
-    const response = await api.post('/attendance', attendanceData);
+  // Calcular percentual de frequência
+  calculateAttendancePercentage: (totalPresent: number, totalClasses: number): number => {
+    if (totalClasses === 0) return 0;
+    return Math.round((totalPresent / totalClasses) * 1000) / 10;
+  },
+
+  // Verificar se aluno está em risco (abaixo de 75% - padrão Angola)
+  isStudentAtRisk: (attendancePercentage: number): boolean => {
+    return attendancePercentage < 75;
+  },
+
+  // Determinar status baseado na frequência
+  getAttendanceStatus: (attendancePercentage: number): 'APROVADO' | 'REPROVADO' | 'EM_RISCO' => {
+    if (attendancePercentage >= 75) return 'APROVADO';
+    if (attendancePercentage >= 50) return 'EM_RISCO';
+    return 'REPROVADO';
+  },
+
+  // Formatar data para o backend (YYYY-MM-DD)
+  formatDateForBackend: (date: Date): string => {
+    return date.toISOString().split('T')[0];
+  },
+
+  // Formatar data para exibição (DD/MM/YYYY)
+  formatDateForDisplay: (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-AO');
+  },
+
+  // ============= RELATÓRIOS ESPECÍFICOS =============
+  
+  // Gerar relatório mensal de frequência
+  generateMonthlyReport: async (classId: string, month: number, year: number) => {
+    const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+    
+    const response = await api.get('/attendance', {
+      params: {
+        startDate,
+        endDate,
+        limit: 1000 // Para pegar todos os registros do mês
+      }
+    });
+    
+    return response.data;
+  },
+
+  // Obter estatísticas da turma para dashboard
+  getClassDashboard: async (classId: string, startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const response = await api.get(`/attendance/class/${classId}?${params}`);
     return response.data;
   }
 };
@@ -677,5 +801,294 @@ export const reportsAPI = {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+};
+
+// Communication API functions
+export const communicationAPI = {
+  // ============= INBOX - MENSAGENS RECEBIDAS =============
+  getInboxMessages: async (filters?: {
+    priority?: string;
+    audience?: string;
+    startDate?: string;
+    endDate?: string;
+    isRead?: boolean;
+    searchTerm?: string;
+    includeExpired?: boolean;
+    page?: number;
+    limit?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters?.priority) params.append('priority', filters.priority);
+    if (filters?.audience) params.append('audience', filters.audience);
+    if (filters?.startDate) params.append('startDate', filters.startDate);
+    if (filters?.endDate) params.append('endDate', filters.endDate);
+    if (filters?.isRead !== undefined) params.append('isRead', filters.isRead.toString());
+    if (filters?.searchTerm) params.append('searchTerm', filters.searchTerm);
+    if (filters?.includeExpired !== undefined) params.append('includeExpired', filters.includeExpired.toString());
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+
+    const response = await api.get(`/communication/inbox?${params}`);
+    return response.data;
+  },
+
+  // ============= MENSAGENS ENVIADAS =============
+  getSentMessages: async (page = 1, limit = 20) => {
+    const response = await api.get('/communication/sent', {
+      params: { page, limit }
+    });
+    return response.data;
+  },
+
+  // ============= CRIAR MENSAGEM =============
+  createMessage: async (messageData: {
+    title: string;
+    content: string;
+    priority: string;
+    audience: string[];
+    targetUsers?: string[];
+    targetClassId?: string;
+    expiresAt?: string;
+  }) => {
+    const response = await api.post('/communication/messages', messageData);
+    return response.data;
+  },
+
+  // ============= BUSCAR MENSAGEM ESPECÍFICA =============
+  getMessageById: async (messageId: string) => {
+    const response = await api.get(`/communication/messages/${messageId}`);
+    return response.data;
+  },
+
+  // ============= MARCAR COMO LIDA =============
+  markAsRead: async (messageId: string) => {
+    const response = await api.post(`/communication/messages/${messageId}/read`);
+    return response.data;
+  },
+
+  // ============= ATUALIZAR MENSAGEM =============
+  updateMessage: async (messageId: string, updateData: {
+    title?: string;
+    content?: string;
+    priority?: string;
+    audience?: string[];
+    targetUsers?: string[];
+    targetClassId?: string;
+    expiresAt?: string;
+  }) => {
+    const response = await api.put(`/communication/messages/${messageId}`, updateData);
+    return response.data;
+  },
+
+  // ============= DELETAR MENSAGEM (SOFT DELETE) =============
+  deleteMessage: async (messageId: string) => {
+    const response = await api.delete(`/communication/messages/${messageId}`);
+    return response.data;
+  },
+
+  // ============= ESTATÍSTICAS (ADMIN/DIRETOR) =============
+  getStats: async () => {
+    const response = await api.get('/communication/stats');
+    return response.data;
+  },
+
+  // ============= FUNÇÕES AUXILIARES =============
+  
+  // Calcular taxa de leitura
+  calculateReadRate: (readCount: number, totalRecipients: number): number => {
+    if (totalRecipients === 0) return 0;
+    return Math.round((readCount / totalRecipients) * 100);
+  },
+
+  // Verificar se mensagem é urgente
+  isUrgentMessage: (priority: string, isExpired: boolean): boolean => {
+    return priority === 'URGENT' && !isExpired;
+  },
+
+  // Determinar status visual da mensagem
+  getMessageStatus: (isRead: boolean, readCount: number): 'SENT' | 'DELIVERED' | 'READ' => {
+    if (isRead) return 'read';
+    if (readCount > 0) return 'DELIVERED';
+    return 'SENT';
+  },
+
+  // Formatear data para exibição
+  formatDate: (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-AO', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  },
+
+  // Formatar audiência para exibição
+  formatAudience: (audience: string[], targetClassId?: string): string => {
+    const audienceLabels: Record<string, string> = {
+      'PARENTS': 'Todos os Pais',
+      'TEACHERS': 'Todos os Professores',
+      'ALL_STAFF': 'Todo o Pessoal',
+      'SPECIFIC_CLASS': 'Turma Específica',
+      'INDIVIDUAL': 'Usuários Específicos',
+      'GROUP': 'Grupo Personalizado',
+    };
+
+    if (audience.length === 1) {
+      const aud = audience[0];
+      if (aud === 'SPECIFIC_CLASS') {
+        return `Turma: ${targetClassId || 'Não especificada'}`;
+      }
+      return audienceLabels[aud] || aud;
+    }
+    
+    if (audience.length <= 2) {
+      return audience.map(a => audienceLabels[a] || a).join(', ');
+    }
+    
+    return `${audience.length} grupos selecionados`;
+  },
+
+  // Verificar permissões de edição
+  canEditMessage: (messageCreatedBy: string, currentUserId: string, userRole: string): boolean => {
+    // Admin e Diretor podem editar qualquer mensagem
+    if (['ADMIN', 'DIRETOR'].includes(userRole)) {
+      return true;
+    }
+    
+    // Secretaria pode editar próprias mensagens
+    if (userRole === 'SECRETARIA' && messageCreatedBy === currentUserId) {
+      return true;
+    }
+    
+    return false;
+  },
+
+  // Verificar se pode criar mensagens
+  canCreateMessage: (userRole: string): boolean => {
+    return ['ADMIN', 'DIRETOR', 'SECRETARIA'].includes(userRole);
+  },
+
+  // Verificar se pode ver estatísticas
+  canViewStats: (userRole: string): boolean => {
+    return ['ADMIN', 'DIRETOR'].includes(userRole);
+  },
+
+  // ============= BUSCA E FILTROS AVANÇADOS =============
+  
+  // Buscar mensagens com filtros combinados
+  searchMessages: async (searchParams: {
+    searchTerm?: string;
+    priority?: string;
+    audience?: string;
+    dateRange?: {
+      start: string;
+      end: string;
+    };
+    onlyUnread?: boolean;
+    includeExpired?: boolean;
+    page?: number;
+    limit?: number;
+  }) => {
+    const params = new URLSearchParams();
+    
+    if (searchParams.searchTerm) {
+      params.append('searchTerm', searchParams.searchTerm);
+    }
+    if (searchParams.priority) {
+      params.append('priority', searchParams.priority);
+    }
+    if (searchParams.audience) {
+      params.append('audience', searchParams.audience);
+    }
+    if (searchParams.dateRange) {
+      params.append('startDate', searchParams.dateRange.start);
+      params.append('endDate', searchParams.dateRange.end);
+    }
+    if (searchParams.onlyUnread) {
+      params.append('isRead', 'false');
+    }
+    if (searchParams.includeExpired !== undefined) {
+      params.append('includeExpired', searchParams.includeExpired.toString());
+    }
+    if (searchParams.page) {
+      params.append('page', searchParams.page.toString());
+    }
+    if (searchParams.limit) {
+      params.append('limit', searchParams.limit.toString());
+    }
+
+    const response = await api.get(`/communication/inbox?${params}`);
+    return response.data;
+  },
+
+  // ============= NOTIFICAÇÕES E ATUALIZAÇÕES =============
+  
+  // Buscar mensagens não lidas (para notificações)
+  getUnreadCount: async (): Promise<number> => {
+    const response = await api.get('/communication/inbox', {
+      params: { 
+        isRead: false, 
+        includeExpired: false,
+        limit: 1 // Só precisamos do count
+      }
+    });
+    return response.data.pagination?.total || 0;
+  },
+
+  // Buscar mensagens urgentes não lidas
+  getUrgentUnreadMessages: async () => {
+    const response = await api.get('/communication/inbox', {
+      params: {
+        priority: 'URGENT',
+        isRead: false,
+        includeExpired: false,
+        limit: 50
+      }
+    });
+    return response.data.data || [];
+  },
+
+  // ============= VALIDAÇÕES =============
+  
+  // Validar dados de criação de mensagem
+  validateMessageData: (data: {
+    title: string;
+    content: string;
+    audience: string[];
+    targetUsers?: string[];
+    targetClassId?: string;
+  }): string[] => {
+    const errors: string[] = [];
+    
+    if (!data.title || data.title.length < 5) {
+      errors.push('Título deve ter pelo menos 5 caracteres');
+    }
+    if (data.title && data.title.length > 200) {
+      errors.push('Título deve ter no máximo 200 caracteres');
+    }
+    
+    if (!data.content || data.content.length < 10) {
+      errors.push('Conteúdo deve ter pelo menos 10 caracteres');
+    }
+    if (data.content && data.content.length > 2000) {
+      errors.push('Conteúdo deve ter no máximo 2000 caracteres');
+    }
+    
+    if (!data.audience || data.audience.length === 0) {
+      errors.push('Selecione pelo menos um público-alvo');
+    }
+    
+    if (data.audience?.includes('SPECIFIC_CLASS') && !data.targetClassId) {
+      errors.push('Selecione uma turma para envio específico');
+    }
+    
+    if (data.audience?.includes('INDIVIDUAL') && (!data.targetUsers || data.targetUsers.length === 0)) {
+      errors.push('Selecione usuários específicos');
+    }
+    
+    return errors;
   }
 };
