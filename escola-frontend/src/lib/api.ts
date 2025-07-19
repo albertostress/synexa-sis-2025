@@ -1187,3 +1187,250 @@ export const communicationAPI = {
     return errors;
   }
 };
+
+// ==================== LIBRARY API ====================
+export const libraryAPI = {
+  // ==================== BOOKS ====================
+  
+  // Listar livros com filtros e paginação
+  getBooks: async (filters: import('@/types/library').BookFilters): Promise<import('@/types/library').BookListResponse> => {
+    const params = new URLSearchParams();
+    
+    if (filters.title) params.append('title', filters.title);
+    if (filters.author) params.append('author', filters.author);
+    if (filters.isbn) params.append('isbn', filters.isbn);
+    if (filters.category) params.append('category', filters.category);
+    if (filters.availableOnly) params.append('availableOnly', 'true');
+    if (filters.page) params.append('page', filters.page.toString());
+    if (filters.limit) params.append('limit', filters.limit.toString());
+    
+    const response = await api.get(`/library/books?${params.toString()}`);
+    return response.data;
+  },
+
+  // Obter detalhes de um livro específico
+  getBookById: async (bookId: string): Promise<import('@/types/library').Book> => {
+    const response = await api.get(`/library/books/${bookId}`);
+    return response.data;
+  },
+
+  // Criar novo livro (ADMIN apenas)
+  createBook: async (bookData: import('@/types/library').CreateBookDto): Promise<import('@/types/library').Book> => {
+    const response = await api.post('/library/books', bookData);
+    return response.data;
+  },
+
+  // Atualizar livro existente (ADMIN apenas)
+  updateBook: async (bookId: string, bookData: Partial<import('@/types/library').CreateBookDto>): Promise<import('@/types/library').Book> => {
+    const response = await api.patch(`/library/books/${bookId}`, bookData);
+    return response.data;
+  },
+
+  // Excluir livro (ADMIN apenas)
+  deleteBook: async (bookId: string): Promise<void> => {
+    await api.delete(`/library/books/${bookId}`);
+  },
+
+  // ==================== LOANS ====================
+
+  // Fazer empréstimo de livro
+  loanBook: async (loanData: import('@/types/library').LoanBookDto): Promise<import('@/types/library').Loan> => {
+    const response = await api.post('/library/loan', loanData);
+    return response.data;
+  },
+
+  // Devolver livro emprestado
+  returnBook: async (loanId: string, returnData?: import('@/types/library').ReturnBookDto): Promise<import('@/types/library').Loan> => {
+    const response = await api.post(`/library/return/${loanId}`, returnData || {});
+    return response.data;
+  },
+
+  // Listar todos os empréstimos (ADMIN, DIRETOR)
+  getAllLoans: async (filters: import('@/types/library').LoanFilters): Promise<import('@/types/library').LoanListResponse> => {
+    const params = new URLSearchParams();
+    
+    if (filters.status) params.append('status', filters.status);
+    if (filters.studentId) params.append('studentId', filters.studentId);
+    if (filters.teacherId) params.append('teacherId', filters.teacherId);
+    if (filters.bookId) params.append('bookId', filters.bookId);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.search) params.append('search', filters.search);
+    if (filters.page) params.append('page', filters.page.toString());
+    if (filters.limit) params.append('limit', filters.limit.toString());
+    
+    const response = await api.get(`/library/loans?${params.toString()}`);
+    return response.data;
+  },
+
+  // Listar empréstimos do professor logado (PROFESSOR)
+  getMyLoans: async (filters?: Omit<import('@/types/library').LoanFilters, 'teacherId' | 'studentId'>): Promise<import('@/types/library').LoanListResponse> => {
+    const params = new URLSearchParams();
+    
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.bookId) params.append('bookId', filters.bookId);
+    if (filters?.startDate) params.append('startDate', filters.startDate);
+    if (filters?.endDate) params.append('endDate', filters.endDate);
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    
+    const response = await api.get(`/library/my-loans?${params.toString()}`);
+    return response.data;
+  },
+
+  // ==================== STATISTICS ====================
+
+  // Obter estatísticas da biblioteca
+  getLibraryStats: async (): Promise<import('@/types/library').LibraryStats> => {
+    const response = await api.get('/library/stats');
+    return response.data;
+  },
+
+  // Obter histórico de empréstimos de um usuário específico
+  getUserLoanHistory: async (userId: string, userType: 'student' | 'teacher'): Promise<import('@/types/library').UserLoanHistory> => {
+    const response = await api.get(`/library/user-history/${userType}/${userId}`);
+    return response.data;
+  },
+
+  // ==================== HELPERS ====================
+
+  // Verificar permissões para gestão de livros
+  canManageBooks: (userRole: string): boolean => {
+    return ['ADMIN'].includes(userRole);
+  },
+
+  // Verificar permissões para gestão de empréstimos
+  canManageLoans: (userRole: string): boolean => {
+    return ['ADMIN', 'SECRETARIA'].includes(userRole);
+  },
+
+  // Verificar permissões para visualizar todos os empréstimos
+  canViewAllLoans: (userRole: string): boolean => {
+    return ['ADMIN', 'DIRETOR', 'SECRETARIA'].includes(userRole);
+  },
+
+  // Verificar permissões para visualizar biblioteca
+  canViewLibrary: (userRole: string): boolean => {
+    return ['ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR'].includes(userRole);
+  },
+
+  // Validar se usuário pode fazer empréstimo
+  validateLoanRequest: (loanData: import('@/types/library').LoanBookDto): string[] => {
+    const errors: string[] = [];
+    
+    if (!loanData.bookId) {
+      errors.push('Selecione um livro');
+    }
+    
+    if (!loanData.studentId && !loanData.teacherId) {
+      errors.push('Selecione um aluno ou professor');
+    }
+    
+    if (loanData.studentId && loanData.teacherId) {
+      errors.push('Selecione apenas um usuário (aluno OU professor)');
+    }
+    
+    if (loanData.dueDate) {
+      const dueDate = new Date(loanData.dueDate);
+      const today = new Date();
+      
+      if (dueDate <= today) {
+        errors.push('Data de vencimento deve ser futura');
+      }
+      
+      // Máximo 30 dias de empréstimo
+      const maxDate = new Date();
+      maxDate.setDate(maxDate.getDate() + 30);
+      
+      if (dueDate > maxDate) {
+        errors.push('Empréstimo não pode exceder 30 dias');
+      }
+    }
+    
+    return errors;
+  },
+
+  // Calcular data de vencimento padrão
+  calculateDefaultDueDate: (loanPeriodDays: number = 15): string => {
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + loanPeriodDays);
+    return dueDate.toISOString().split('T')[0]; // YYYY-MM-DD
+  },
+
+  // Obter status do livro baseado em disponibilidade
+  getBookStatus: (book: import('@/types/library').Book): string => {
+    const available = book.availableCopies ?? (book.copies - (book.activeLoans?.length ?? 0));
+    
+    if (available === 0) return 'Indisponível';
+    if (available < book.copies) return `${available} de ${book.copies} disponível`;
+    return 'Disponível';
+  },
+
+  // Obter cor do badge baseado na disponibilidade
+  getBookStatusColor: (book: import('@/types/library').Book): string => {
+    const available = book.availableCopies ?? (book.copies - (book.activeLoans?.length ?? 0));
+    
+    if (available === 0) return 'bg-red-100 text-red-800 border-red-200';
+    if (available < book.copies) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    return 'bg-green-100 text-green-800 border-green-200';
+  },
+
+  // Formatar período de empréstimo
+  formatLoanPeriod: (loanDate: string, dueDate: string): string => {
+    const loan = new Date(loanDate);
+    const due = new Date(dueDate);
+    const diffTime = due.getTime() - loan.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return `${diffDays} dias`;
+  },
+
+  // Verificar se empréstimo está próximo do vencimento
+  isLoanNearDue: (dueDate: string, warningDays: number = 3): boolean => {
+    const due = new Date(dueDate);
+    const today = new Date();
+    const diffTime = due.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays <= warningDays && diffDays > 0;
+  },
+
+  // Exportar dados para relatório
+  exportLoansReport: async (filters: import('@/types/library').LoanFilters): Promise<Blob> => {
+    const params = new URLSearchParams();
+    
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value.toString());
+      }
+    });
+    
+    const response = await api.get(`/library/loans/export?${params.toString()}`, {
+      responseType: 'blob'
+    });
+    
+    return response.data;
+  },
+
+  // Download do relatório
+  downloadLoansReport: async (filters: import('@/types/library').LoanFilters, filename: string = 'relatorio_emprestimos.xlsx'): Promise<void> => {
+    try {
+      const blob = await libraryAPI.exportLoansReport(filters);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erro ao baixar relatório:', error);
+      throw error;
+    }
+  }
+};
