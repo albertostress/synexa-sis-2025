@@ -1,0 +1,36 @@
+# Cloudflare Tunnel Configuration for Synexa-SIS
+# Este arquivo configura o túnel para expor backend e frontend com domínios personalizados
+
+# ID do tunnel (substituir após criação)
+tunnel: TUNNEL-ID
+
+# Arquivo de credenciais (ajustar conforme seu OS)
+# Windows: C:\Users\SEU_USUARIO\.cloudflared\TUNNEL-ID.json
+# Linux/Mac: ~/.cloudflared/TUNNEL-ID.json
+credentials-file: /home/user/.cloudflared/TUNNEL-ID.json
+
+# Configuração de roteamento
+ingress:
+  # Backend - NestJS API
+  - hostname: backend.synexa.dev
+    service: http://localhost:3000
+    originRequest:
+      # Headers para o backend
+      noTLSVerify: true
+      connectTimeout: 30s
+      # CORS headers se necessário
+      httpHostHeader: "backend.synexa.dev"
+      
+  # Frontend - React/Vite Dev Server
+  - hostname: frontend.synexa.dev
+    service: http://localhost:3001
+    originRequest:
+      # Headers para o frontend
+      noTLSVerify: true
+      connectTimeout: 30s
+      httpHostHeader: "frontend.synexa.dev"
+      # Websocket support para hot reload do Vite
+      originServerName: "frontend.synexa.dev"
+      
+  # Fallback - Retorna 404 para qualquer outro request
+  - service: http_status:404

@@ -141,3 +141,62 @@ export const formatEnrollmentDate = (date: string): string => {
 export const formatSchoolYear = (year: number): string => {
   return `${year}/${year + 1}`;
 };
+
+// ========== NOVOS TIPOS PARA MATRÍCULA COM CRIAÇÃO INLINE DE ESTUDANTE ==========
+
+// Interface para dados do encarregado
+export interface Guardian {
+  name: string;
+  phone: string;
+  email: string;
+  relationship: string;
+  address: string;
+  bi: string;
+}
+
+// Interface para criar novo estudante inline
+export interface CreateStudentData {
+  firstName: string;
+  lastName: string;
+  gender: 'MASCULINO' | 'FEMININO';
+  birthDate: string;
+  biNumber: string;
+  province: string;
+  municipality: string;
+  tags?: string[];
+  guardian?: Guardian;
+}
+
+// DTO para criar matrícula com estudante novo
+export interface CreateEnrollmentWithStudentDto {
+  student: CreateStudentData;
+  academicYear: number;
+  classId: string;
+  status?: 'ACTIVE' | 'PENDING' | 'CANCELLED';
+}
+
+// Províncias de Angola
+export const PROVINCES = [
+  'Bengo', 'Benguela', 'Bié', 'Cabinda', 'Cuando Cubango', 'Cuanza Norte',
+  'Cuanza Sul', 'Cunene', 'Huambo', 'Huíla', 'Luanda', 'Lunda Norte',
+  'Lunda Sul', 'Malanje', 'Moxico', 'Namibe', 'Uíge', 'Zaire'
+] as const;
+
+export type Province = typeof PROVINCES[number];
+
+// Tipos de relacionamento com encarregado
+export const GUARDIAN_RELATIONSHIPS = [
+  'Pai', 'Mãe', 'Avô', 'Avó', 'Tio', 'Tia', 'Irmão', 'Irmã', 'Tutor Legal', 'Outro'
+] as const;
+
+export type GuardianRelationship = typeof GUARDIAN_RELATIONSHIPS[number];
+
+// Gêneros disponíveis
+export const GENDERS = ['MASCULINO', 'FEMININO'] as const;
+export type Gender = typeof GENDERS[number];
+
+// Labels para gêneros
+export const GENDER_LABELS: Record<Gender, string> = {
+  MASCULINO: 'Masculino',
+  FEMININO: 'Feminino'
+};

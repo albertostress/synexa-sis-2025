@@ -9,9 +9,11 @@ import {
   Matches,
   MinLength,
   MaxLength,
-  IsUUID
+  IsUUID,
+  IsArray,
+  Length
 } from 'class-validator';
-import { Gender } from '@prisma/client';
+import { Gender, StudentStatus } from '@prisma/client';
 
 export class CreateStudentDto {
   @ApiProperty({ 
@@ -52,38 +54,29 @@ export class CreateStudentDto {
   birthDate: string;
 
   @ApiProperty({ 
-    description: 'Telefone do aluno',
-    example: '+244923456789' 
+    description: 'Número do Bilhete de Identidade do aluno',
+    example: '003456789LA042' 
   })
   @IsString()
-  @IsNotEmpty({ message: 'Telefone é obrigatório' })
-  @Matches(/^[+]?[0-9]{9,15}$/, { 
-    message: 'Telefone deve conter apenas números e ter entre 9 e 15 dígitos' 
+  @IsNotEmpty({ message: 'Número do BI é obrigatório' })
+  @Length(8, 20, { message: 'Número do BI deve ter entre 8 e 20 caracteres' })
+  @Matches(/^\d{6,9}[A-Z]{2}\d{3}$/, { 
+    message: 'Formato inválido do BI (ex: 003456789LA042)' 
   })
-  phone: string;
+  biNumber: string;
+
 
   @ApiProperty({ 
-    description: 'Tipo sanguíneo',
-    example: 'O+',
+    description: 'Número de matrícula único do aluno (gerado automaticamente se não fornecido)',
+    example: '2024-0001',
     required: false 
   })
   @IsString()
   @IsOptional()
-  @Matches(/^(A|B|AB|O)[+-]$/, { 
-    message: 'Tipo sanguíneo inválido. Use formato: A+, A-, B+, B-, AB+, AB-, O+, O-' 
+  @Matches(/^[0-9]{4}-[0-9]{4}$/, { 
+    message: 'Número de matrícula deve estar no formato: AAAA-XXXX (ex: 2024-0001)' 
   })
-  bloodType?: string;
-
-  @ApiProperty({ 
-    description: 'Número de matrícula único do aluno',
-    example: 'STD2024001' 
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'Número de matrícula é obrigatório' })
-  @Matches(/^[A-Z0-9]{8,15}$/, { 
-    message: 'Número de matrícula deve conter apenas letras maiúsculas e números (8-15 caracteres)' 
-  })
-  studentNumber: string;
+  studentNumber?: string;
 
   @ApiProperty({ 
     description: 'Ano acadêmico',
@@ -183,4 +176,26 @@ export class CreateStudentDto {
     message: 'Telefone dos pais deve conter apenas números e ter entre 9 e 15 dígitos' 
   })
   parentPhone: string;
+
+  @ApiProperty({ 
+    description: 'Status do aluno',
+    enum: StudentStatus,
+    example: StudentStatus.ATIVO,
+    required: false,
+    default: StudentStatus.ATIVO
+  })
+  @IsEnum(StudentStatus, { message: 'Status deve ser: ATIVO, TRANSFERIDO, DESISTENTE ou CONCLUIDO' })
+  @IsOptional()
+  status?: StudentStatus;
+
+  @ApiProperty({ 
+    description: 'Tags do aluno',
+    example: ['bolsista', 'monitor', 'atleta'],
+    required: false,
+    default: []
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  tags?: string[];
 }

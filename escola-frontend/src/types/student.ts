@@ -3,7 +3,7 @@ export interface CreateStudentDto {
   lastName: string;
   gender: 'MASCULINO' | 'FEMININO';
   birthDate: string;
-  phone: string;
+  biNumber: string;
   bloodType?: string;
   studentNumber: string;
   academicYear: string;
@@ -24,7 +24,7 @@ export interface Student {
   lastName: string;
   gender: 'MASCULINO' | 'FEMININO';
   birthDate: string;
-  phone: string;
+  biNumber: string;
   bloodType?: string;
   studentNumber: string;
   academicYear: string;
@@ -53,7 +53,7 @@ export interface StudentResponse {
   lastName: string;
   gender: 'MASCULINO' | 'FEMININO';
   birthDate: string;
-  phone: string;
+  biNumber: string;
   bloodType?: string;
   studentNumber: string;
   academicYear: string;

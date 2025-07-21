@@ -14,13 +14,26 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  app.enableCors();
+  app.enableCors({
+    origin: [
+      'http://localhost:3001',
+      'https://localhost:3001',
+      'https://homes-opt-confidential-closest.trycloudflare.com',
+      /https:\/\/.*\.trycloudflare\.com$/, // Permite todos os tunnels Cloudflare
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  });
 
   const config = new DocumentBuilder()
     .setTitle('Escola Backend API')
-    .setDescription('API para gestão escolar')
+    .setDescription('API para gestão escolar - Sistema Synexa-SIS Angola')
     .setVersion('1.0')
-    .addTag('escola')
+    .addTag('enrollment', 'Gestão de Matrículas')
+    .addTag('students', 'Gestão de Estudantes')
+    .addTag('auth', 'Autenticação')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

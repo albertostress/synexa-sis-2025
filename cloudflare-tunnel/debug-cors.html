@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Debug CORS - Synexa-SIS</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .status { padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .warning { background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        input { padding: 8px; width: 400px; margin: 5px; }
+        pre { background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; }
+        .urls { background: #e7f3ff; padding: 15px; border-radius: 4px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Debug CORS - Synexa-SIS</h1>
+        
+        <div class="urls">
+            <h3>📋 URLs dos Tunnels:</h3>
+            <p><strong>Backend:</strong> <span id="backend-url">https://poll-identifier-taking-austria.trycloudflare.com</span></p>
+            <p><strong>Frontend:</strong> <span id="frontend-url">https://communicate-newest-mba-stops.trycloudflare.com</span></p>
+        </div>
+
+        <div>
+            <h3>🔧 Configurar URLs:</h3>
+            <input type="text" id="backend-input" placeholder="URL do Backend Tunnel" value="https://poll-identifier-taking-austria.trycloudflare.com">
+            <button onclick="updateBackend()">Atualizar Backend</button>
+        </div>
+
+        <div>
+            <h3>🧪 Testes de Conectividade:</h3>
+            <button onclick="testBackend()">1. Testar Backend</button>
+            <button onclick="testLogin()">2. Testar Login</button>
+            <button onclick="testCors()">3. Testar CORS</button>
+            <button onclick="clearResults()">🧹 Limpar</button>
+        </div>
+
+        <div id="results"></div>
+
+        <div style="margin-top: 30px;">
+            <h3>💡 Como usar:</h3>
+            <ol>
+                <li><strong>Cole as URLs</strong> dos seus tunnels nos campos acima</li>
+                <li><strong>Execute os testes</strong> na ordem (1, 2, 3)</li>
+                <li><strong>Analise os resultados</strong> para identificar o problema</li>
+                <li><strong>Siga as instruções</strong> que aparecerem</li>
+            </ol>
+        </div>
+
+        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px;">
+            <h4>🚨 Problemas Comuns:</h4>
+            <ul>
+                <li><strong>502 Bad Gateway:</strong> Backend não está rodando ou tunnel desconectado</li>
+                <li><strong>CORS Error:</strong> Backend não permite conexões do frontend tunnel</li>
+                <li><strong>Network Error:</strong> Problema de conectividade</li>
+                <li><strong>401 Unauthorized:</strong> Credenciais incorretas</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let backendUrl = 'https://poll-identifier-taking-austria.trycloudflare.com';
+        
+        function updateBackend() {
+            backendUrl = document.getElementById('backend-input').value.trim();
+            document.getElementById('backend-url').textContent = backendUrl;
+            addResult('info', `✅ Backend URL atualizada: ${backendUrl}`);
+        }
+
+        function addResult(type, message) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `status ${type === 'success' ? 'success' : type === 'error' ? 'error' : 'warning'}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        async function testBackend() {
+            addResult('info', '🔍 Testando conectividade do backend...');
+            
+            try {
+                const response = await fetch(backendUrl, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult('success', `✅ Backend conectado! Resposta: ${JSON.stringify(data)}`);
+                } else {
+                    addResult('error', `❌ Backend retornou ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                addResult('error', `❌ Erro de conectividade: ${error.message}`);
+                addResult('warning', '💡 Verifique se o tunnel do backend está ativo e a URL está correta');
+            }
+        }
+
+        async function testLogin() {
+            addResult('info', '🔐 Testando login...');
+            
+            try {
+                const response = await fetch(`${backendUrl}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@escola.com',
+                        password: '123456'
+                    }),
+                    mode: 'cors'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult('success', `✅ Login funcionando! Token recebido: ${data.accessToken.substring(0, 50)}...`);
+                    addResult('success', `👤 Usuário: ${data.user.name} (${data.user.role})`);
+                } else {
+                    const errorData = await response.text();
+                    addResult('error', `❌ Login falhou ${response.status}: ${errorData}`);
+                }
+            } catch (error) {
+                addResult('error', `❌ Erro no login: ${error.message}`);
+                addResult('warning', '💡 Pode ser problema de CORS ou backend indisponível');
+            }
+        }
+
+        async function testCors() {
+            addResult('info', '🌐 Testando CORS...');
+            
+            // Teste de preflight OPTIONS
+            try {
+                const response = await fetch(`${backendUrl}/auth/login`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type'
+                    },
+                    mode: 'cors'
+                });
+                
+                addResult('success', `✅ Preflight CORS OK (${response.status})`);
+                
+                // Verificar headers CORS
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers')
+                };
+                
+                addResult('info', `📋 Headers CORS: <pre>${JSON.stringify(corsHeaders, null, 2)}</pre>`);
+                
+            } catch (error) {
+                addResult('error', `❌ Erro CORS: ${error.message}`);
+                addResult('warning', '💡 Backend pode não estar configurado para aceitar origem do frontend');
+            }
+        }
+
+        // Auto-executar teste básico ao carregar
+        window.onload = function() {
+            addResult('info', '🚀 Debug CORS carregado! Execute os testes na ordem.');
+        };
+    </script>
+</body>
+</html>

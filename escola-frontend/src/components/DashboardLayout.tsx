@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Moon, Sun, LogOut } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
+import { FontSizeControl } from '@/components/FontSizeControl';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -48,6 +49,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
               
               <div className="flex items-center gap-2">
+                {/* Font Size Control */}
+                <FontSizeControl variant="icon" />
+                
+                {/* Theme Toggle */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -58,6 +63,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                   <span className="sr-only">Toggle theme</span>
                 </Button>
+                
+                {/* Logout */}
                 <Button
                   variant="ghost"
                   size="icon"

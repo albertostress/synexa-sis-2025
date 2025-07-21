@@ -227,15 +227,9 @@ export default function Users() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestão de Utilizadores</h1>
-          <p className="text-muted-foreground mt-2">
-            Gerir utilizadores do sistema e suas permissões
-          </p>
-        </div>
+    <div className="space-y-6">
+      {/* Add User Button */}
+      <div className="flex justify-end">
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button 

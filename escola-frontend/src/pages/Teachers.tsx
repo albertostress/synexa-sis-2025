@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, UserCheck, Phone, Mail, Clock, User as UserIcon } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, UserCheck, Phone, Mail, Clock, User as UserIcon, Eye } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +27,12 @@ export default function Teachers() {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const { toast } = useToast();
+  const { user, hasAnyRole } = useAuth();
   const queryClient = useQueryClient();
+
+  // Verificar permissões: apenas ADMIN pode modificar professores
+  const canModifyTeachers = user?.role === 'ADMIN';
+  const isSecretaria = user?.role === 'SECRETARIA';
 
   // Buscar professores do backend
   const { data: teachers = [], isLoading } = useQuery({
@@ -181,18 +187,30 @@ export default function Teachers() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Professores</h1>
-          <p className="text-muted-foreground">Gerir corpo docente da escola</p>
+          <p className="text-muted-foreground">
+            {isSecretaria 
+              ? 'Visualização do corpo docente da escola (Modo Somente Leitura)'
+              : 'Gerir corpo docente da escola'
+            }
+          </p>
+          {isSecretaria && (
+            <div className="flex items-center gap-2 mt-2 text-sm text-amber-600 bg-amber-50 px-3 py-1 rounded-md border border-amber-200">
+              <Eye className="w-4 h-4" />
+              <span>Modo Visualização - Apenas consulta de professores</span>
+            </div>
+          )}
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => {
-              setEditingTeacher(null);
-              setSelectedUserId('');
-            }}>
-              <Plus className="w-4 h-4 mr-2" />
-              Adicionar Professor
-            </Button>
-          </DialogTrigger>
+        {canModifyTeachers && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => {
+                setEditingTeacher(null);
+                setSelectedUserId('');
+              }}>
+                <Plus className="w-4 h-4 mr-2" />
+                Adicionar Professor
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -308,13 +326,14 @@ export default function Teachers() {
               </div>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        )}
       </div>
 
       <Tabs defaultValue="teachers" className="space-y-4">
         <TabsList>
           <TabsTrigger value="teachers">Lista de Professores</TabsTrigger>
-          <TabsTrigger value="schedules">Gestão de Horários</TabsTrigger>
+          {canModifyTeachers && <TabsTrigger value="schedules">Gestão de Horários</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="teachers">
@@ -344,19 +363,19 @@ export default function Teachers() {
                     <TableHead>Informações</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Data Criação</TableHead>
-                    <TableHead>Ações</TableHead>
+                    {canModifyTeachers && <TableHead>Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
+                      <TableCell colSpan={canModifyTeachers ? 6 : 5} className="text-center py-8">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                       </TableCell>
                     </TableRow>
                   ) : filteredTeachers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={canModifyTeachers ? 6 : 5} className="text-center py-8 text-muted-foreground">
                         Nenhum professor encontrado
                       </TableCell>
                     </TableRow>
@@ -395,42 +414,44 @@ export default function Teachers() {
                         <TableCell>
                           {new Date(teacher.createdAt).toLocaleDateString('pt-PT')}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedTeacher(teacher);
-                              }}
-                              title="Ver horários"
-                            >
-                              <Clock className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEditingTeacher(teacher);
-                                setIsDialogOpen(true);
-                              }}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                if (confirm('Tem certeza que deseja remover este professor?')) {
-                                  deleteMutation.mutate(teacher.id);
-                                }
-                              }}
-                              disabled={deleteMutation.isPending}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                        {canModifyTeachers && (
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedTeacher(teacher);
+                                }}
+                                title="Ver horários"
+                              >
+                                <Clock className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingTeacher(teacher);
+                                  setIsDialogOpen(true);
+                                }}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (confirm('Tem certeza que deseja remover este professor?')) {
+                                    deleteMutation.mutate(teacher.id);
+                                  }
+                                }}
+                                disabled={deleteMutation.isPending}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))
                   )}
@@ -440,26 +461,28 @@ export default function Teachers() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="schedules">
-          {selectedTeacher ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setSelectedTeacher(null)}
-                >
-                  ← Voltar para todos os horários
-                </Button>
+        {canModifyTeachers && (
+          <TabsContent value="schedules">
+            {selectedTeacher ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setSelectedTeacher(null)}
+                  >
+                    ← Voltar para todos os horários
+                  </Button>
+                </div>
+                <ScheduleManagement 
+                  teacherId={selectedTeacher.id}
+                  teacherName={selectedTeacher.user.name}
+                />
               </div>
-              <ScheduleManagement 
-                teacherId={selectedTeacher.id}
-                teacherName={selectedTeacher.user.name}
-              />
-            </div>
-          ) : (
-            <ScheduleManagement />
-          )}
-        </TabsContent>
+            ) : (
+              <ScheduleManagement />
+            )}
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

@@ -18,6 +18,52 @@ export default {
 			}
 		},
 		extend: {
+			fontSize: {
+				// Base sizes (default)
+				'xs': '0.75rem',
+				'sm': '0.875rem', 
+				'base': '1rem',
+				'lg': '1.125rem',
+				'xl': '1.25rem',
+				'2xl': '1.5rem',
+				'3xl': '1.875rem',
+				'4xl': '2.25rem',
+				'5xl': '3rem',
+				'6xl': '3.75rem',
+				'7xl': '4.5rem',
+				'8xl': '6rem',
+				'9xl': '8rem',
+				
+				// Large font scale (125%)
+				'xs-lg': '0.9375rem',
+				'sm-lg': '1.09375rem',
+				'base-lg': '1.25rem',
+				'lg-lg': '1.40625rem',
+				'xl-lg': '1.5625rem',
+				'2xl-lg': '1.875rem',
+				'3xl-lg': '2.34375rem',
+				'4xl-lg': '2.8125rem',
+				'5xl-lg': '3.75rem',
+				'6xl-lg': '4.6875rem',
+				'7xl-lg': '5.625rem',
+				'8xl-lg': '7.5rem',
+				'9xl-lg': '10rem',
+				
+				// Extra large font scale (150%)
+				'xs-xl': '1.125rem',
+				'sm-xl': '1.3125rem',
+				'base-xl': '1.5rem',
+				'lg-xl': '1.6875rem',
+				'xl-xl': '1.875rem',
+				'2xl-xl': '2.25rem',
+				'3xl-xl': '2.8125rem',
+				'4xl-xl': '3.375rem',
+				'5xl-xl': '4.5rem',
+				'6xl-xl': '5.625rem',
+				'7xl-xl': '6.75rem',
+				'8xl-xl': '9rem',
+				'9xl-xl': '12rem',
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',

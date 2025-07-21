@@ -25,7 +25,11 @@ import Library from "./pages/Library";
 import Transport from "./pages/Transport";
 import Events from "./pages/Events";
 import Analytics from "./pages/Analytics";
-import Settings from "./pages/Settings";
+import SettingsIntegrated from "./pages/SettingsIntegrated";
+import CalendarTest from "./pages/CalendarTest";
+import CalendarTestSimple from "./pages/CalendarTestSimple";
+import GradeDemo from "./pages/GradeDemo";
+import GradeTest from "./pages/GradeTest";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
 
@@ -211,7 +215,7 @@ const App = () => (
               <Route
                 path="/analytics"
                 element={
-                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}>
+                  <ProtectedRoute allowedRoles={['ADMIN']}>
                     <DashboardLayout>
                       <Analytics />
                     </DashboardLayout>
@@ -223,10 +227,34 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={['ADMIN']}>
                     <DashboardLayout>
-                      <Settings />
+                      <SettingsIntegrated />
                     </DashboardLayout>
                   </ProtectedRoute>
                 }
+              />
+              
+              {/* Calendar Test Page - For Development/Demo */}
+              <Route
+                path="/calendar-test"
+                element={
+                  <ProtectedRoute>
+                    <CalendarTest />
+                  </ProtectedRoute>
+                }
+              />
+              
+              {/* Calendar Test Simple - Without DashboardLayout */}
+              <Route
+                path="/calendar-test-simple"
+                element={<CalendarTestSimple />}
+              />
+              <Route
+                path="/grade-demo"
+                element={<GradeDemo />}
+              />
+              <Route
+                path="/grade-test"
+                element={<GradeTest />}
               />
               
               <Route path="*" element={<NotFound />} />

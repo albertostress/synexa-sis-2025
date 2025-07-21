@@ -590,7 +590,7 @@ export default function FinancialAngolan() {
                 <SelectValue placeholder="Mês" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os Meses</SelectItem>
+                <SelectItem value="all">Todos os Meses</SelectItem>
                 {MONTHS_PT.map((month, index) => (
                   <SelectItem key={index + 1} value={(index + 1).toString()}>
                     {month}

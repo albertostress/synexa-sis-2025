@@ -1,0 +1,91 @@
+# Testes da API de Matrículas
+# Use este arquivo com a extensão REST Client do VSCode ou similar
+
+@baseUrl = http://localhost:3000
+@token = seu_token_jwt_aqui
+
+### 🎯 ENDPOINT PRINCIPAL - Criar matrícula com estudante novo
+POST {{baseUrl}}/enrollment
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "student": {
+    "firstName": "João",
+    "lastName": "Manuel da Silva", 
+    "gender": "MASCULINO",
+    "birthDate": "2010-03-15",
+    "biNumber": "003456789LA042",
+    "province": "Luanda",
+    "municipality": "Maianga",
+    "tags": ["bolsista", "desportista"],
+    "guardian": {
+      "name": "Maria Silva Santos",
+      "phone": "+244923456789",
+      "email": "maria.santos@email.com",
+      "relationship": "Mãe",
+      "address": "Rua da Missão, 123, Maianga, Luanda",
+      "bi": "005678912LA041"
+    }
+  },
+  "academicYear": 2025,
+  "classId": "uuid-da-turma-aqui",
+  "status": "ATIVA"
+}
+
+### 🔄 Endpoint alternativo - with-student
+POST {{baseUrl}}/enrollment/with-student
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "student": {
+    "firstName": "Ana",
+    "lastName": "Costa Pereira",
+    "gender": "FEMININO", 
+    "birthDate": "2009-07-22",
+    "biNumber": "004567890LA043",
+    "province": "Benguela",
+    "municipality": "Lobito",
+    "guardian": {
+      "name": "José Pereira",
+      "phone": "+244912345678"
+    }
+  },
+  "academicYear": 2025,
+  "classId": "uuid-da-turma-aqui"
+}
+
+### 📋 Listar todas as matrículas
+GET {{baseUrl}}/enrollment
+Authorization: Bearer {{token}}
+
+### 📅 Buscar matrículas por ano
+GET {{baseUrl}}/enrollment/by-year?year=2025
+Authorization: Bearer {{token}}
+
+### 🏫 Buscar matrículas por turma
+GET {{baseUrl}}/enrollment/by-class/uuid-da-turma-aqui
+Authorization: Bearer {{token}}
+
+### 👤 Buscar matrículas por estudante
+GET {{baseUrl}}/enrollment/by-student/uuid-do-estudante-aqui
+Authorization: Bearer {{token}}
+
+### ✏️ Atualizar status de matrícula
+PATCH {{baseUrl}}/enrollment/uuid-da-matricula-aqui
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "CANCELLED"
+}
+
+### 🔄 Transferir estudante de turma
+PATCH {{baseUrl}}/enrollment/uuid-da-matricula-aqui
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "classId": "uuid-da-nova-turma"
+}

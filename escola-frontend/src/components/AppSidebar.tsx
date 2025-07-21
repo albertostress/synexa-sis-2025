@@ -48,12 +48,6 @@ const navigationItems: NavigationItem[] = [
     roles: ['ADMIN', 'SECRETARIA', 'PROFESSOR'],
   },
   {
-    title: 'Utilizadores',
-    url: '/users',
-    icon: Users,
-    roles: ['ADMIN'],
-  },
-  {
     title: 'Alunos',
     url: '/students',
     icon: UsersRound,
@@ -141,7 +135,7 @@ const navigationItems: NavigationItem[] = [
     title: 'Relatórios',
     url: '/analytics',
     icon: BarChart3,
-    roles: ['ADMIN', 'SECRETARIA'],
+    roles: ['ADMIN'],
   },
   {
     title: 'Configurações',

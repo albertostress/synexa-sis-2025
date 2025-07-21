@@ -42,22 +42,25 @@ export const useStudents = () => {
 
   // Query para buscar todos os alunos
   const {
-    data: students = [],
+    data: studentsResponse,
     isLoading,
     error,
     refetch
-  } = useQuery<Student[]>({
+  } = useQuery({
     queryKey: ['students'],
     queryFn: async () => {
       console.log('🔄 Fazendo requisição para /students...');
-      const { data } = await api.get<Student[]>('/students');
+      const { data } = await api.get('/students');
       console.log('✅ Resposta recebida:', data);
-      console.log('📊 Total de alunos:', data?.length || 0);
+      console.log('📊 Total de alunos:', data?.students?.length || 0);
       return data;
     },
     staleTime: 1000 * 60 * 5, // 5 minutos
     cacheTime: 1000 * 60 * 10, // 10 minutos
   });
+
+  // Extrair array de students da resposta paginada
+  const students = studentsResponse?.students || [];
 
   // Mutation para criar aluno
   const createStudent = useMutation({
@@ -99,7 +102,7 @@ export const useStudents = () => {
   });
 
   return {
-    students: students ?? [], // Fallback para array vazio
+    students: Array.isArray(students) ? students : [], // Garantir que sempre seja array
     isLoading,
     error,
     refetch,

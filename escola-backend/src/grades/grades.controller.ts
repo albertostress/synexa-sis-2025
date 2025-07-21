@@ -74,14 +74,56 @@ export class GradesController {
 
   @Get()
   @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
-  @ApiOperation({ summary: 'Listar todas as notas' })
+  @ApiOperation({ summary: 'Listar todas as notas com filtros opcionais' })
+  @ApiQuery({ name: 'studentId', description: 'ID do aluno', required: false })
+  @ApiQuery({ name: 'subjectId', description: 'ID da disciplina', required: false })
+  @ApiQuery({ name: 'teacherId', description: 'ID do professor', required: false })
+  @ApiQuery({ name: 'classId', description: 'ID da turma', required: false })
+  @ApiQuery({ name: 'type', description: 'Tipo de avaliação', enum: GradeType, required: false })
+  @ApiQuery({ name: 'term', description: 'Trimestre (1, 2 ou 3)', type: 'number', required: false })
+  @ApiQuery({ name: 'year', description: 'Ano letivo', type: 'number', required: false })
+  @ApiQuery({ name: 'studentName', description: 'Nome do aluno (busca parcial)', required: false })
   @ApiResponse({
     status: 200,
     description: 'Lista de notas retornada com sucesso',
     type: [GradeWithRelations],
   })
-  async findAll(): Promise<GradeWithRelations[]> {
-    return this.gradesService.findAll();
+  async findAll(
+    @Query('studentId') studentId?: string,
+    @Query('subjectId') subjectId?: string,
+    @Query('teacherId') teacherId?: string,
+    @Query('classId') classId?: string,
+    @Query('type') type?: GradeType,
+    @Query('term') termStr?: string,
+    @Query('year') yearStr?: string,
+    @Query('studentName') studentName?: string,
+  ): Promise<GradeWithRelations[]> {
+    // Construir filtros com validação de tipos
+    const filters: any = {};
+    
+    if (studentId) filters.studentId = studentId;
+    if (subjectId) filters.subjectId = subjectId;
+    if (teacherId) filters.teacherId = teacherId;
+    if (classId) filters.classId = classId;
+    if (type) filters.type = type;
+    if (studentName) filters.studentName = studentName;
+    
+    // Parse números com validação
+    if (termStr) {
+      const term = parseInt(termStr);
+      if (!isNaN(term) && term >= 1 && term <= 3) {
+        filters.term = term;
+      }
+    }
+    
+    if (yearStr) {
+      const year = parseInt(yearStr);
+      if (!isNaN(year) && year >= 2020) {
+        filters.year = year;
+      }
+    }
+
+    return this.gradesService.findAll(filters);
   }
 
   @Get('by-student/:studentId')

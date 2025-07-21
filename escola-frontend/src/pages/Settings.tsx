@@ -1,6 +1,7 @@
 
 import { useState } from 'react';
 import { Save, Mail, Shield, Database, Bell, Palette, Globe, Users, School } from 'lucide-react';
+import UsersModule from './Users';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -89,13 +90,14 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="school" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="school">Escola</TabsTrigger>
           <TabsTrigger value="system">Sistema</TabsTrigger>
           <TabsTrigger value="notifications">Notificações</TabsTrigger>
           <TabsTrigger value="security">Segurança</TabsTrigger>
           <TabsTrigger value="academic">Académico</TabsTrigger>
           <TabsTrigger value="backup">Backup</TabsTrigger>
+          <TabsTrigger value="users">Utilizadores</TabsTrigger>
         </TabsList>
 
         <TabsContent value="school" className="space-y-4">
@@ -471,6 +473,20 @@ export default function Settings() {
                   Restaurar Backup
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="users" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Users className="w-5 h-5 mr-2" />
+                Gestão de Utilizadores
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <UsersModule />
             </CardContent>
           </Card>
         </TabsContent>

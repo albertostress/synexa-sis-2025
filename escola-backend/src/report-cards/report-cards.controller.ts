@@ -31,7 +31,7 @@ import { ReportCard, StudentInfo } from './entities/report-card.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { DocumentsService } from '../documents/documents.service';
+import { ReportCardsPdfService } from './pdf/report-cards-pdf.service';
 
 @ApiTags('report-cards')
 @ApiBearerAuth()
@@ -40,7 +40,7 @@ import { DocumentsService } from '../documents/documents.service';
 export class ReportCardsController {
   constructor(
     private readonly reportCardsService: ReportCardsService,
-    private readonly documentsService: DocumentsService,
+    private readonly reportCardsPdfService: ReportCardsPdfService,
   ) {}
 
   @Get(':studentId')
@@ -151,8 +151,8 @@ export class ReportCardsController {
       query.term
     );
 
-    // Gerar PDF usando o serviço de documentos
-    const pdfBuffer = await this.documentsService.generateReportCardPdf(reportCard);
+    // Gerar PDF usando o serviço de PDFs de boletins
+    const pdfBuffer = await this.reportCardsPdfService.generateReportCardPdf(reportCard);
 
     // Definir nome do arquivo
     const termText = query.term ? `_${query.term}trimestre` : '_final';

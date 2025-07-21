@@ -1,18 +1,128 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { DayPicker } from "react-day-picker";
+import { DayPicker, CaptionProps, useNavigation } from "react-day-picker";
 
-import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/components/ui/button";
+import { cn } from "../../lib/utils";
+import { buttonVariants } from "./button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 
-export type CalendarProps = React.ComponentProps<typeof DayPicker>;
+export type CalendarProps = React.ComponentProps<typeof DayPicker> & {
+  /**
+   * Enable enhanced navigation with year/month dropdowns
+   * @default false
+   */
+  enableQuickNavigation?: boolean;
+};
+
+// Custom caption with year and month dropdowns
+function CustomCaption({ displayMonth, id }: CaptionProps) {
+  const { goToMonth, previousMonth, nextMonth } = useNavigation();
+
+  // Generate years from 1990 to 2030
+  const years = Array.from({ length: 41 }, (_, i) => 1990 + i);
+  
+  // Portuguese month names
+  const months = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  ];
+
+  const handleYearChange = (yearValue: string) => {
+    const year = parseInt(yearValue);
+    const newDate = new Date(year, displayMonth.getMonth());
+    goToMonth(newDate);
+  };
+
+  const handleMonthChange = (monthValue: string) => {
+    const month = parseInt(monthValue);
+    const newDate = new Date(displayMonth.getFullYear(), month);
+    goToMonth(newDate);
+  };
+
+  return (
+    <div className="flex justify-between items-center p-2">
+      {/* Previous month button */}
+      <button
+        type="button"
+        className={cn(
+          buttonVariants({ variant: "outline" }),
+          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
+        )}
+        onClick={() => previousMonth && goToMonth(previousMonth)}
+        disabled={!previousMonth}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+
+      {/* Month and Year dropdowns */}
+      <div className="flex items-center gap-2">
+        <Select
+          value={displayMonth.getMonth().toString()}
+          onValueChange={handleMonthChange}
+        >
+          <SelectTrigger className="w-32 h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {months.map((month, index) => (
+              <SelectItem key={index} value={index.toString()}>
+                {month}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={displayMonth.getFullYear().toString()}
+          onValueChange={handleYearChange}
+        >
+          <SelectTrigger className="w-20 h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="max-h-60">
+            {years.map((year) => (
+              <SelectItem key={year} value={year.toString()}>
+                {year}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Next month button */}
+      <button
+        type="button"
+        className={cn(
+          buttonVariants({ variant: "outline" }),
+          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
+        )}
+        onClick={() => nextMonth && goToMonth(nextMonth)}
+        disabled={!nextMonth}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
 
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
+  enableQuickNavigation = false,
   ...props
 }: CalendarProps) {
+  const components = enableQuickNavigation 
+    ? {
+        IconLeft: ({ ..._props }) => <ChevronLeft className="h-4 w-4" />,
+        IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
+        Caption: CustomCaption,
+      }
+    : {
+        IconLeft: ({ ..._props }) => <ChevronLeft className="h-4 w-4" />,
+        IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
+      };
+
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -20,9 +130,11 @@ function Calendar({
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
-        caption: "flex justify-center pt-1 relative items-center",
+        caption: enableQuickNavigation 
+          ? "flex justify-center pt-1 relative items-center w-full"
+          : "flex justify-center pt-1 relative items-center",
         caption_label: "text-sm font-medium",
-        nav: "space-x-1 flex items-center",
+        nav: enableQuickNavigation ? "hidden" : "space-x-1 flex items-center",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
           "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
@@ -51,10 +163,7 @@ function Calendar({
         day_hidden: "invisible",
         ...classNames,
       }}
-      components={{
-        IconLeft: ({ ..._props }) => <ChevronLeft className="h-4 w-4" />,
-        IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
-      }}
+      components={components}
       {...props}
     />
   );

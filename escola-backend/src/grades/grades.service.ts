@@ -15,6 +15,18 @@ import { CreateGradeDto } from './dto/create-grade.dto';
 import { UpdateGradeDto } from './dto/update-grade.dto';
 import { Grade, GradeWithRelations } from './entities/grade.entity';
 
+// Interface para filtros de busca
+interface GradeFilters {
+  studentId?: string;
+  subjectId?: string;
+  teacherId?: string;
+  classId?: string;
+  type?: GradeType;
+  term?: number;
+  year?: number;
+  studentName?: string;
+}
+
 @Injectable()
 export class GradesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -150,8 +162,62 @@ export class GradesService {
     return grade as GradeWithRelations;
   }
 
-  async findAll(): Promise<GradeWithRelations[]> {
+  async findAll(filters?: GradeFilters): Promise<GradeWithRelations[]> {
+    // Construir where clause baseado nos filtros
+    const where: any = {};
+
+    if (filters) {
+      if (filters.studentId) {
+        where.studentId = filters.studentId;
+      }
+
+      if (filters.subjectId) {
+        where.subjectId = filters.subjectId;
+      }
+
+      if (filters.teacherId) {
+        where.teacherId = filters.teacherId;
+      }
+
+      if (filters.classId) {
+        where.classId = filters.classId;
+      }
+
+      if (filters.type) {
+        where.type = filters.type;
+      }
+
+      if (filters.term) {
+        where.term = filters.term;
+      }
+
+      if (filters.year) {
+        where.year = filters.year;
+      }
+
+      // Filtro por nome do aluno (busca parcial)
+      if (filters.studentName) {
+        where.student = {
+          OR: [
+            {
+              firstName: {
+                contains: filters.studentName,
+                mode: 'insensitive',
+              },
+            },
+            {
+              lastName: {
+                contains: filters.studentName,
+                mode: 'insensitive',
+              },
+            },
+          ],
+        };
+      }
+    }
+
     const grades = await this.prisma.grade.findMany({
+      where,
       include: {
         student: {
           select: {

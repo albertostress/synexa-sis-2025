@@ -8,6 +8,22 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
+    /* Font size scale variables */
+    --font-scale: 1;
+    --font-xs: calc(0.75rem * var(--font-scale));
+    --font-sm: calc(0.875rem * var(--font-scale));
+    --font-base: calc(1rem * var(--font-scale));
+    --font-lg: calc(1.125rem * var(--font-scale));
+    --font-xl: calc(1.25rem * var(--font-scale));
+    --font-2xl: calc(1.5rem * var(--font-scale));
+    --font-3xl: calc(1.875rem * var(--font-scale));
+    --font-4xl: calc(2.25rem * var(--font-scale));
+    --font-5xl: calc(3rem * var(--font-scale));
+    --font-6xl: calc(3.75rem * var(--font-scale));
+    --font-7xl: calc(4.5rem * var(--font-scale));
+    --font-8xl: calc(6rem * var(--font-scale));
+    --font-9xl: calc(8rem * var(--font-scale));
+
     --background: 0 0% 100%;
     --foreground: 222 47% 11%;
 
@@ -158,4 +174,26 @@ All colors MUST be HSL.
   .transition-smooth {
     transition: var(--transition-smooth);
   }
+  
+  /* Dynamic font size utilities */
+  .text-dynamic-xs { font-size: var(--font-xs); }
+  .text-dynamic-sm { font-size: var(--font-sm); }
+  .text-dynamic-base { font-size: var(--font-base); }
+  .text-dynamic-lg { font-size: var(--font-lg); }
+  .text-dynamic-xl { font-size: var(--font-xl); }
+  .text-dynamic-2xl { font-size: var(--font-2xl); }
+  .text-dynamic-3xl { font-size: var(--font-3xl); }
+  .text-dynamic-4xl { font-size: var(--font-4xl); }
+  .text-dynamic-5xl { font-size: var(--font-5xl); }
+  .text-dynamic-6xl { font-size: var(--font-6xl); }
+  .text-dynamic-7xl { font-size: var(--font-7xl); }
+  .text-dynamic-8xl { font-size: var(--font-8xl); }
+  .text-dynamic-9xl { font-size: var(--font-9xl); }
+  
+  /* Font scale classes */
+  .font-scale-small { --font-scale: 0.875; }
+  .font-scale-default { --font-scale: 1; }
+  .font-scale-large { --font-scale: 1.125; }
+  .font-scale-extra-large { --font-scale: 1.25; }
+  .font-scale-huge { --font-scale: 1.5; }
 }

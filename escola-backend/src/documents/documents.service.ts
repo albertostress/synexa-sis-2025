@@ -9,19 +9,17 @@ import {
   ForbiddenException 
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ReportCardsService } from '../report-cards/report-cards.service';
+// NOTA: Importação de ReportCardsService removida para quebrar dependência circular
 import { PdfService } from './pdf/pdf.service';
 import { CertificateData, CertificateSubject } from './templates/certificate.template';
 import { DeclarationData } from './templates/declaration.template';
 import { TranscriptData, TranscriptYear, TranscriptSubject } from './templates/transcript.template';
-import { ReportCardData, getReportCardTemplate } from './templates/report-card.template';
-import { ReportCard } from '../report-cards/entities/report-card.entity';
+// NOTA: Importações de ReportCard removidas para quebrar dependência circular
 
 @Injectable()
 export class DocumentsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly reportCardsService: ReportCardsService,
     private readonly pdfService: PdfService,
   ) {}
 
@@ -50,19 +48,58 @@ export class DocumentsService {
       throw new BadRequestException(`Aluno não possui matrícula no ano ${year}`);
     }
 
-    // Verificar se o aluno foi aprovado (usar o boletim para isso)
-    const reportCard = await this.reportCardsService.generateReportCard(studentId, year);
-    
-    if (reportCard.status !== 'APROVADO') {
-      throw new ForbiddenException(`Não é possível gerar certificado para aluno com status: ${reportCard.status}`);
+    // Buscar notas do aluno para verificar aprovação
+    const grades = await this.prisma.grade.findMany({
+      where: {
+        studentId,
+        year,
+        type: 'MT', // Média trimestral
+      },
+      include: {
+        subject: true,
+      },
+    });
+
+    if (grades.length === 0) {
+      throw new BadRequestException(`Aluno não possui notas registradas no ano ${year}`);
     }
 
-    // Montar dados das disciplinas
-    const subjects: CertificateSubject[] = reportCard.subjects.map(subject => ({
-      subjectName: subject.subjectName,
-      finalGrade: subject.grade,
-      status: subject.grade >= 7.0 ? 'APROVADO' : 'REPROVADO',
-    }));
+    // Calcular média por disciplina
+    const subjectGrades = new Map<string, { name: string; grades: number[] }>();
+    
+    for (const grade of grades) {
+      const key = grade.subject.id;
+      if (!subjectGrades.has(key)) {
+        subjectGrades.set(key, { name: grade.subject.name, grades: [] });
+      }
+      subjectGrades.get(key)!.grades.push(grade.value);
+    }
+
+    // Montar dados das disciplinas com médias
+    const subjects: CertificateSubject[] = [];
+    let totalAverage = 0;
+    let subjectCount = 0;
+
+    for (const [, data] of subjectGrades) {
+      const average = data.grades.reduce((sum, g) => sum + g, 0) / data.grades.length;
+      const roundedAverage = Math.round(average * 100) / 100;
+      
+      subjects.push({
+        subjectName: data.name,
+        finalGrade: roundedAverage,
+        status: roundedAverage >= 10 ? 'APROVADO' : 'REPROVADO', // Escala angolana: 10 ou mais é aprovado
+      });
+
+      totalAverage += roundedAverage;
+      subjectCount++;
+    }
+
+    const overallAverage = Math.round((totalAverage / subjectCount) * 100) / 100;
+
+    // Verificar se o aluno foi aprovado
+    if (overallAverage < 10) {
+      throw new ForbiddenException(`Não é possível gerar certificado para aluno com média ${overallAverage}. Média mínima: 10.0`);
+    }
 
     // Traduzir turno
     const shiftTranslation = {
@@ -79,7 +116,7 @@ export class DocumentsService {
       shift: shiftTranslation[enrollment.class.shift] || enrollment.class.shift,
       year,
       subjects,
-      overallAverage: reportCard.averageGrade,
+      overallAverage: overallAverage,
       finalStatus: 'APROVADO',
       institutionName: 'Escola Synexa',
       city: 'São Paulo',
@@ -315,29 +352,7 @@ export class DocumentsService {
     return { data, pdf };
   }
 
-  // ============= MÉTODO PARA BOLETIM ESCOLAR ANGOLANO =============
-
-  async generateReportCardPdf(reportCard: ReportCard): Promise<Buffer> {
-    const html = getReportCardTemplate(reportCard as ReportCardData);
-    return this.pdfService.generatePdfFromHtml(html, {
-      format: 'A4',
-      margin: {
-        top: '15mm',
-        right: '15mm',
-        bottom: '15mm',
-        left: '15mm',
-      },
-      displayHeaderFooter: false,
-      printBackground: true,
-    });
-  }
-
-  async generateReportCardWithPdf(studentId: string, year: number, term?: number): Promise<{
-    data: ReportCard;
-    pdf: Buffer;
-  }> {
-    const data = await this.reportCardsService.generateReportCard(studentId, year, term);
-    const pdf = await this.generateReportCardPdf(data);
-    return { data, pdf };
-  }
+  // ============= MÉTODOS PARA BOLETIM ESCOLAR ANGOLANO MOVIDOS =============
+  // NOTA: Os métodos generateReportCardPdf e generateReportCardWithPdf foram movidos
+  // para ReportCardsPdfService para quebrar a dependência circular entre DocumentsModule e ReportCardsModule
 }

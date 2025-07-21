@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 export class AppService {
   getHello(): { message: string; timestamp: string } {
     return {
-      message: 'Escola Backend API está funcionando! 🎓',
+      message: 'Synexa-SIS Backend API is running\!',
       timestamp: new Date().toISOString(),
     };
   }

@@ -150,13 +150,28 @@ export default function Subjects() {
     }
   });
 
-  // Filtrar e ordenar disciplinas por busca
+  // Filtrar e ordenar disciplinas por busca avançada
   const filteredSubjects = subjects
-    .filter(subject =>
-      subject.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (subject.description && subject.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      subject.code.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    .filter(subject => {
+      const searchLower = searchTerm.toLowerCase();
+      
+      // Busca no nome da disciplina
+      const nameMatch = subject.name.toLowerCase().includes(searchLower);
+      
+      // Busca na descrição
+      const descriptionMatch = subject.description && 
+        subject.description.toLowerCase().includes(searchLower);
+      
+      // Busca no ano
+      const yearMatch = subject.year.toLowerCase().includes(searchLower);
+      
+      // Busca nos nomes dos professores
+      const teacherMatch = subject.teachers?.some(teacher => 
+        teacher.user?.name?.toLowerCase().includes(searchLower)
+      );
+      
+      return nameMatch || descriptionMatch || yearMatch || teacherMatch;
+    })
     .sort((a, b) => {
       // Ordenar por ano primeiro, depois por nome
       if (a.year !== b.year) {
@@ -169,62 +184,92 @@ export default function Subjects() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
-    const subjectData: CreateSubjectDto = {
-      name: formData.get('name') as string,
-      description: formData.get('description') as string || undefined,
-      code: formData.get('code') as string,
+    const subjectData = {
+      name: (formData.get('name') as string)?.trim(),
+      description: (formData.get('description') as string)?.trim() || undefined,
       year: formData.get('year') as string,
-      category: formData.get('category') as "Obrigatória" | "Opcional",
-      credits: parseInt(formData.get('credits') as string) || 0,
-      workloadHours: parseInt(formData.get('workloadHours') as string) || 0,
-      isActive: formData.get('isActive') === 'true',
-      teacherIds: selectedTeachers.length > 0 ? selectedTeachers : undefined
+      category: formData.get('category') as string,
+      status: formData.get('status') as "ATIVO" | "INATIVO",
+      teacherIds: selectedTeachers
     };
 
-    // Validações básicas
-    if (!subjectData.name.trim()) {
+    // Validações para Angola
+    if (!subjectData.name || subjectData.name.length < 3) {
       toast({
-        title: 'Erro',
-        description: 'Nome da disciplina é obrigatório',
+        title: 'Erro de Validação',
+        description: 'Nome da disciplina deve ter pelo menos 3 caracteres',
         variant: 'destructive'
       });
       return;
     }
 
-    if (!subjectData.code.trim()) {
+    if (!subjectData.year) {
       toast({
-        title: 'Erro',
-        description: 'Código da disciplina é obrigatório',
+        title: 'Erro de Validação',
+        description: 'Ano letivo é obrigatório',
         variant: 'destructive'
       });
       return;
     }
 
-    if (subjectData.credits <= 0) {
+    if (!subjectData.category) {
       toast({
-        title: 'Erro',
-        description: 'Número de créditos deve ser maior que zero',
+        title: 'Erro de Validação',
+        description: 'Categoria da disciplina é obrigatória',
         variant: 'destructive'
       });
       return;
     }
 
-    if (subjectData.workloadHours <= 0) {
+    if (!subjectData.status) {
       toast({
-        title: 'Erro',
-        description: 'Carga horária deve ser maior que zero',
+        title: 'Erro de Validação',
+        description: 'Status da disciplina é obrigatório',
         variant: 'destructive'
       });
       return;
     }
+
+    if (selectedTeachers.length === 0) {
+      toast({
+        title: 'Erro de Validação',
+        description: 'Selecione pelo menos um professor para a disciplina',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (subjectData.description && subjectData.description.length > 500) {
+      toast({
+        title: 'Erro de Validação',
+        description: 'Descrição não pode exceder 500 caracteres',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Converter para formato do backend
+    const backendPayload: CreateSubjectDto = {
+      name: subjectData.name,
+      description: subjectData.description,
+      year: subjectData.year,
+      // Mapear categorias angolanas para formato backend
+      category: subjectData.category === 'Técnica' || subjectData.category === 'Artística' ? 'Opcional' : 'Obrigatória',
+      isActive: subjectData.status === 'ATIVO',
+      teacherIds: subjectData.teacherIds,
+      // Campos removidos mas necessários para compatibilidade temporária
+      code: `${subjectData.category.substring(0,3).toUpperCase()}${Date.now().toString().slice(-3)}`,
+      credits: 1,
+      workloadHours: 40
+    };
 
     if (editingSubject) {
       updateMutation.mutate({ 
         id: editingSubject.id, 
-        data: subjectData 
+        data: backendPayload 
       });
     } else {
-      createMutation.mutate(subjectData);
+      createMutation.mutate(backendPayload);
     }
   };
 
@@ -267,58 +312,44 @@ export default function Subjects() {
                 Nova Disciplina
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl" aria-describedby="dialog-description">
+            <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto" aria-describedby="dialog-description">
               <DialogHeader>
-                <DialogTitle>
+                <DialogTitle className="text-xl font-semibold">
                   {editingSubject ? 'Editar Disciplina' : 'Nova Disciplina'}
                 </DialogTitle>
-                <DialogDescription id="dialog-description">
+                <DialogDescription id="dialog-description" className="text-muted-foreground">
                   {editingSubject 
                     ? 'Modifique as informações da disciplina conforme necessário.'
-                    : 'Preencha os campos para criar uma nova disciplina no sistema.'
+                    : 'Preencha os campos obrigatórios para criar uma nova disciplina no sistema educacional.'
                   }
                 </DialogDescription>
               </DialogHeader>
               
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="name">Nome da Disciplina *</Label>
-                      <Input
-                        id="name"
-                        name="name"
-                        defaultValue={editingSubject?.name}
-                        placeholder="Ex: Matemática, História, Física..."
-                        required
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="code">Código *</Label>
-                      <Input
-                        id="code"
-                        name="code"
-                        defaultValue={editingSubject?.code}
-                        placeholder="Ex: MAT101, HIS201..."
-                        required
-                      />
-                    </div>
+                  <div>
+                    <Label htmlFor="name">Nome da Disciplina *</Label>
+                    <Input
+                      id="name"
+                      name="name"
+                      defaultValue={editingSubject?.name}
+                      placeholder="Ex: Matemática, Língua Portuguesa, Biologia..."
+                      required
+                    />
                   </div>
 
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <Label htmlFor="year">Ano *</Label>
+                      <Label htmlFor="year">Ano Letivo *</Label>
                       <Select name="year" defaultValue={editingSubject?.year}>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione o ano" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="1º Ano">1º Ano</SelectItem>
-                          <SelectItem value="2º Ano">2º Ano</SelectItem>
-                          <SelectItem value="3º Ano">3º Ano</SelectItem>
-                          <SelectItem value="4º Ano">4º Ano</SelectItem>
-                          <SelectItem value="5º Ano">5º Ano</SelectItem>
+                          <SelectItem value="10º Ano">10º Ano</SelectItem>
+                          <SelectItem value="11º Ano">11º Ano</SelectItem>
+                          <SelectItem value="12º Ano">12º Ano</SelectItem>
+                          <SelectItem value="13º Ano">13º Ano</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -330,69 +361,46 @@ export default function Subjects() {
                           <SelectValue placeholder="Selecione a categoria" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Obrigatória">Obrigatória</SelectItem>
-                          <SelectItem value="Opcional">Opcional</SelectItem>
+                          <SelectItem value="Geral">Geral</SelectItem>
+                          <SelectItem value="Técnica">Técnica</SelectItem>
+                          <SelectItem value="Cívica">Cívica</SelectItem>
+                          <SelectItem value="Artística">Artística</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
                     <div>
-                      <Label htmlFor="isActive">Status *</Label>
-                      <Select name="isActive" defaultValue={editingSubject?.isActive ? 'true' : 'false'}>
+                      <Label htmlFor="status">Status *</Label>
+                      <Select name="status" defaultValue={editingSubject?.isActive ? 'ATIVO' : 'INATIVO'}>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione o status" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="true">Ativa</SelectItem>
-                          <SelectItem value="false">Inativa</SelectItem>
+                          <SelectItem value="ATIVO">Ativo</SelectItem>
+                          <SelectItem value="INATIVO">Inativo</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="credits">Créditos *</Label>
-                      <Input
-                        id="credits"
-                        name="credits"
-                        type="number"
-                        min="1"
-                        max="10"
-                        defaultValue={editingSubject?.credits}
-                        placeholder="Ex: 3"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="workloadHours">Carga Horária (horas) *</Label>
-                      <Input
-                        id="workloadHours"
-                        name="workloadHours"
-                        type="number"
-                        min="1"
-                        max="500"
-                        defaultValue={editingSubject?.workloadHours}
-                        placeholder="Ex: 60"
-                        required
-                      />
-                    </div>
-                  </div>
                   
                   <div>
-                    <Label htmlFor="description">Descrição</Label>
+                    <Label htmlFor="description">Descrição (Opcional)</Label>
                     <Textarea
                       id="description"
                       name="description"
                       defaultValue={editingSubject?.description || ''}
-                      placeholder="Descrição da disciplina (opcional)"
+                      placeholder="Breve descrição sobre os conteúdos e objetivos da disciplina..."
                       rows={3}
+                      maxLength={500}
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Máximo 500 caracteres
+                    </p>
                   </div>
 
                   <div>
-                    <Label htmlFor="teachers">Professores Associados</Label>
+                    <Label htmlFor="teachers">Professores Associados *</Label>
                     <div className="mt-2">
                       <MultiSelectSimple
                         options={teachers.map(teacher => ({
@@ -401,23 +409,34 @@ export default function Subjects() {
                         }))}
                         selected={selectedTeachers}
                         onChange={setSelectedTeachers}
-                        placeholder={loadingTeachers ? "Carregando professores..." : "Selecione os professores..."}
+                        placeholder={loadingTeachers ? "Carregando professores..." : "Selecione pelo menos um professor..."}
                         disabled={loadingTeachers}
                         className="w-full"
                       />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Selecione os professores que irão lecionar esta disciplina
+                      Selecione pelo menos um professor que irá lecionar esta disciplina
                     </p>
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={resetForm}>
+                <div className="flex justify-end gap-3 pt-4 border-t">
+                  <Button type="button" variant="outline" onClick={resetForm} disabled={isSubmitting}>
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? 'Processando...' : editingSubject ? 'Atualizar' : 'Criar'}
+                  <Button 
+                    type="submit" 
+                    disabled={isSubmitting || selectedTeachers.length === 0}
+                    className="min-w-[120px]"
+                  >
+                    {isSubmitting ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Processando...
+                      </div>
+                    ) : (
+                      editingSubject ? 'Atualizar Disciplina' : 'Criar Disciplina'
+                    )}
                   </Button>
                 </div>
               </form>
@@ -431,18 +450,19 @@ export default function Subjects() {
               <span className="flex items-center gap-2">
                 <BookOpen className="w-5 h-5" />
                 Lista de Disciplinas
-                {subjects.length > 0 && (
-                  <Badge variant="secondary">{subjects.length} disciplina{subjects.length !== 1 ? 's' : ''}</Badge>
-                )}
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                  {filteredSubjects.length} {filteredSubjects.length === 1 ? 'disciplina' : 'disciplinas'}
+                  {searchTerm && subjects.length !== filteredSubjects.length && ` de ${subjects.length}`}
+                </Badge>
               </span>
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                   <Input
-                    placeholder="Buscar disciplinas..."
+                    placeholder="Buscar por disciplina, professor, ano..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 w-64"
+                    className="pl-10 w-72"
                   />
                 </div>
               </div>
@@ -453,11 +473,9 @@ export default function Subjects() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Disciplina</TableHead>
-                  <TableHead>Código</TableHead>
                   <TableHead>Ano</TableHead>
                   <TableHead>Categoria</TableHead>
                   <TableHead>Professores</TableHead>
-                  <TableHead>Créditos</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Ações</TableHead>
                 </TableRow>
@@ -465,13 +483,13 @@ export default function Subjects() {
               <TableBody>
                 {loadingSubjects ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={6} className="text-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                     </TableCell>
                   </TableRow>
                 ) : filteredSubjects.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       {searchTerm ? 'Nenhuma disciplina encontrada para a busca' : 'Nenhuma disciplina cadastrada'}
                     </TableCell>
                   </TableRow>
@@ -490,15 +508,7 @@ export default function Subjects() {
                                 {subject.description}
                               </div>
                             )}
-                            <div className="text-xs text-muted-foreground">
-                              {subject.workloadHours}h de carga horária
-                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-mono text-sm font-medium">
-                          {subject.code}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -516,35 +526,40 @@ export default function Subjects() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-sm">
-                            {subject.teachers?.length || 0} professor{(subject.teachers?.length || 0) !== 1 ? 'es' : ''}
-                          </span>
-                          {subject.teachers && subject.teachers.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {subject.teachers.slice(0, 2).map((teacher) => (
-                                <Badge key={teacher.id} variant="outline" className="text-xs">
-                                  {teacher.user?.name?.split(' ')[0] || 'N/A'}
-                                </Badge>
-                              ))}
-                              {subject.teachers.length > 2 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{subject.teachers.length - 2}
-                                </Badge>
-                              )}
+                          {subject.teachers && subject.teachers.length > 0 ? (
+                            <div className="flex items-center gap-2">
+                              <div className="flex -space-x-2">
+                                {subject.teachers.slice(0, 3).map((teacher, index) => (
+                                  <div
+                                    key={teacher.id}
+                                    className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium border-2 border-background"
+                                    title={teacher.user?.name || 'Professor'}
+                                  >
+                                    {teacher.user?.name?.charAt(0) || 'P'}
+                                  </div>
+                                ))}
+                                {subject.teachers.length > 3 && (
+                                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium border-2 border-background">
+                                    +{subject.teachers.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {subject.teachers.length} professor{subject.teachers.length !== 1 ? 'es' : ''}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Users className="w-4 h-4 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">Sem professores</span>
                             </div>
                           )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="text-sm font-medium">
-                          {subject.credits} crédito{subject.credits !== 1 ? 's' : ''}
-                        </div>
-                      </TableCell>
-                      <TableCell>
                         <Badge 
                           variant={subject.isActive ? 'default' : 'secondary'}
-                          className={`text-xs ${subject.isActive ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'}`}
+                          className={`text-xs ${subject.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}
                         >
                           {subject.isActive ? 'Ativa' : 'Inativa'}
                         </Badge>

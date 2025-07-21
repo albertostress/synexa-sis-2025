@@ -3,11 +3,11 @@ import { CreateStudentDto, Student, StudentResponse, StudentsListResponse } from
 import { Schedule, CreateScheduleDto, UpdateScheduleDto, ScheduleFilters, ScheduleConflict, Weekday } from '../types/schedule';
 import { Subject, SubjectWithTeachers, CreateSubjectDto, UpdateSubjectDto, SubjectFilters } from '../types/subject';
 import { SchoolClass, SchoolClassWithRelations, CreateClassDto, UpdateClassDto, ClassFilters } from '../types/class';
-import { EnrollmentWithRelations, CreateEnrollmentDto, UpdateEnrollmentDto, EnrollmentFilters } from '../types/enrollment';
+import { EnrollmentWithRelations, CreateEnrollmentDto, UpdateEnrollmentDto, EnrollmentFilters, CreateEnrollmentWithStudentDto } from '../types/enrollment';
 import { GradeWithRelations, CreateGradeDto, UpdateGradeDto, GradeFilters } from '../types/grade';
 import { ReportCard, StudentInfo, GetReportCardDto, ReportFilters } from '../types/report';
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // Create axios instance
 export const api = axios.create({
@@ -40,6 +40,18 @@ api.interceptors.response.use(
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+    
+    // Log errors for debugging
+    if (error.response) {
+      console.error('API Error:', {
+        status: error.response.status,
+        data: error.response.data,
+        url: error.config?.url
+      });
+    } else if (error.request) {
+      console.error('Network Error - No response from server');
+    }
+    
     return Promise.reject(error);
   }
 );
@@ -84,7 +96,8 @@ export const usersAPI = {
 export const studentsAPI = {
   getAll: async (): Promise<Student[]> => {
     const response = await api.get('/students');
-    return response.data;
+    // Backend retorna objeto paginado: {students: [...], total: X, ...}
+    return response.data.students || [];
   },
   
   getById: async (id: string): Promise<StudentResponse> => {
@@ -110,6 +123,28 @@ export const studentsAPI = {
   getByClass: async (classId: string): Promise<StudentResponse[]> => {
     const response = await api.get(`/students/class/${classId}`);
     return response.data;
+  },
+
+  /**
+   * Verifica se já existe um estudante com o BI informado
+   * Retorna { exists: true, student: {...} } se encontrado
+   * Retorna erro 404 se não encontrado
+   */
+  checkByBI: async (biNumber: string): Promise<{ exists: boolean; student?: any }> => {
+    try {
+      const response = await api.get(`/students/by-bi/${biNumber}`);
+      return response.data; // { exists: true, student: {...} }
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        // Estudante não encontrado - retornar estrutura consistente
+        return { 
+          exists: false,
+          message: error.response?.data?.message || `Nenhum estudante encontrado com o BI ${biNumber}`
+        };
+      }
+      // Re-throw outros erros (500, 400, etc)
+      throw error;
+    }
   }
 };
 
@@ -754,7 +789,19 @@ export const enrollmentAPI = {
   },
   
   create: async (enrollmentData: CreateEnrollmentDto): Promise<EnrollmentWithRelations> => {
+    const response = await api.post('/enrollment/existing-student', enrollmentData);
+    return response.data;
+  },
+
+  createWithStudent: async (enrollmentData: CreateEnrollmentWithStudentDto): Promise<EnrollmentWithRelations> => {
+    console.log('🔗 API.createWithStudent chamado');
+    console.log('📊 Payload para POST /enrollment:', JSON.stringify(enrollmentData, null, 2));
+    
     const response = await api.post('/enrollment', enrollmentData);
+    
+    console.log('📥 Response da API:', response);
+    console.log('📄 Response data:', response.data);
+    
     return response.data;
   },
   
@@ -777,7 +824,9 @@ export const gradesAPI = {
     if (filters?.subjectId) params.append('subjectId', filters.subjectId);
     if (filters?.teacherId) params.append('teacherId', filters.teacherId);
     if (filters?.classId) params.append('classId', filters.classId);
+    if (filters?.type) params.append('type', filters.type);
     if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.studentName) params.append('studentName', filters.studentName);
     
     const response = await api.get('/grades', { 
       params: Object.fromEntries(params) 
@@ -902,13 +951,13 @@ export const reportsAPI = {
 // Communication API functions
 export const communicationAPI = {
   // ============= INBOX - MENSAGENS RECEBIDAS =============
-  getInboxMessages: async (filters?: {
+  getInbox: async (filters?: {
     priority?: string;
     audience?: string;
     startDate?: string;
     endDate?: string;
-    isRead?: boolean;
-    searchTerm?: string;
+    unread?: boolean;
+    search?: string;
     includeExpired?: boolean;
     page?: number;
     limit?: number;
@@ -918,14 +967,28 @@ export const communicationAPI = {
     if (filters?.audience) params.append('audience', filters.audience);
     if (filters?.startDate) params.append('startDate', filters.startDate);
     if (filters?.endDate) params.append('endDate', filters.endDate);
-    if (filters?.isRead !== undefined) params.append('isRead', filters.isRead.toString());
-    if (filters?.searchTerm) params.append('searchTerm', filters.searchTerm);
+    if (filters?.unread !== undefined) params.append('unread', filters.unread.toString());
+    if (filters?.search) params.append('search', filters.search);
     if (filters?.includeExpired !== undefined) params.append('includeExpired', filters.includeExpired.toString());
     if (filters?.page) params.append('page', filters.page.toString());
     if (filters?.limit) params.append('limit', filters.limit.toString());
 
     const response = await api.get(`/communication/inbox?${params}`);
     return response.data;
+  },
+
+  getInboxMessages: async (filters?: {
+    priority?: string;
+    audience?: string;
+    startDate?: string;
+    endDate?: string;
+    unread?: boolean;
+    search?: string;
+    includeExpired?: boolean;
+    page?: number;
+    limit?: number;
+  }) => {
+    return communicationAPI.getInbox(filters);
   },
 
   // ============= MENSAGENS ENVIADAS =============
@@ -1433,4 +1496,1490 @@ export const libraryAPI = {
       throw error;
     }
   }
+};
+
+// ============================================================================
+// TRANSPORT API - Sistema de Transporte Escolar
+// ============================================================================
+
+export const transportAPI = {
+  // ============= GESTÃO DE ROTAS =============
+  
+  getRoutes: async (filters: import('@/types/transport').RouteFilters): Promise<import('@/types/transport').RouteListResponse> => {
+    const params = new URLSearchParams();
+    
+    if (filters.routeName) params.append('routeName', filters.routeName);
+    if (filters.driverName) params.append('driverName', filters.driverName);
+    if (filters.vehicle) params.append('vehicle', filters.vehicle);
+    if (filters.departure) params.append('departure', filters.departure);
+    if (filters.returnTime) params.append('returnTime', filters.returnTime);
+    if (filters.stopName) params.append('stopName', filters.stopName);
+    if (filters.page) params.append('page', filters.page.toString());
+    if (filters.limit) params.append('limit', filters.limit.toString());
+    
+    const response = await api.get(`/transport/routes?${params.toString()}`);
+    return response.data;
+  },
+  
+  getRouteById: async (id: string): Promise<import('@/types/transport').TransportRoute> => {
+    const response = await api.get(`/transport/routes/${id}`);
+    return response.data;
+  },
+  
+  createRoute: async (routeData: import('@/types/transport').CreateRouteDto): Promise<import('@/types/transport').TransportRoute> => {
+    const response = await api.post('/transport/routes', routeData);
+    return response.data;
+  },
+  
+  updateRoute: async (id: string, routeData: import('@/types/transport').UpdateRouteDto): Promise<import('@/types/transport').TransportRoute> => {
+    const response = await api.patch(`/transport/routes/${id}`, routeData);
+    return response.data;
+  },
+  
+  deleteRoute: async (id: string): Promise<void> => {
+    const response = await api.delete(`/transport/routes/${id}`);
+    return response.data;
+  },
+  
+  // ============= GESTÃO DE ALUNOS NO TRANSPORTE =============
+  
+  assignStudentsToRoute: async (
+    routeId: string, 
+    studentsData: import('@/types/transport').AssignMultipleStudentsDto
+  ): Promise<import('@/types/transport').StudentTransport[]> => {
+    const response = await api.post(`/transport/routes/${routeId}/students`, studentsData);
+    return response.data;
+  },
+  
+  getStudentTransport: async (studentId: string): Promise<import('@/types/transport').StudentTransport | null> => {
+    try {
+      const response = await api.get(`/transport/students/${studentId}`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) return null;
+      throw error;
+    }
+  },
+  
+  updateStudentTransport: async (
+    studentId: string, 
+    transportData: import('@/types/transport').UpdateStudentTransportDto
+  ): Promise<import('@/types/transport').StudentTransport> => {
+    const response = await api.put(`/transport/students/${studentId}`, transportData);
+    return response.data;
+  },
+  
+  removeStudentFromTransport: async (studentId: string): Promise<void> => {
+    const response = await api.delete(`/transport/students/${studentId}`);
+    return response.data;
+  },
+  
+  getStudentsWithTransport: async (filters: import('@/types/transport').StudentTransportFilters): Promise<import('@/types/transport').StudentTransportListResponse> => {
+    const params = new URLSearchParams();
+    
+    if (filters.studentName) params.append('studentName', filters.studentName);
+    if (filters.className) params.append('className', filters.className);
+    if (filters.routeName) params.append('routeName', filters.routeName);
+    if (filters.stopName) params.append('stopName', filters.stopName);
+    if (filters.page) params.append('page', filters.page.toString());
+    if (filters.limit) params.append('limit', filters.limit.toString());
+    
+    const response = await api.get(`/transport/students?${params.toString()}`);
+    return response.data;
+  },
+  
+  // ============= ESTATÍSTICAS E RELATÓRIOS =============
+  
+  getTransportStats: async (): Promise<import('@/types/transport').TransportStats> => {
+    const response = await api.get('/transport/stats');
+    return response.data;
+  },
+  
+  generateRouteReport: async (routeId: string): Promise<Blob> => {
+    const response = await api.get(`/transport/routes/${routeId}/report`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+  
+  exportRoutesReport: async (filters: import('@/types/transport').RouteFilters): Promise<Blob> => {
+    const params = new URLSearchParams();
+    
+    if (filters.routeName) params.append('routeName', filters.routeName);
+    if (filters.driverName) params.append('driverName', filters.driverName);
+    if (filters.vehicle) params.append('vehicle', filters.vehicle);
+    
+    const response = await api.get(`/transport/routes/export?${params.toString()}`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+  
+  exportStudentsReport: async (filters: import('@/types/transport').StudentTransportFilters): Promise<Blob> => {
+    const params = new URLSearchParams();
+    
+    if (filters.studentName) params.append('studentName', filters.studentName);
+    if (filters.className) params.append('className', filters.className);
+    if (filters.routeName) params.append('routeName', filters.routeName);
+    
+    const response = await api.get(`/transport/students/export?${params.toString()}`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+  
+  // ============= FUNÇÕES AUXILIARES =============
+  
+  // Verificar se rota está cheia (baseado na capacidade padrão)
+  isRouteAtCapacity: (route: import('@/types/transport').TransportRoute, maxCapacity: number = 50): boolean => {
+    const studentCount = route.students?.length || 0;
+    return studentCount >= maxCapacity;
+  },
+  
+  // Calcular utilização da rota
+  getRouteUtilization: (route: import('@/types/transport').TransportRoute, maxCapacity: number = 50): {
+    percentage: number;
+    status: 'low' | 'medium' | 'high' | 'full';
+    color: string;
+  } => {
+    const studentCount = route.students?.length || 0;
+    const percentage = Math.round((studentCount / maxCapacity) * 100);
+    
+    let status: 'low' | 'medium' | 'high' | 'full';
+    let color: string;
+    
+    if (percentage >= 100) {
+      status = 'full';
+      color = 'bg-red-100 text-red-800 border-red-200';
+    } else if (percentage >= 80) {
+      status = 'high';
+      color = 'bg-orange-100 text-orange-800 border-orange-200';
+    } else if (percentage >= 50) {
+      status = 'medium';
+      color = 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    } else {
+      status = 'low';
+      color = 'bg-green-100 text-green-800 border-green-200';
+    }
+    
+    return { percentage, status, color };
+  },
+  
+  // Formatar horário de viagem
+  formatTripTime: (departure: string, returnTime: string): string => {
+    if (!departure || !returnTime) return 'N/A';
+    return `${departure} - ${returnTime}`;
+  },
+  
+  // Validar dados da rota
+  validateRouteData: (routeData: import('@/types/transport').CreateRouteDto): string[] => {
+    const errors: string[] = [];
+    
+    if (!routeData.name?.trim()) {
+      errors.push('Nome da rota é obrigatório');
+    }
+    
+    if (!routeData.driverName?.trim()) {
+      errors.push('Nome do motorista é obrigatório');
+    }
+    
+    if (!routeData.vehicle?.trim()) {
+      errors.push('Identificação do veículo é obrigatória');
+    }
+    
+    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRegex.test(routeData.departure)) {
+      errors.push('Horário de saída deve estar no formato HH:mm');
+    }
+    
+    if (!timeRegex.test(routeData.returnTime)) {
+      errors.push('Horário de retorno deve estar no formato HH:mm');
+    }
+    
+    if (routeData.departure >= routeData.returnTime) {
+      errors.push('Horário de retorno deve ser posterior ao horário de saída');
+    }
+    
+    if (!routeData.stops || routeData.stops.length === 0) {
+      errors.push('Pelo menos uma paragem é obrigatória');
+    }
+    
+    // Validar ordem das paragens
+    if (routeData.stops) {
+      const orders = routeData.stops.map(stop => stop.order).sort((a, b) => a - b);
+      for (let i = 0; i < orders.length; i++) {
+        if (orders[i] !== i + 1) {
+          errors.push('Ordem das paragens deve ser sequencial (1, 2, 3, ...)');
+          break;
+        }
+      }
+      
+      // Verificar nomes duplicados
+      const stopNames = routeData.stops.map(stop => stop.name.toLowerCase());
+      const uniqueNames = new Set(stopNames);
+      if (stopNames.length !== uniqueNames.size) {
+        errors.push('Não pode haver paragens com nomes duplicados');
+      }
+    }
+    
+    return errors;
+  },
+  
+  // Helper para download de relatórios
+  downloadRouteReport: async (routeId: string, filename: string = 'relatorio_rota.pdf'): Promise<void> => {
+    try {
+      const blob = await transportAPI.generateRouteReport(routeId);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erro ao baixar relatório da rota:', error);
+      throw error;
+    }
+  },
+  
+  downloadRoutesReport: async (filters: import('@/types/transport').RouteFilters, filename: string = 'relatorio_rotas.xlsx'): Promise<void> => {
+    try {
+      const blob = await transportAPI.exportRoutesReport(filters);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erro ao baixar relatório de rotas:', error);
+      throw error;
+    }
+  },
+  
+  downloadStudentsReport: async (filters: import('@/types/transport').StudentTransportFilters, filename: string = 'relatorio_alunos_transporte.xlsx'): Promise<void> => {
+    try {
+      const blob = await transportAPI.exportStudentsReport(filters);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erro ao baixar relatório de alunos:', error);
+      throw error;
+    }
+  },
+  
+  // Verificar permissões
+  canManageTransport: (userRole: string): boolean => {
+    return ['ADMIN'].includes(userRole);
+  },
+  
+  canViewTransport: (userRole: string): boolean => {
+    return ['ADMIN', 'SECRETARIA', 'DIRETOR'].includes(userRole);
+  },
+  
+  canAssignStudents: (userRole: string): boolean => {
+    return ['ADMIN', 'SECRETARIA'].includes(userRole);
+  },
+};
+
+// ============================================================================
+// EVENTS API - Sistema de Eventos Escolares
+// ============================================================================
+
+export const eventsAPI = {
+  // ============= GESTÃO DE EVENTOS =============
+  
+  getEvents: async (filters: import('@/types/events').EventFilters): Promise<import('@/types/events').EventListResponse> => {
+    const params = new URLSearchParams();
+    
+    if (filters.title) params.append('title', filters.title);
+    if (filters.type) params.append('type', filters.type);
+    if (filters.location) params.append('location', filters.location);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.futureOnly) params.append('futureOnly', filters.futureOnly.toString());
+    if (filters.pastOnly) params.append('pastOnly', filters.pastOnly.toString());
+    if (filters.page) params.append('page', filters.page.toString());
+    if (filters.limit) params.append('limit', filters.limit.toString());
+    if (filters.sortBy) params.append('sortBy', filters.sortBy);
+    if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
+    
+    const response = await api.get(`/events?${params.toString()}`);
+    return response.data;
+  },
+  
+  getEventById: async (id: string): Promise<import('@/types/events').EventDetails> => {
+    const response = await api.get(`/events/${id}`);
+    return response.data;
+  },
+  
+  createEvent: async (eventData: import('@/types/events').CreateEventDto): Promise<import('@/types/events').Event> => {
+    const response = await api.post('/events', eventData);
+    return response.data;
+  },
+  
+  updateEvent: async (id: string, eventData: import('@/types/events').UpdateEventDto): Promise<import('@/types/events').Event> => {
+    const response = await api.patch(`/events/${id}`, eventData);
+    return response.data;
+  },
+  
+  deleteEvent: async (id: string): Promise<void> => {
+    const response = await api.delete(`/events/${id}`);
+    return response.data;
+  },
+  
+  // ============= GESTÃO DE PARTICIPAÇÕES =============
+  
+  registerParticipation: async (
+    eventId: string, 
+    participationData: import('@/types/events').RegisterParticipationDto
+  ): Promise<import('@/types/events').EventParticipation> => {
+    const response = await api.post(`/events/${eventId}/participate`, participationData);
+    return response.data;
+  },
+  
+  registerMultipleParticipations: async (
+    eventId: string, 
+    participationsData: import('@/types/events').RegisterMultipleParticipationsDto
+  ): Promise<import('@/types/events').EventParticipation[]> => {
+    const students = participationsData.studentIds.map(studentId => ({
+      studentId,
+      note: participationsData.note
+    }));
+    
+    // Registra um por um (o backend não tem endpoint para múltiplos ainda)
+    const results = await Promise.all(
+      students.map(student => 
+        api.post(`/events/${eventId}/participate`, student)
+      )
+    );
+    
+    return results.map(r => r.data);
+  },
+  
+  registerClassParticipation: async (
+    eventId: string, 
+    classData: import('@/types/events').RegisterClassDto
+  ): Promise<import('@/types/events').EventParticipation[]> => {
+    const response = await api.post(`/events/${eventId}/participate/class`, classData);
+    return response.data;
+  },
+  
+  getEventParticipants: async (
+    eventId: string, 
+    filters?: import('@/types/events').ParticipationFilters
+  ): Promise<import('@/types/events').ParticipationListResponse> => {
+    const params = new URLSearchParams();
+    
+    if (filters?.presence !== undefined) params.append('presence', filters.presence.toString());
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    
+    const response = await api.get(`/events/${eventId}/participants?${params.toString()}`);
+    return response.data;
+  },
+  
+  updateParticipation: async (
+    participationId: string, 
+    updateData: import('@/types/events').UpdateParticipationDto
+  ): Promise<import('@/types/events').EventParticipation> => {
+    const response = await api.put(`/events/participation/${participationId}`, updateData);
+    return response.data;
+  },
+  
+  batchUpdatePresence: async (
+    eventId: string, 
+    batchData: import('@/types/events').BatchUpdatePresenceDto
+  ): Promise<import('@/types/events').EventParticipation[]> => {
+    const response = await api.put(`/events/${eventId}/presence/batch`, batchData);
+    return response.data;
+  },
+  
+  removeParticipation: async (participationId: string): Promise<void> => {
+    const response = await api.delete(`/events/participation/${participationId}`);
+    return response.data;
+  },
+  
+  // ============= CONSULTAS ESPECÍFICAS =============
+  
+  getStudentEvents: async (
+    studentId: string, 
+    filters?: import('@/types/events').EventFilters
+  ): Promise<import('@/types/events').StudentEventHistory> => {
+    const params = new URLSearchParams();
+    
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    
+    const response = await api.get(`/events/student/${studentId}/events?${params.toString()}`);
+    return response.data;
+  },
+  
+  // ============= ESTATÍSTICAS E RELATÓRIOS =============
+  
+  getEventStats: async (): Promise<import('@/types/events').EventStats> => {
+    const response = await api.get('/events/stats');
+    return response.data;
+  },
+  
+  generateEventReport: async (eventId: string): Promise<Blob> => {
+    const response = await api.get(`/events/${eventId}/report`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+  
+  exportEventsReport: async (filters: import('@/types/events').EventFilters): Promise<Blob> => {
+    const params = new URLSearchParams();
+    
+    if (filters.type) params.append('type', filters.type);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    
+    const response = await api.get(`/events/export?${params.toString()}`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+  
+  exportParticipantsReport: async (eventId: string): Promise<Blob> => {
+    const response = await api.get(`/events/${eventId}/participants/export`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+  
+  // ============= FUNÇÕES AUXILIARES =============
+  
+  // Validar dados do evento
+  validateEventData: (eventData: import('@/types/events').CreateEventDto): string[] => {
+    const errors: string[] = [];
+    
+    if (!eventData.title?.trim()) {
+      errors.push('Título é obrigatório');
+    } else if (eventData.title.length < 3 || eventData.title.length > 100) {
+      errors.push('Título deve ter entre 3 e 100 caracteres');
+    }
+    
+    if (!eventData.description?.trim()) {
+      errors.push('Descrição é obrigatória');
+    } else if (eventData.description.length < 10 || eventData.description.length > 1000) {
+      errors.push('Descrição deve ter entre 10 e 1000 caracteres');
+    }
+    
+    if (!eventData.location?.trim()) {
+      errors.push('Local é obrigatório');
+    } else if (eventData.location.length < 3 || eventData.location.length > 200) {
+      errors.push('Local deve ter entre 3 e 200 caracteres');
+    }
+    
+    if (!eventData.type) {
+      errors.push('Tipo do evento é obrigatório');
+    }
+    
+    if (!eventData.date) {
+      errors.push('Data é obrigatória');
+    } else {
+      const eventDate = new Date(eventData.date);
+      const now = new Date();
+      
+      if (isNaN(eventDate.getTime())) {
+        errors.push('Data deve ser uma data válida');
+      } else if (eventDate <= now) {
+        errors.push('Data deve ser no futuro');
+      }
+    }
+    
+    return errors;
+  },
+  
+  // Formatar data do evento
+  formatEventDate: (date: string): string => {
+    const eventDate = new Date(date);
+    return eventDate.toLocaleDateString('pt-AO', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  },
+  
+  // Formatar hora do evento
+  formatEventTime: (date: string): string => {
+    const eventDate = new Date(date);
+    return eventDate.toLocaleTimeString('pt-AO', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  },
+  
+  // Calcular taxa de presença
+  calculateAttendanceRate: (participants: import('@/types/events').EventParticipation[]): number => {
+    if (participants.length === 0) return 0;
+    const present = participants.filter(p => p.presence).length;
+    return Math.round((present / participants.length) * 100);
+  },
+  
+  // Verificar se evento pode ser editado
+  canEditEvent: (eventDate: string): boolean => {
+    const event = new Date(eventDate);
+    const now = new Date();
+    return event > now;
+  },
+  
+  // Verificar se evento pode ser deletado
+  canDeleteEvent: (event: import('@/types/events').Event): boolean => {
+    const eventDate = new Date(event.date);
+    const now = new Date();
+    const hasParticipants = (event.totalParticipants || 0) > 0;
+    
+    return eventDate > now && !hasParticipants;
+  },
+  
+  // Helper para download de relatórios
+  downloadEventReport: async (eventId: string, filename: string = 'relatorio_evento.pdf'): Promise<void> => {
+    try {
+      const blob = await eventsAPI.generateEventReport(eventId);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erro ao baixar relatório do evento:', error);
+      throw error;
+    }
+  },
+  
+  downloadEventsReport: async (filters: import('@/types/events').EventFilters, filename: string = 'relatorio_eventos.xlsx'): Promise<void> => {
+    try {
+      const blob = await eventsAPI.exportEventsReport(filters);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erro ao baixar relatório de eventos:', error);
+      throw error;
+    }
+  },
+  
+  downloadParticipantsReport: async (eventId: string, filename: string = 'participantes_evento.xlsx'): Promise<void> => {
+    try {
+      const blob = await eventsAPI.exportParticipantsReport(eventId);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erro ao baixar relatório de participantes:', error);
+      throw error;
+    }
+  },
+  
+  // Verificar permissões
+  canManageEvents: (userRole: string): boolean => {
+    return ['ADMIN'].includes(userRole);
+  },
+  
+  canViewEvents: (userRole: string): boolean => {
+    return ['ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR'].includes(userRole);
+  },
+  
+  canManageParticipations: (userRole: string): boolean => {
+    return ['ADMIN', 'SECRETARIA'].includes(userRole);
+  },
+  
+  canMarkPresence: (userRole: string): boolean => {
+    return ['ADMIN', 'SECRETARIA'].includes(userRole);
+  },
+};
+
+// ================================================================
+// ANALYTICS API - Sistema de Análise e Dashboards
+// ================================================================
+
+import { 
+  FilterAnalyticsDto, 
+  OverviewResponse, 
+  AttendanceAnalyticsResponse,
+  GradesAnalyticsResponse,
+  FinanceAnalyticsResponse,
+  MatriculationAnalyticsResponse,
+  ReportExportRequest,
+  AnalyticsCache,
+  DashboardConfig,
+  AnalyticsAlert,
+  PerformanceMetrics 
+} from '../types/analytics';
+
+export const analyticsAPI = {
+  // ============= OVERVIEW ANALYTICS =============
+  getOverview: async (filters?: FilterAnalyticsDto): Promise<OverviewResponse> => {
+    const params = new URLSearchParams();
+    if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.shift) params.append('shift', filters.shift);
+
+    const response = await api.get(`/analytics/overview?${params}`);
+    return response.data;
+  },
+
+  // ============= ATTENDANCE ANALYTICS =============
+  getAttendanceAnalytics: async (filters?: FilterAnalyticsDto): Promise<AttendanceAnalyticsResponse> => {
+    const params = new URLSearchParams();
+    if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.classId) params.append('classId', filters.classId);
+    if (filters?.month) params.append('month', filters.month.toString());
+
+    const response = await api.get(`/analytics/attendance?${params}`);
+    return response.data;
+  },
+
+  // ============= GRADES ANALYTICS =============
+  getGradesAnalytics: async (filters?: FilterAnalyticsDto): Promise<GradesAnalyticsResponse> => {
+    const params = new URLSearchParams();
+    if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.classId) params.append('classId', filters.classId);
+    if (filters?.disciplineId) params.append('disciplineId', filters.disciplineId);
+
+    const response = await api.get(`/analytics/grades?${params}`);
+    return response.data;
+  },
+
+  // ============= FINANCE ANALYTICS =============
+  getFinanceAnalytics: async (filters?: FilterAnalyticsDto): Promise<FinanceAnalyticsResponse> => {
+    const params = new URLSearchParams();
+    if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.month) params.append('month', filters.month.toString());
+
+    const response = await api.get(`/analytics/finance?${params}`);
+    return response.data;
+  },
+
+  // ============= MATRICULATION ANALYTICS =============
+  getMatriculationAnalytics: async (filters?: FilterAnalyticsDto): Promise<MatriculationAnalyticsResponse> => {
+    const params = new URLSearchParams();
+    if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.shift) params.append('shift', filters.shift);
+
+    const response = await api.get(`/analytics/matriculation?${params}`);
+    return response.data;
+  },
+
+  // ============= DADOS COMBINADOS =============
+  getAllAnalytics: async (filters?: FilterAnalyticsDto): Promise<{
+    overview: OverviewResponse;
+    attendance: AttendanceAnalyticsResponse;
+    grades: GradesAnalyticsResponse;
+    finance: FinanceAnalyticsResponse;
+    matriculation: MatriculationAnalyticsResponse;
+  }> => {
+    try {
+      const [overview, attendance, grades, finance, matriculation] = await Promise.all([
+        analyticsAPI.getOverview(filters),
+        analyticsAPI.getAttendanceAnalytics(filters),
+        analyticsAPI.getGradesAnalytics(filters),
+        analyticsAPI.getFinanceAnalytics(filters),
+        analyticsAPI.getMatriculationAnalytics(filters),
+      ]);
+
+      return {
+        overview,
+        attendance,
+        grades,
+        finance,
+        matriculation,
+      };
+    } catch (error) {
+      console.error('Erro ao carregar analytics completos:', error);
+      throw error;
+    }
+  },
+
+  // ============= EXPORT FUNCTIONS =============
+  exportOverviewReport: async (filters?: FilterAnalyticsDto): Promise<Blob> => {
+    const params = new URLSearchParams();
+    if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.shift) params.append('shift', filters.shift);
+
+    const response = await api.get(`/analytics/overview/export?${params}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  exportAttendanceReport: async (filters?: FilterAnalyticsDto): Promise<Blob> => {
+    const params = new URLSearchParams();
+    if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.classId) params.append('classId', filters.classId);
+    if (filters?.month) params.append('month', filters.month.toString());
+
+    const response = await api.get(`/analytics/attendance/export?${params}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  exportGradesReport: async (filters?: FilterAnalyticsDto): Promise<Blob> => {
+    const params = new URLSearchParams();
+    if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.classId) params.append('classId', filters.classId);
+    if (filters?.disciplineId) params.append('disciplineId', filters.disciplineId);
+
+    const response = await api.get(`/analytics/grades/export?${params}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  exportFinanceReport: async (filters?: FilterAnalyticsDto): Promise<Blob> => {
+    const params = new URLSearchParams();
+    if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.month) params.append('month', filters.month.toString());
+
+    const response = await api.get(`/analytics/finance/export?${params}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  exportMatriculationReport: async (filters?: FilterAnalyticsDto): Promise<Blob> => {
+    const params = new URLSearchParams();
+    if (filters?.year) params.append('year', filters.year.toString());
+    if (filters?.shift) params.append('shift', filters.shift);
+
+    const response = await api.get(`/analytics/matriculation/export?${params}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  // ============= DOWNLOAD HELPERS =============
+  downloadOverviewReport: async (filters?: FilterAnalyticsDto, filename: string = 'relatorio_visao_geral.pdf'): Promise<void> => {
+    try {
+      const blob = await analyticsAPI.exportOverviewReport(filters);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erro ao baixar relatório de visão geral:', error);
+      throw error;
+    }
+  },
+
+  downloadAttendanceReport: async (filters?: FilterAnalyticsDto, filename: string = 'relatorio_frequencia.pdf'): Promise<void> => {
+    try {
+      const blob = await analyticsAPI.exportAttendanceReport(filters);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erro ao baixar relatório de frequência:', error);
+      throw error;
+    }
+  },
+
+  downloadGradesReport: async (filters?: FilterAnalyticsDto, filename: string = 'relatorio_notas.pdf'): Promise<void> => {
+    try {
+      const blob = await analyticsAPI.exportGradesReport(filters);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erro ao baixar relatório de notas:', error);
+      throw error;
+    }
+  },
+
+  downloadFinanceReport: async (filters?: FilterAnalyticsDto, filename: string = 'relatorio_financeiro.pdf'): Promise<void> => {
+    try {
+      const blob = await analyticsAPI.exportFinanceReport(filters);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erro ao baixar relatório financeiro:', error);
+      throw error;
+    }
+  },
+
+  downloadMatriculationReport: async (filters?: FilterAnalyticsDto, filename: string = 'relatorio_matriculas.pdf'): Promise<void> => {
+    try {
+      const blob = await analyticsAPI.exportMatriculationReport(filters);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Erro ao baixar relatório de matrículas:', error);
+      throw error;
+    }
+  },
+
+  // ============= CACHE MANAGEMENT =============
+  clearCache: async (): Promise<boolean> => {
+    try {
+      const response = await api.delete('/analytics/cache');
+      return response.data.success;
+    } catch (error) {
+      console.error('Erro ao limpar cache de analytics:', error);
+      return false;
+    }
+  },
+
+  getCacheStatus: async (): Promise<AnalyticsCache[]> => {
+    try {
+      const response = await api.get('/analytics/cache/status');
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao obter status do cache:', error);
+      return [];
+    }
+  },
+
+  // ============= PERMISSION CHECKS =============
+  canAccessOverview: (userRole: string): boolean => {
+    return ['ADMIN', 'DIRETOR'].includes(userRole);
+  },
+
+  canAccessAttendance: (userRole: string): boolean => {
+    return ['ADMIN', 'DIRETOR', 'SECRETARIA'].includes(userRole);
+  },
+
+  canAccessGrades: (userRole: string): boolean => {
+    return ['ADMIN', 'DIRETOR'].includes(userRole);
+  },
+
+  canAccessFinance: (userRole: string): boolean => {
+    return ['ADMIN', 'DIRETOR'].includes(userRole);
+  },
+
+  canAccessMatriculation: (userRole: string): boolean => {
+    return ['ADMIN', 'DIRETOR', 'SECRETARIA'].includes(userRole);
+  },
+
+  canExportReports: (userRole: string): boolean => {
+    return ['ADMIN', 'DIRETOR'].includes(userRole);
+  },
+
+  // ============= UTILITY FUNCTIONS =============
+  validateFilters: (filters: FilterAnalyticsDto): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+
+    if (filters.year && (filters.year < 2020 || filters.year > 2030)) {
+      errors.push('Ano deve estar entre 2020 e 2030');
+    }
+
+    if (filters.month && (filters.month < 1 || filters.month > 12)) {
+      errors.push('Mês deve estar entre 1 e 12');
+    }
+
+    if (filters.classId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filters.classId)) {
+      errors.push('ID da turma deve ser um UUID válido');
+    }
+
+    if (filters.disciplineId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filters.disciplineId)) {
+      errors.push('ID da disciplina deve ser um UUID válido');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    };
+  },
+
+  formatApiError: (error: any): string => {
+    if (error.response?.data?.message) {
+      return error.response.data.message;
+    }
+    if (error.response?.status === 403) {
+      return 'Sem permissão para acessar estes dados';
+    }
+    if (error.response?.status === 401) {
+      return 'Sessão expirada, faça login novamente';
+    }
+    return 'Erro ao carregar dados de analytics';
+  },
+
+  // ============= DASHBOARD UTILITIES =============
+  getDefaultFilters: (): FilterAnalyticsDto => {
+    return {
+      year: new Date().getFullYear(),
+    };
+  },
+
+  buildDashboardConfig: (userRole: string): DashboardConfig => {
+    const widgets: string[] = [];
+    
+    if (analyticsAPI.canAccessOverview(userRole)) {
+      widgets.push('overview', 'enrollment-distribution');
+    }
+    
+    if (analyticsAPI.canAccessAttendance(userRole)) {
+      widgets.push('attendance-overview', 'attendance-trends');
+    }
+    
+    if (analyticsAPI.canAccessGrades(userRole)) {
+      widgets.push('grades-overview', 'performance-ranking');
+    }
+    
+    if (analyticsAPI.canAccessFinance(userRole)) {
+      widgets.push('finance-overview', 'revenue-trends');
+    }
+    
+    if (analyticsAPI.canAccessMatriculation(userRole)) {
+      widgets.push('matriculation-overview', 'growth-metrics');
+    }
+
+    return {
+      refreshInterval: 5, // 5 minutos
+      autoRefresh: true,
+      defaultPeriod: 'current-year',
+      visibleWidgets: widgets,
+      userRole,
+    };
+  },
+
+  // ============= REAL-TIME UPDATES =============
+  subscribeToUpdates: (callback: (data: any) => void): (() => void) => {
+    // Implementação de WebSocket ou polling para updates em tempo real
+    const interval = setInterval(async () => {
+      try {
+        const overview = await analyticsAPI.getOverview();
+        callback({ type: 'overview', data: overview });
+      } catch (error) {
+        console.error('Erro ao obter updates de analytics:', error);
+      }
+    }, 5 * 60 * 1000); // 5 minutos
+
+    // Retorna função para cancelar subscription
+    return () => clearInterval(interval);
+  },
+};
+
+// ================================================================
+// SETTINGS API - Sistema de Configurações
+// ================================================================
+
+export const settingsAPI = {
+  // ============= CONFIGURAÇÕES GERAIS =============
+  getAllSettings: async (filters?: { category?: string; active?: boolean }) => {
+    const params = new URLSearchParams();
+    if (filters?.category) params.append('category', filters.category);
+    if (filters?.active !== undefined) params.append('active', filters.active.toString());
+
+    const response = await api.get(`/settings?${params}`);
+    return response.data;
+  },
+
+  getSettingByKey: async (key: string) => {
+    const response = await api.get(`/settings/key/${key}`);
+    return response.data;
+  },
+
+  getSettingById: async (id: string) => {
+    const response = await api.get(`/settings/${id}`);
+    return response.data;
+  },
+
+  createSetting: async (settingData: {
+    key: string;
+    value: string;
+    type?: string;
+    description?: string;
+    isPublic?: boolean;
+  }) => {
+    const response = await api.post('/settings', settingData);
+    return response.data;
+  },
+
+  updateSetting: async (id: string, settingData: {
+    value?: string;
+    category?: string;
+    description?: string;
+    isPublic?: boolean;
+    isActive?: boolean;
+  }) => {
+    const response = await api.patch(`/settings/${id}`, settingData);
+    return response.data;
+  },
+
+  deleteSetting: async (id: string) => {
+    const response = await api.delete(`/settings/${id}`);
+    return response.data;
+  },
+
+  // ============= CONFIGURAÇÕES SMTP =============
+  createSmtpConfig: async (smtpData: {
+    host: string;
+    port: number;
+    secure: boolean;
+    username: string;
+    password: string;
+    fromEmail: string;
+    fromName: string;
+  }) => {
+    const response = await api.post('/settings/smtp', smtpData);
+    return response.data;
+  },
+
+  getSmtpConfig: async () => {
+    const response = await api.get('/settings/smtp/config');
+    return response.data;
+  },
+
+  updateSmtpConfig: async (id: string, smtpData: {
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    username?: string;
+    password?: string;
+    fromEmail?: string;
+    fromName?: string;
+    isActive?: boolean;
+  }) => {
+    const response = await api.patch(`/settings/smtp/${id}`, smtpData);
+    return response.data;
+  },
+
+  testSmtpConfig: async (testData: {
+    testEmail: string;
+    subject?: string;
+    message?: string;
+  }) => {
+    const response = await api.post('/settings/smtp/test', testData);
+    return response.data;
+  },
+
+  // ============= WEBHOOKS =============
+  getAllWebhooks: async (filters?: { event?: string; active?: boolean }) => {
+    const params = new URLSearchParams();
+    if (filters?.event) params.append('event', filters.event);
+    if (filters?.active !== undefined) params.append('active', filters.active.toString());
+
+    const response = await api.get(`/settings/webhooks?${params}`);
+    return response.data;
+  },
+
+  getWebhookById: async (id: string) => {
+    const response = await api.get(`/settings/webhooks/${id}`);
+    return response.data;
+  },
+
+  createWebhook: async (webhookData: {
+    name: string;
+    url: string;
+    events: string[];
+    secret?: string;
+    headers?: Record<string, string>;
+  }) => {
+    const response = await api.post('/settings/webhooks', webhookData);
+    return response.data;
+  },
+
+  updateWebhook: async (id: string, webhookData: {
+    name?: string;
+    url?: string;
+    events?: string[];
+    secret?: string;
+    headers?: Record<string, string>;
+    isActive?: boolean;
+  }) => {
+    const response = await api.patch(`/settings/webhooks/${id}`, webhookData);
+    return response.data;
+  },
+
+  deleteWebhook: async (id: string) => {
+    const response = await api.delete(`/settings/webhooks/${id}`);
+    return response.data;
+  },
+
+  testWebhook: async (id: string, testData: {
+    event: string;
+    data?: Record<string, any>;
+  }) => {
+    const response = await api.post(`/settings/webhooks/${id}/test`, testData);
+    return response.data;
+  },
+
+  // ============= BACKUP E RESTAURAÇÃO =============
+  createBackup: async (backupData: {
+    description?: string;
+    includeFiles?: boolean;
+    includeLogs?: boolean;
+  }) => {
+    const response = await api.post('/settings/backup', backupData);
+    return response.data;
+  },
+
+  listBackups: async () => {
+    const response = await api.get('/settings/backup/list');
+    return response.data;
+  },
+
+  restoreBackup: async (restoreData: {
+    filename: string;
+    confirmation: string;
+    restoreFiles?: boolean;
+    restoreLogs?: boolean;
+  }) => {
+    const response = await api.post('/settings/backup/restore', restoreData);
+    return response.data;
+  },
+
+  deleteBackup: async (filename: string) => {
+    const response = await api.delete(`/settings/backup/${filename}`);
+    return response.data;
+  },
+
+  downloadBackup: async (filename: string): Promise<Blob> => {
+    const response = await api.get(`/settings/backup/download/${filename}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  // ============= CONFIGURAÇÕES PREDEFINIDAS =============
+  getSchoolSettings: async () => {
+    try {
+      const [
+        schoolName,
+        schoolAddress,
+        schoolPhone,
+        schoolEmail,
+        academicYear,
+        currency,
+        timezone,
+        language
+      ] = await Promise.all([
+        settingsAPI.getSettingByKey('school.name').catch(() => ({ value: 'Escola Synexa' })),
+        settingsAPI.getSettingByKey('school.address').catch(() => ({ value: 'Luanda, Angola' })),
+        settingsAPI.getSettingByKey('school.phone').catch(() => ({ value: '+244 222 123 456' })),
+        settingsAPI.getSettingByKey('school.email').catch(() => ({ value: 'geral@escola.ao' })),
+        settingsAPI.getSettingByKey('academic.year').catch(() => ({ value: '2024/2025' })),
+        settingsAPI.getSettingByKey('system.currency').catch(() => ({ value: 'AOA' })),
+        settingsAPI.getSettingByKey('system.timezone').catch(() => ({ value: 'Africa/Luanda' })),
+        settingsAPI.getSettingByKey('system.language').catch(() => ({ value: 'pt-AO' })),
+      ]);
+
+      return {
+        schoolName: schoolName.value,
+        schoolAddress: schoolAddress.value,
+        schoolPhone: schoolPhone.value,
+        schoolEmail: schoolEmail.value,
+        academicYear: academicYear.value,
+        currency: currency.value,
+        timezone: timezone.value,
+        language: language.value,
+      };
+    } catch (error) {
+      console.error('Erro ao carregar configurações da escola:', error);
+      return {
+        schoolName: 'Escola Synexa',
+        schoolAddress: 'Luanda, Angola',
+        schoolPhone: '+244 222 123 456',
+        schoolEmail: 'geral@escola.ao',
+        academicYear: '2024/2025',
+        currency: 'AOA',
+        timezone: 'Africa/Luanda',
+        language: 'pt-AO',
+      };
+    }
+  },
+
+  updateSchoolSettings: async (settings: {
+    schoolName?: string;
+    schoolAddress?: string;
+    schoolPhone?: string;
+    schoolEmail?: string;
+    academicYear?: string;
+    currency?: string;
+    timezone?: string;
+    language?: string;
+  }) => {
+    // Execute updates sequentially to avoid race conditions
+    if (settings.schoolName) {
+      await settingsAPI.updateSettingByKey('school.name', settings.schoolName);
+    }
+    if (settings.schoolAddress) {
+      await settingsAPI.updateSettingByKey('school.address', settings.schoolAddress);
+    }
+    if (settings.schoolPhone) {
+      await settingsAPI.updateSettingByKey('school.phone', settings.schoolPhone);
+    }
+    if (settings.schoolEmail) {
+      await settingsAPI.updateSettingByKey('school.email', settings.schoolEmail);
+    }
+    if (settings.academicYear) {
+      await settingsAPI.updateSettingByKey('academic.year', settings.academicYear);
+    }
+    if (settings.currency) {
+      await settingsAPI.updateSettingByKey('system.currency', settings.currency);
+    }
+    if (settings.timezone) {
+      await settingsAPI.updateSettingByKey('system.timezone', settings.timezone);
+    }
+    if (settings.language) {
+      await settingsAPI.updateSettingByKey('system.language', settings.language);
+    }
+
+    return { message: 'Configurações atualizadas com sucesso' };
+  },
+
+  updateSettingByKey: async (key: string, value: string) => {
+    try {
+      const setting = await settingsAPI.getSettingByKey(key);
+      return await settingsAPI.updateSetting(setting.id, { value });
+    } catch (error: any) {
+      // Se não existir, criar
+      if (error.response?.status === 404) {
+        const category = key.split('.')[0];
+        const descriptions: Record<string, string> = {
+          'system.fontSize': 'Tamanho da fonte do sistema',
+          'school.name': 'Nome da escola',
+          'school.address': 'Endereço da escola',
+          'school.phone': 'Telefone da escola',
+          'school.email': 'Email da escola',
+          'academic.year': 'Ano letivo atual',
+          'system.currency': 'Moeda do sistema',
+          'system.timezone': 'Fuso horário',
+          'system.language': 'Idioma do sistema',
+        };
+        
+        return await settingsAPI.createSetting({
+          key,
+          value,
+          type: 'STRING',
+          description: descriptions[key] || `Configuração ${key}`,
+          isPublic: false,
+        });
+      }
+      throw error;
+    }
+  },
+
+  // ============= UTILITY FUNCTIONS =============
+  exportSettings: async (): Promise<Blob> => {
+    const settings = await settingsAPI.getAllSettings();
+    const data = JSON.stringify(settings, null, 2);
+    return new Blob([data], { type: 'application/json' });
+  },
+
+  importSettings: async (file: File) => {
+    const text = await file.text();
+    const settings = JSON.parse(text);
+    
+    const imports = settings.map((setting: any) => 
+      settingsAPI.createSetting(setting).catch(() => 
+        settingsAPI.updateSettingByKey(setting.key, setting.value)
+      )
+    );
+    
+    await Promise.all(imports);
+    return { message: 'Configurações importadas com sucesso' };
+  },
+
+  resetToDefaults: async () => {
+    const defaultSettings = {
+      'school.name': 'Escola Synexa',
+      'school.address': 'Luanda, Angola',
+      'school.phone': '+244 222 123 456',
+      'school.email': 'geral@escola.ao',
+      'academic.year': '2024/2025',
+      'system.currency': 'AOA',
+      'system.timezone': 'Africa/Luanda',
+      'system.language': 'pt-AO',
+    };
+
+    const updates = Object.entries(defaultSettings).map(([key, value]) =>
+      settingsAPI.updateSettingByKey(key, value)
+    );
+
+    await Promise.all(updates);
+    return { message: 'Configurações restauradas para os valores padrão' };
+  },
+
+  // ============= VALIDATION =============
+  validateSmtpConfig: (config: any): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+
+    if (!config.host?.trim()) {
+      errors.push('Host do servidor SMTP é obrigatório');
+    }
+
+    if (!config.port || config.port < 1 || config.port > 65535) {
+      errors.push('Porta deve estar entre 1 e 65535');
+    }
+
+    if (!config.username?.trim()) {
+      errors.push('Nome de usuário é obrigatório');
+    }
+
+    if (!config.password?.trim()) {
+      errors.push('Senha é obrigatória');
+    }
+
+    if (!config.fromEmail?.trim() || !/\S+@\S+\.\S+/.test(config.fromEmail)) {
+      errors.push('Email válido é obrigatório');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    };
+  },
+
+  validateWebhook: (webhook: any): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+
+    if (!webhook.name?.trim()) {
+      errors.push('Nome do webhook é obrigatório');
+    }
+
+    if (!webhook.url?.trim()) {
+      errors.push('URL é obrigatória');
+    } else if (!/^https?:\/\/.+/.test(webhook.url)) {
+      errors.push('URL deve começar com http:// ou https://');
+    }
+
+    if (!webhook.events || webhook.events.length === 0) {
+      errors.push('Pelo menos um evento deve ser selecionado');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    };
+  },
+
+  // ============= BACKUP FUNCTIONS (DUPLICATED - COMMENTED) =============
+  // createBackup: async (backupData: { description?: string }) => {
+  //   const response = await api.post('/settings/backup', backupData);
+  //   return response.data;
+  // },
+
+  // getBackupList: async () => {
+  //   const response = await api.get('/settings/backup/list');
+  //   return response.data;
+  // },
+
+  // restoreBackup: async (filename: string, confirm: boolean = false) => {
+  //   const response = await api.post('/settings/backup/restore', { filename, confirm });
+  //   return response.data;
+  // },
+
+  // deleteBackup: async (filename: string) => {
+  //   const response = await api.delete(`/settings/backup/${filename}`);
+  //   return response.data;
+  // },
+
+  // ============= SYSTEM INFO =============
+  getSystemInfo: async () => {
+    try {
+      // Mock data for now since this endpoint might not be implemented yet
+      return {
+        version: '1.0.0',
+        environment: 'development',
+        uptime: '99.9%',
+        memory: 75,
+        database: 'Connected',
+        cache: 'Active',
+        lastBackup: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        nextBackup: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      };
+    } catch (error) {
+      // Fallback mock data
+      return {
+        version: '1.0.0',
+        environment: 'development',
+        uptime: '99.9%',
+        memory: 75,
+        database: 'Connected',
+        cache: 'Active',
+      };
+    }
+  },
+
+  // ============= ENHANCED SMTP (DUPLICATED - COMMENTED) =============
+  // testSmtpConfig: async (testData: { email: string }) => {
+  //   const response = await api.post('/settings/smtp/test', { testEmail: testData.email });
+  //   return response.data;
+  // },
 };

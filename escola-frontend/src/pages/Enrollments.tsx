@@ -24,10 +24,12 @@ import {
   calculateEnrollmentStats
 } from '@/types/enrollment';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { EnrollmentCreateModal } from '@/components/enrollment/EnrollmentCreateModal';
 
 export default function Enrollments() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isNewEnrollmentModalOpen, setIsNewEnrollmentModalOpen] = useState(false);
   const [editingEnrollment, setEditingEnrollment] = useState<EnrollmentWithRelations | null>(null);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedStatus, setSelectedStatus] = useState<EnrollmentStatus | ''>('');
@@ -271,13 +273,21 @@ export default function Enrollments() {
             <h1 className="text-3xl font-bold text-foreground">Matrículas</h1>
             <p className="text-muted-foreground">Gerir matrículas e rematrículas de alunos</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setEditingEnrollment(null)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Nova Matrícula
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => setIsNewEnrollmentModalOpen(true)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              + Novo Estudante
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => setEditingEnrollment(null)} variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Estudante Existente
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>
@@ -372,6 +382,7 @@ export default function Enrollments() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Filtros e estatísticas */}
@@ -537,6 +548,15 @@ export default function Enrollments() {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Modal do novo formulário de matrícula */}
+        <EnrollmentCreateModal 
+          open={isNewEnrollmentModalOpen}
+          onOpenChange={setIsNewEnrollmentModalOpen}
+          onSuccess={() => {
+            refetch(); // Recarregar lista de matrículas
+          }}
+        />
       </div>
     </ErrorBoundary>
   );

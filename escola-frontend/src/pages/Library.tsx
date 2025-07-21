@@ -662,7 +662,7 @@ export default function Library() {
                                 <SelectValue placeholder="Selecione o aluno" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">Nenhum aluno</SelectItem>
+                                <SelectItem value="none">Nenhum aluno</SelectItem>
                                 {students.map((student: any) => (
                                   <SelectItem key={student.id} value={student.id}>
                                     {student.firstName} {student.lastName} - {student.studentNumber}
@@ -689,7 +689,7 @@ export default function Library() {
                                 <SelectValue placeholder="Selecione o professor" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">Nenhum professor</SelectItem>
+                                <SelectItem value="none">Nenhum professor</SelectItem>
                                 {teachers.map((teacher: any) => (
                                   <SelectItem key={teacher.id} value={teacher.id}>
                                     {teacher.firstName} {teacher.lastName} - {teacher.email}

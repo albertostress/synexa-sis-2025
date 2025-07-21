@@ -108,40 +108,29 @@ export interface GradeFilters {
   type?: GradeType;
   term?: number;
   year?: number;
+  studentName?: string; // Para busca por nome do aluno
 }
 
-// Interface para estatísticas de notas
+// Interface para estatísticas de notas (Sistema Angola - 2 níveis)
 export interface GradeStats {
   totalGrades: number;
   averageGrade: number;
-  passedStudents: number;
-  failedStudents: number;
-  excellentGrades: number;
-  goodGrades: number;
-  satisfactoryGrades: number;
-  unsatisfactoryGrades: number;
+  passedStudents: number;  // APROVADO (>= 10)
+  failedStudents: number;  // REPROVADO (< 10)
 }
 
-// Helper function para calcular estatísticas
+// Helper function para calcular estatísticas (Sistema Angola - 2 níveis)
 export const calculateGradeStats = (grades: GradeWithRelations[]): GradeStats => {
   const totalGrades = grades.length;
   const averageGrade = totalGrades > 0 ? grades.reduce((sum, grade) => sum + grade.value, 0) / totalGrades : 0;
-  const passedStudents = grades.filter(g => g.value >= 10).length;
-  const failedStudents = grades.filter(g => g.value < 10).length;
-  const excellentGrades = grades.filter(g => g.value >= 17).length;
-  const goodGrades = grades.filter(g => g.value >= 14 && g.value < 17).length;
-  const satisfactoryGrades = grades.filter(g => g.value >= 10 && g.value < 14).length;
-  const unsatisfactoryGrades = grades.filter(g => g.value < 10).length;
+  const passedStudents = grades.filter(g => g.value >= 10).length; // APROVADO
+  const failedStudents = grades.filter(g => g.value < 10).length;   // REPROVADO
 
   return {
     totalGrades,
     averageGrade,
     passedStudents,
-    failedStudents,
-    excellentGrades,
-    goodGrades,
-    satisfactoryGrades,
-    unsatisfactoryGrades
+    failedStudents
   };
 };
 
@@ -155,21 +144,34 @@ export const formatTeacherName = (teacher: Teacher): string => {
   return teacher.user.name;
 };
 
-// Helper function para obter classificação qualitativa da nota (Sistema Angolano 0-20)
-export const getGradeClassification = (value: number): { label: string; color: string } => {
-  if (value >= 17) return { label: 'Excelente', color: 'text-green-700' };
-  if (value >= 14) return { label: 'Muito Bom', color: 'text-green-600' };
-  if (value >= 12) return { label: 'Bom', color: 'text-blue-600' };
-  if (value >= 10) return { label: 'Satisfatório', color: 'text-yellow-600' };
-  return { label: 'Não Satisfatório', color: 'text-red-600' };
+// Helper function para obter classificação qualitativa da nota (Sistema Angola - 2 níveis)
+export const getGradeClassification = (value: number): { label: string; color: string; icon: string } => {
+  if (value >= 10) {
+    return { 
+      label: 'APROVADO', 
+      color: 'text-green-700', 
+      icon: '🟢' 
+    };
+  }
+  return { 
+    label: 'REPROVADO', 
+    color: 'text-red-700', 
+    icon: '❌' 
+  };
 };
 
-// Helper function para obter cor do badge de classificação
+// Helper function para obter cor do badge de classificação (Sistema Angola)
 export const getGradeBadgeVariant = (value: number): 'default' | 'secondary' | 'destructive' | 'outline' => {
-  if (value >= 17) return 'default';
-  if (value >= 14) return 'secondary';
-  if (value >= 10) return 'outline';
-  return 'destructive';
+  if (value >= 10) return 'default';     // Verde para APROVADO
+  return 'destructive';                  // Vermelho para REPROVADO
+};
+
+// Helper function para obter classes CSS de cor de fundo baseada na nota (Sistema Angola)
+export const getGradeBackgroundClass = (value: number): string => {
+  if (value >= 10) {
+    return 'bg-green-50 border-l-green-500';  // Verde claro para APROVADO
+  }
+  return 'bg-red-50 border-l-red-500';        // Vermelho claro para REPROVADO
 };
 
 // Helper function para formatar data
