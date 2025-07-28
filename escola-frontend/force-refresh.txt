@@ -1,1 +1,1 @@
-Forçar atualização do frontend - timestamp: 2025-07-20
+Force refresh to clear cache and restart frontend properly - timestamp: 2025-07-22

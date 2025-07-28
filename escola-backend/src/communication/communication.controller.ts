@@ -28,11 +28,21 @@ import { CommunicationService } from './communication.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { FilterMessagesDto } from './dto/filter-messages.dto';
+import { CreateThreadDto } from './dto/create-thread.dto';
+import { ReplyThreadDto } from './dto/reply-thread.dto';
+import { FilterThreadsDto } from './dto/filter-threads.dto';
 import {
   MessageEntity,
   MessageListResponse,
   MessageStatsEntity,
 } from './entities/message.entity';
+import {
+  ThreadEntity,
+  ThreadDetailEntity,
+  ThreadListResponse,
+  ThreadParticipantEntity,
+  ThreadMessageEntity,
+} from './entities/thread.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -312,5 +322,189 @@ export class CommunicationController {
     @Request() req: any,
   ) {
     return this.communicationService.findSentMessages(req.user.id, { page, limit });
+  }
+
+  // =============================================
+  // ENDPOINTS PARA SISTEMA DE THREADS/CONVERSAS
+  // =============================================
+
+  @Post('threads')
+  @ApiOperation({ 
+    summary: 'Criar nova conversa/thread',
+    description: 'Cria uma nova conversa entre múltiplos participantes com a primeira mensagem' 
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Conversa criada com sucesso',
+    type: ThreadEntity,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dados inválidos ou participantes não encontrados',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token de autenticação inválido',
+  })
+  async createThread(
+    @Body() createThreadDto: CreateThreadDto,
+    @Request() req: any,
+  ) {
+    return this.communicationService.createThread(createThreadDto, req.user.id);
+  }
+
+  @Get('threads')
+  @ApiOperation({ 
+    summary: 'Listar conversas do usuário',
+    description: 'Retorna todas as conversas/threads do usuário autenticado com filtros opcionais' 
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de conversas retornada com sucesso',
+    type: ThreadListResponse,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token de autenticação inválido',
+  })
+  async getUserThreads(
+    @Query() filters: FilterThreadsDto,
+    @Request() req: any,
+  ) {
+    return this.communicationService.getUserThreads(req.user.id, filters);
+  }
+
+  @Get('threads/:id')
+  @ApiOperation({ 
+    summary: 'Buscar conversa específica',
+    description: 'Retorna os detalhes completos de uma conversa com todas as mensagens' 
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID da conversa',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Conversa encontrada com sucesso',
+    type: ThreadDetailEntity,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token de autenticação inválido',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Conversa não encontrada ou usuário sem acesso',
+  })
+  async getThread(
+    @Param('id') id: string,
+    @Request() req: any,
+  ) {
+    return this.communicationService.getThreadById(id, req.user.id);
+  }
+
+  @Post('threads/:id/reply')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ 
+    summary: 'Responder em conversa',
+    description: 'Envia uma nova mensagem de resposta em uma conversa existente' 
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID da conversa',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Resposta enviada com sucesso',
+    type: ThreadMessageEntity,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dados inválidos',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token de autenticação inválido',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Conversa não encontrada ou usuário sem acesso',
+  })
+  async replyToThread(
+    @Param('id') id: string,
+    @Body() replyThreadDto: ReplyThreadDto,
+    @Request() req: any,
+  ) {
+    return this.communicationService.replyToThread(id, replyThreadDto, req.user.id);
+  }
+
+  @Post('threads/:id/read')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Marcar conversa como lida',
+    description: 'Marca todas as mensagens não lidas de uma conversa como lidas pelo usuário autenticado' 
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID da conversa',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Conversa marcada como lida com sucesso',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: '3 mensagens marcadas como lidas' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token de autenticação inválido',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Conversa não encontrada ou usuário sem acesso',
+  })
+  async markThreadAsRead(
+    @Param('id') id: string,
+    @Request() req: any,
+  ) {
+    return this.communicationService.markThreadAsRead(id, req.user.id);
+  }
+
+  @Get('threads/:id/participants')
+  @ApiOperation({ 
+    summary: 'Listar participantes da conversa',
+    description: 'Retorna todos os participantes de uma conversa específica' 
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID da conversa',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de participantes retornada com sucesso',
+    type: [ThreadParticipantEntity],
+    isArray: true,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token de autenticação inválido',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Conversa não encontrada ou usuário sem acesso',
+  })
+  async getThreadParticipants(
+    @Param('id') id: string,
+    @Request() req: any,
+  ) {
+    return this.communicationService.getThreadParticipants(id, req.user.id);
   }
 }

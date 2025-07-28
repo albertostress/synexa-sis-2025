@@ -607,6 +607,83 @@ export const financialAPI = {
     }
   },
   
+  // ============= RELATÓRIOS E ESTATÍSTICAS =============
+  getFinancialSummary: async (year?: number, month?: number) => {
+    const params: any = {};
+    if (year) params.year = year;
+    if (month) params.month = month;
+    
+    const response = await api.get('/finance/reports/summary', { params });
+    return response.data;
+  },
+  
+  // ============= AUTOMAÇÃO DE COBRANÇAS =============
+  sendOverdueReminders: async () => {
+    const response = await api.post('/finance/automation/send-overdue-reminders');
+    return response.data;
+  },
+  
+  markOverduePayments: async () => {
+    const response = await api.post('/finance/automation/mark-overdue-payments');
+    return response.data;
+  },
+  
+  getOverdueInvoices: async () => {
+    const response = await api.get('/finance/invoices', { 
+      params: { status: 'VENCIDA' } 
+    });
+    return response.data;
+  },
+  
+  // ============= CATEGORIAS DE FATURAS =============
+  getInvoiceCategories: () => [
+    { value: 'PROPINA', label: 'Propina/Mensalidade', defaultAmount: 25000 },
+    { value: 'MATRICULA', label: 'Taxa de Matrícula', defaultAmount: 15000 },
+    { value: 'UNIFORME', label: 'Uniforme Escolar', defaultAmount: 8000 },
+    { value: 'MATERIAL', label: 'Material Didático', defaultAmount: 12000 },
+    { value: 'TRANSPORTE', label: 'Transporte Escolar', defaultAmount: 18000 },
+    { value: 'ALIMENTACAO', label: 'Alimentação', defaultAmount: 20000 },
+    { value: 'ATIVIDADES', label: 'Atividades Extracurriculares', defaultAmount: 5000 },
+    { value: 'EXAMES', label: 'Taxas de Exame', defaultAmount: 3000 },
+    { value: 'CERTIFICADO', label: 'Certificados/Diplomas', defaultAmount: 2500 },
+    { value: 'OUTROS', label: 'Outros', defaultAmount: 0 },
+  ],
+  
+  // ============= VALIDAÇÕES ESPECÍFICAS ANGOLA =============
+  validateAngolanPhoneNumber: (phone: string): boolean => {
+    // Angola: +244 9XX XXX XXX
+    const angolanPhoneRegex = /^(\+244|244)?[9][0-9]{8}$/;
+    return angolanPhoneRegex.test(phone.replace(/\s/g, ''));
+  },
+  
+  // ============= CONFORMIDADE AGT ANGOLA =============
+  generateSequentialInvoiceNumber: (sequence: number, year: number): string => {
+    // Formato AGT: AAAA/NNNNNN (Ano/Sequencial)
+    return `${year}/${sequence.toString().padStart(6, '0')}`;
+  },
+  
+  prepareEInvoiceData: (invoice: any) => {
+    // Preparar dados para e-invoicing conforme AGT
+    return {
+      invoiceNumber: financialAPI.generateSequentialInvoiceNumber(invoice.sequence, invoice.year),
+      issueDate: new Date().toISOString(),
+      dueDate: invoice.dueDate,
+      customerNIF: invoice.student.nif || '',
+      customerName: invoice.student.name,
+      items: [{
+        description: invoice.description,
+        quantity: 1,
+        unitPrice: invoice.amount,
+        totalPrice: invoice.amount,
+        taxRate: 0, // IVA isento para educação
+      }],
+      totalAmount: invoice.amount,
+      taxAmount: 0,
+      currency: 'AOA',
+      paymentTerms: 'À vista ou até data de vencimento',
+    };
+  },
+  
   // Verificar permissões
   canManageFinance: (userRole: string): boolean => {
     return ['ADMIN', 'SECRETARIA'].includes(userRole);
@@ -834,6 +911,22 @@ export const gradesAPI = {
     return response.data;
   },
   
+  // =========== ANGOLA OPTIMIZED ENDPOINTS ===========
+  getStudentTermGrades: async (studentId: string, term: number): Promise<any> => {
+    const response = await api.get(`/grades/angola/student/${studentId}/term/${term}`);
+    return response.data;
+  },
+  
+  getClassTermSummary: async (classId: string, term: number): Promise<any[]> => {
+    const response = await api.get(`/grades/angola/class/${classId}/term/${term}`);
+    return response.data;
+  },
+  
+  calculateSubjectMT: async (studentId: string, subjectId: string, term: number): Promise<any> => {
+    const response = await api.get(`/grades/angola/calculate-mt/${studentId}/${subjectId}/${term}`);
+    return response.data;
+  },
+  
   getById: async (id: string): Promise<GradeWithRelations> => {
     const response = await api.get(`/grades/${id}`);
     return response.data;
@@ -948,308 +1041,6 @@ export const reportsAPI = {
   }
 };
 
-// Communication API functions
-export const communicationAPI = {
-  // ============= INBOX - MENSAGENS RECEBIDAS =============
-  getInbox: async (filters?: {
-    priority?: string;
-    audience?: string;
-    startDate?: string;
-    endDate?: string;
-    unread?: boolean;
-    search?: string;
-    includeExpired?: boolean;
-    page?: number;
-    limit?: number;
-  }) => {
-    const params = new URLSearchParams();
-    if (filters?.priority) params.append('priority', filters.priority);
-    if (filters?.audience) params.append('audience', filters.audience);
-    if (filters?.startDate) params.append('startDate', filters.startDate);
-    if (filters?.endDate) params.append('endDate', filters.endDate);
-    if (filters?.unread !== undefined) params.append('unread', filters.unread.toString());
-    if (filters?.search) params.append('search', filters.search);
-    if (filters?.includeExpired !== undefined) params.append('includeExpired', filters.includeExpired.toString());
-    if (filters?.page) params.append('page', filters.page.toString());
-    if (filters?.limit) params.append('limit', filters.limit.toString());
-
-    const response = await api.get(`/communication/inbox?${params}`);
-    return response.data;
-  },
-
-  getInboxMessages: async (filters?: {
-    priority?: string;
-    audience?: string;
-    startDate?: string;
-    endDate?: string;
-    unread?: boolean;
-    search?: string;
-    includeExpired?: boolean;
-    page?: number;
-    limit?: number;
-  }) => {
-    return communicationAPI.getInbox(filters);
-  },
-
-  // ============= MENSAGENS ENVIADAS =============
-  getSentMessages: async (page = 1, limit = 20) => {
-    const response = await api.get('/communication/sent', {
-      params: { page, limit }
-    });
-    return response.data;
-  },
-
-  // ============= CRIAR MENSAGEM =============
-  createMessage: async (messageData: {
-    title: string;
-    content: string;
-    priority: string;
-    audience: string[];
-    targetUsers?: string[];
-    targetClassId?: string;
-    expiresAt?: string;
-  }) => {
-    const response = await api.post('/communication/messages', messageData);
-    return response.data;
-  },
-
-  // ============= BUSCAR MENSAGEM ESPECÍFICA =============
-  getMessageById: async (messageId: string) => {
-    const response = await api.get(`/communication/messages/${messageId}`);
-    return response.data;
-  },
-
-  // ============= MARCAR COMO LIDA =============
-  markAsRead: async (messageId: string) => {
-    const response = await api.post(`/communication/messages/${messageId}/read`);
-    return response.data;
-  },
-
-  // ============= ATUALIZAR MENSAGEM =============
-  updateMessage: async (messageId: string, updateData: {
-    title?: string;
-    content?: string;
-    priority?: string;
-    audience?: string[];
-    targetUsers?: string[];
-    targetClassId?: string;
-    expiresAt?: string;
-  }) => {
-    const response = await api.put(`/communication/messages/${messageId}`, updateData);
-    return response.data;
-  },
-
-  // ============= DELETAR MENSAGEM (SOFT DELETE) =============
-  deleteMessage: async (messageId: string) => {
-    const response = await api.delete(`/communication/messages/${messageId}`);
-    return response.data;
-  },
-
-  // ============= ESTATÍSTICAS (ADMIN/DIRETOR) =============
-  getStats: async () => {
-    const response = await api.get('/communication/stats');
-    return response.data;
-  },
-
-  // ============= FUNÇÕES AUXILIARES =============
-  
-  // Calcular taxa de leitura
-  calculateReadRate: (readCount: number, totalRecipients: number): number => {
-    if (totalRecipients === 0) return 0;
-    return Math.round((readCount / totalRecipients) * 100);
-  },
-
-  // Verificar se mensagem é urgente
-  isUrgentMessage: (priority: string, isExpired: boolean): boolean => {
-    return priority === 'URGENT' && !isExpired;
-  },
-
-  // Determinar status visual da mensagem
-  getMessageStatus: (isRead: boolean, readCount: number): 'SENT' | 'DELIVERED' | 'READ' => {
-    if (isRead) return 'read';
-    if (readCount > 0) return 'DELIVERED';
-    return 'SENT';
-  },
-
-  // Formatear data para exibição
-  formatDate: (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-AO', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  },
-
-  // Formatar audiência para exibição
-  formatAudience: (audience: string[], targetClassId?: string): string => {
-    const audienceLabels: Record<string, string> = {
-      'PARENTS': 'Todos os Pais',
-      'TEACHERS': 'Todos os Professores',
-      'ALL_STAFF': 'Todo o Pessoal',
-      'SPECIFIC_CLASS': 'Turma Específica',
-      'INDIVIDUAL': 'Usuários Específicos',
-      'GROUP': 'Grupo Personalizado',
-    };
-
-    if (audience.length === 1) {
-      const aud = audience[0];
-      if (aud === 'SPECIFIC_CLASS') {
-        return `Turma: ${targetClassId || 'Não especificada'}`;
-      }
-      return audienceLabels[aud] || aud;
-    }
-    
-    if (audience.length <= 2) {
-      return audience.map(a => audienceLabels[a] || a).join(', ');
-    }
-    
-    return `${audience.length} grupos selecionados`;
-  },
-
-  // Verificar permissões de edição
-  canEditMessage: (messageCreatedBy: string, currentUserId: string, userRole: string): boolean => {
-    // Admin e Diretor podem editar qualquer mensagem
-    if (['ADMIN', 'DIRETOR'].includes(userRole)) {
-      return true;
-    }
-    
-    // Secretaria pode editar próprias mensagens
-    if (userRole === 'SECRETARIA' && messageCreatedBy === currentUserId) {
-      return true;
-    }
-    
-    return false;
-  },
-
-  // Verificar se pode criar mensagens
-  canCreateMessage: (userRole: string): boolean => {
-    return ['ADMIN', 'DIRETOR', 'SECRETARIA'].includes(userRole);
-  },
-
-  // Verificar se pode ver estatísticas
-  canViewStats: (userRole: string): boolean => {
-    return ['ADMIN', 'DIRETOR'].includes(userRole);
-  },
-
-  // ============= BUSCA E FILTROS AVANÇADOS =============
-  
-  // Buscar mensagens com filtros combinados
-  searchMessages: async (searchParams: {
-    searchTerm?: string;
-    priority?: string;
-    audience?: string;
-    dateRange?: {
-      start: string;
-      end: string;
-    };
-    onlyUnread?: boolean;
-    includeExpired?: boolean;
-    page?: number;
-    limit?: number;
-  }) => {
-    const params = new URLSearchParams();
-    
-    if (searchParams.searchTerm) {
-      params.append('searchTerm', searchParams.searchTerm);
-    }
-    if (searchParams.priority) {
-      params.append('priority', searchParams.priority);
-    }
-    if (searchParams.audience) {
-      params.append('audience', searchParams.audience);
-    }
-    if (searchParams.dateRange) {
-      params.append('startDate', searchParams.dateRange.start);
-      params.append('endDate', searchParams.dateRange.end);
-    }
-    if (searchParams.onlyUnread) {
-      params.append('isRead', 'false');
-    }
-    if (searchParams.includeExpired !== undefined) {
-      params.append('includeExpired', searchParams.includeExpired.toString());
-    }
-    if (searchParams.page) {
-      params.append('page', searchParams.page.toString());
-    }
-    if (searchParams.limit) {
-      params.append('limit', searchParams.limit.toString());
-    }
-
-    const response = await api.get(`/communication/inbox?${params}`);
-    return response.data;
-  },
-
-  // ============= NOTIFICAÇÕES E ATUALIZAÇÕES =============
-  
-  // Buscar mensagens não lidas (para notificações)
-  getUnreadCount: async (): Promise<number> => {
-    const response = await api.get('/communication/inbox', {
-      params: { 
-        isRead: false, 
-        includeExpired: false,
-        limit: 1 // Só precisamos do count
-      }
-    });
-    return response.data.pagination?.total || 0;
-  },
-
-  // Buscar mensagens urgentes não lidas
-  getUrgentUnreadMessages: async () => {
-    const response = await api.get('/communication/inbox', {
-      params: {
-        priority: 'URGENT',
-        isRead: false,
-        includeExpired: false,
-        limit: 50
-      }
-    });
-    return response.data.data || [];
-  },
-
-  // ============= VALIDAÇÕES =============
-  
-  // Validar dados de criação de mensagem
-  validateMessageData: (data: {
-    title: string;
-    content: string;
-    audience: string[];
-    targetUsers?: string[];
-    targetClassId?: string;
-  }): string[] => {
-    const errors: string[] = [];
-    
-    if (!data.title || data.title.length < 5) {
-      errors.push('Título deve ter pelo menos 5 caracteres');
-    }
-    if (data.title && data.title.length > 200) {
-      errors.push('Título deve ter no máximo 200 caracteres');
-    }
-    
-    if (!data.content || data.content.length < 10) {
-      errors.push('Conteúdo deve ter pelo menos 10 caracteres');
-    }
-    if (data.content && data.content.length > 2000) {
-      errors.push('Conteúdo deve ter no máximo 2000 caracteres');
-    }
-    
-    if (!data.audience || data.audience.length === 0) {
-      errors.push('Selecione pelo menos um público-alvo');
-    }
-    
-    if (data.audience?.includes('SPECIFIC_CLASS') && !data.targetClassId) {
-      errors.push('Selecione uma turma para envio específico');
-    }
-    
-    if (data.audience?.includes('INDIVIDUAL') && (!data.targetUsers || data.targetUsers.length === 0)) {
-      errors.push('Selecione usuários específicos');
-    }
-    
-    return errors;
-  }
-};
 
 // ==================== LIBRARY API ====================
 export const libraryAPI = {

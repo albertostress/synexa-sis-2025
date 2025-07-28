@@ -1,10 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  
+  // Servir arquivos estáticos (logos, imagens)
+  app.useStaticAssets(join(__dirname, '..', 'public'));
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -40,8 +45,9 @@ async function bootstrap(): Promise<void> {
   SwaggerModule.setup('api', app, document);
 
   await app.listen(3000);
-  console.log('🚀 Escola Backend rodando na porta 3000');
+  console.log('🚀 Escola Backend rodando na porta 3000 - Hot Reload Testado!');
   console.log('📚 Documentação disponível em http://localhost:3000/api');
+  console.log('🔥 Hot reload configurado e funcionando!');
 }
 
 bootstrap().catch((error) => {

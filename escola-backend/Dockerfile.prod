@@ -1,0 +1,77 @@
+# Multi-stage build para produção
+FROM node:18-alpine AS builder
+
+# Instalar dependências do sistema
+RUN apk update && apk upgrade && \
+    apk add --no-cache \
+    openssl \
+    libc6-compat \
+    && rm -rf /var/cache/apk/*
+
+WORKDIR /app
+
+# Copiar package files
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Instalar dependências
+RUN npm ci --only=production && npm cache clean --force
+
+# Copiar código fonte
+COPY . .
+
+# Gerar Prisma client
+RUN npx prisma generate
+
+# Build da aplicação
+RUN npm run build
+
+# Stage final
+FROM node:18-alpine AS production
+
+# Instalar dependências do sistema e Chromium para PDFs
+RUN apk update && apk upgrade && \
+    apk add --no-cache \
+    openssl \
+    libc6-compat \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    ttf-dejavu \
+    ttf-droid \
+    ttf-liberation \
+    font-noto \
+    curl \
+    && rm -rf /var/cache/apk/*
+
+# Criar usuário não-root
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nodejs -u 1001
+
+WORKDIR /app
+
+# Copiar arquivos do builder
+COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
+COPY --from=builder --chown=nodejs:nodejs /app/prisma ./prisma
+
+# Configurar variáveis de ambiente
+ENV NODE_ENV=production \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    CHROMIUM_PATH=/usr/bin/chromium-browser
+
+USER nodejs
+
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+
+CMD ["node", "dist/main"]

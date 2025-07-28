@@ -20,7 +20,8 @@ import {
   Clock,
   Key,
   Lock,
-  Zap
+  Zap,
+  UserCog
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import { settingsAPI } from '@/lib/api';
 import { useFontSize, FONT_SIZE_OPTIONS } from '@/hooks/useFontSize';
 import { FontSizeDemo } from '@/components/FontSizeControl';
+import { UserManagement } from '@/components/settings/UserManagement';
 
 interface Setting {
   id: string;
@@ -411,7 +413,7 @@ export default function SettingsIntegrated() {
 
       {/* Main Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="school">Escola</TabsTrigger>
           <TabsTrigger value="system">Sistema</TabsTrigger>
           <TabsTrigger value="notifications">Notificações</TabsTrigger>
@@ -419,6 +421,7 @@ export default function SettingsIntegrated() {
           <TabsTrigger value="academic">Académico</TabsTrigger>
           <TabsTrigger value="smtp">SMTP</TabsTrigger>
           <TabsTrigger value="backup">Backup</TabsTrigger>
+          <TabsTrigger value="users">Utilizadores</TabsTrigger>
         </TabsList>
 
         {/* School Settings */}
@@ -996,6 +999,11 @@ export default function SettingsIntegrated() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Users Management Settings */}
+        <TabsContent value="users" className="space-y-4">
+          <UserManagement />
         </TabsContent>
       </Tabs>
     </div>

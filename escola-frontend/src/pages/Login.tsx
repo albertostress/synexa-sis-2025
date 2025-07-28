@@ -82,16 +82,15 @@ export default function Login() {
         <div className="w-full max-w-md">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-6">
-              <div className="w-14 h-14 bg-primary rounded-xl flex items-center justify-center shadow-sm">
-                <GraduationCap className="w-7 h-7 text-primary-foreground" />
-              </div>
+            <div className="flex flex-col items-center justify-center mb-6">
+              <img 
+                src="/Synexa-logo.png" 
+                alt="Synexa" 
+                className="h-16 object-contain mb-4"
+              />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Synexa-SIS
-            </h1>
             <p className="text-gray-600">
-              Sistema de Gestão Escolar
+              Sistema de Informação do Estudante
             </p>
           </div>
 

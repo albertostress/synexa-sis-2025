@@ -7,6 +7,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateMessageDto, MessageAudience, MessagePriority } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { FilterMessagesDto } from './dto/filter-messages.dto';
+import { CreateThreadDto } from './dto/create-thread.dto';
+import { ReplyThreadDto } from './dto/reply-thread.dto';
+import { FilterThreadsDto } from './dto/filter-threads.dto';
 
 @Injectable()
 export class CommunicationService {
@@ -496,5 +499,481 @@ export class CommunicationService {
         expiredMessages: messages.filter(msg => msg.expiresAt && now > msg.expiresAt).length,
       },
     };
+  }
+
+  // =============================================
+  // MÉTODOS PARA SISTEMA DE THREADS/CONVERSAS
+  // =============================================
+
+  async createThread(createThreadDto: CreateThreadDto, createdById: string) {
+    const { subject, content, participantIds } = createThreadDto;
+
+    // Validar que os participantes existem
+    const participants = await this.prisma.user.findMany({
+      where: { id: { in: participantIds } },
+      select: { id: true, name: true, role: true },
+    });
+
+    if (participants.length !== participantIds.length) {
+      throw new BadRequestException('Um ou mais participantes não foram encontrados');
+    }
+
+    // Adicionar o criador à lista de participantes se não estiver incluído
+    const allParticipantIds = [...new Set([createdById, ...participantIds])];
+    
+    // Buscar dados do criador
+    const creator = await this.prisma.user.findUnique({
+      where: { id: createdById },
+      select: { id: true, name: true, role: true },
+    });
+
+    if (!creator) {
+      throw new BadRequestException('Criador da conversa não encontrado');
+    }
+
+    // Criar conversa com primeira mensagem
+    const conversation = await this.prisma.conversation.create({
+      data: {
+        subject,
+        participants: {
+          create: allParticipantIds.map(userId => ({
+            userId,
+            role: userId === createdById ? creator.role : 
+                  participants.find(p => p.id === userId)?.role || 'PROFESSOR',
+          })),
+        },
+        messages: {
+          create: {
+            content,
+            senderId: createdById,
+            readBy: [createdById], // Criador já leu automaticamente
+          },
+        },
+      },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: { id: true, name: true, role: true },
+            },
+          },
+        },
+        messages: {
+          include: {
+            sender: {
+              select: { id: true, name: true, role: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    // Formatar resposta
+    const lastMessage = conversation.messages[0];
+    const currentUserParticipant = conversation.participants.find(p => p.userId === createdById);
+
+    return {
+      id: conversation.id,
+      subject: conversation.subject,
+      createdAt: conversation.createdAt.toISOString(),
+      updatedAt: conversation.updatedAt.toISOString(),
+      participants: conversation.participants.map(p => ({
+        id: p.user.id,
+        name: p.user.name,
+        role: p.user.role,
+        isMuted: p.isMuted,
+        isArchived: p.isArchived,
+        joinedAt: p.joinedAt.toISOString(),
+      })),
+      messageCount: 1,
+      unreadCount: 0, // Criador já leu
+      lastMessage: {
+        id: lastMessage.id,
+        content: lastMessage.content,
+        senderId: lastMessage.senderId,
+        sender: lastMessage.sender,
+        readBy: lastMessage.readBy,
+        isRead: lastMessage.readBy.includes(createdById),
+        createdAt: lastMessage.createdAt.toISOString(),
+        updatedAt: lastMessage.updatedAt.toISOString(),
+      },
+      isArchived: currentUserParticipant?.isArchived || false,
+      isMuted: currentUserParticipant?.isMuted || false,
+    };
+  }
+
+  async getUserThreads(userId: string, filters: FilterThreadsDto) {
+    const {
+      search,
+      unread,
+      archived = false,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 20,
+    } = filters;
+
+    const skip = (page - 1) * limit;
+
+    // Construir condições de filtro
+    const where: any = {
+      participants: {
+        some: {
+          userId,
+          isArchived: archived,
+        },
+      },
+    };
+
+    if (startDate) {
+      where.createdAt = { ...where.createdAt, gte: new Date(startDate) };
+    }
+
+    if (endDate) {
+      where.createdAt = { ...where.createdAt, lte: new Date(endDate) };
+    }
+
+    if (search) {
+      where.OR = [
+        { subject: { contains: search, mode: 'insensitive' } },
+        {
+          messages: {
+            some: {
+              content: { contains: search, mode: 'insensitive' },
+            },
+          },
+        },
+      ];
+    }
+
+    // Buscar conversas
+    const [conversations, total] = await Promise.all([
+      this.prisma.conversation.findMany({
+        where,
+        include: {
+          participants: {
+            include: {
+              user: {
+                select: { id: true, name: true, role: true },
+              },
+            },
+          },
+          messages: {
+            include: {
+              sender: {
+                select: { id: true, name: true, role: true },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+          _count: {
+            select: { messages: true },
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.conversation.count({ where }),
+    ]);
+
+    // Processar conversas para incluir estatísticas do usuário
+    const processedThreads = conversations.map(conversation => {
+      const userParticipant = conversation.participants.find(p => p.userId === userId);
+      const lastMessage = conversation.messages[0];
+      
+      // Calcular mensagens não lidas
+      const unreadMessages = conversation.messages.filter(msg => 
+        !msg.readBy.includes(userId) && msg.senderId !== userId
+      );
+      const unreadCount = unreadMessages.length;
+
+      return {
+        id: conversation.id,
+        subject: conversation.subject,
+        createdAt: conversation.createdAt.toISOString(),
+        updatedAt: conversation.updatedAt.toISOString(),
+        participants: conversation.participants.map(p => ({
+          id: p.user.id,
+          name: p.user.name,
+          role: p.user.role,
+          isMuted: p.isMuted,
+          isArchived: p.isArchived,
+          joinedAt: p.joinedAt.toISOString(),
+        })),
+        messageCount: conversation._count.messages,
+        unreadCount,
+        lastMessage: lastMessage ? {
+          id: lastMessage.id,
+          content: lastMessage.content,
+          senderId: lastMessage.senderId,
+          sender: lastMessage.sender,
+          readBy: lastMessage.readBy,
+          isRead: lastMessage.readBy.includes(userId),
+          createdAt: lastMessage.createdAt.toISOString(),
+          updatedAt: lastMessage.updatedAt.toISOString(),
+        } : null,
+        isArchived: userParticipant?.isArchived || false,
+        isMuted: userParticipant?.isMuted || false,
+      };
+    });
+
+    // Filtrar por status de leitura se especificado
+    let filteredThreads = processedThreads;
+    if (unread !== undefined) {
+      filteredThreads = processedThreads.filter(thread => {
+        const hasUnread = thread.unreadCount > 0;
+        return unread ? hasUnread : !hasUnread;
+      });
+    }
+
+    // Calcular estatísticas gerais do usuário
+    const allUserThreads = await this.prisma.conversation.findMany({
+      where: {
+        participants: {
+          some: { userId },
+        },
+      },
+      include: {
+        participants: {
+          where: { userId },
+        },
+        messages: {
+          select: { readBy: true, senderId: true },
+        },
+      },
+    });
+
+    const totalThreads = allUserThreads.length;
+    const unreadThreads = allUserThreads.filter(thread => 
+      thread.messages.some(msg => !msg.readBy.includes(userId) && msg.senderId !== userId)
+    ).length;
+    const archivedThreads = allUserThreads.filter(thread => 
+      thread.participants[0]?.isArchived
+    ).length;
+    const mutedThreads = allUserThreads.filter(thread => 
+      thread.participants[0]?.isMuted
+    ).length;
+
+    const pages = Math.ceil(total / limit);
+
+    return {
+      data: filteredThreads,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages,
+      },
+      summary: {
+        totalThreads,
+        unreadThreads,
+        archivedThreads,
+        mutedThreads,
+      },
+    };
+  }
+
+  async getThreadById(threadId: string, userId: string) {
+    const conversation = await this.prisma.conversation.findFirst({
+      where: {
+        id: threadId,
+        participants: {
+          some: { userId },
+        },
+      },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: { id: true, name: true, role: true },
+            },
+          },
+        },
+        messages: {
+          include: {
+            sender: {
+              select: { id: true, name: true, role: true },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversa não encontrada ou usuário sem acesso');
+    }
+
+    const userParticipant = conversation.participants.find(p => p.userId === userId);
+    const unreadCount = conversation.messages.filter(msg => 
+      !msg.readBy.includes(userId) && msg.senderId !== userId
+    ).length;
+
+    return {
+      id: conversation.id,
+      subject: conversation.subject,
+      createdAt: conversation.createdAt.toISOString(),
+      updatedAt: conversation.updatedAt.toISOString(),
+      participants: conversation.participants.map(p => ({
+        id: p.user.id,
+        name: p.user.name,
+        role: p.user.role,
+        isMuted: p.isMuted,
+        isArchived: p.isArchived,
+        joinedAt: p.joinedAt.toISOString(),
+      })),
+      messageCount: conversation.messages.length,
+      unreadCount,
+      messages: conversation.messages.map(msg => ({
+        id: msg.id,
+        content: msg.content,
+        senderId: msg.senderId,
+        sender: msg.sender,
+        readBy: msg.readBy,
+        isRead: msg.readBy.includes(userId),
+        createdAt: msg.createdAt.toISOString(),
+        updatedAt: msg.updatedAt.toISOString(),
+      })),
+      isArchived: userParticipant?.isArchived || false,
+      isMuted: userParticipant?.isMuted || false,
+    };
+  }
+
+  async replyToThread(threadId: string, replyDto: ReplyThreadDto, userId: string) {
+    const { content } = replyDto;
+
+    // Verificar se o usuário é participante da conversa
+    const conversation = await this.prisma.conversation.findFirst({
+      where: {
+        id: threadId,
+        participants: {
+          some: { userId },
+        },
+      },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversa não encontrada ou usuário sem acesso');
+    }
+
+    // Criar nova mensagem
+    const message = await this.prisma.conversationMessage.create({
+      data: {
+        content,
+        senderId: userId,
+        conversationId: threadId,
+        readBy: [userId], // Remetente já leu automaticamente
+      },
+      include: {
+        sender: {
+          select: { id: true, name: true, role: true },
+        },
+      },
+    });
+
+    // Atualizar timestamp da conversa
+    await this.prisma.conversation.update({
+      where: { id: threadId },
+      data: { updatedAt: new Date() },
+    });
+
+    return {
+      id: message.id,
+      content: message.content,
+      senderId: message.senderId,
+      sender: message.sender,
+      readBy: message.readBy,
+      isRead: true, // Remetente sempre leu
+      createdAt: message.createdAt.toISOString(),
+      updatedAt: message.updatedAt.toISOString(),
+    };
+  }
+
+  async markThreadAsRead(threadId: string, userId: string) {
+    // Verificar se o usuário é participante da conversa
+    const conversation = await this.prisma.conversation.findFirst({
+      where: {
+        id: threadId,
+        participants: {
+          some: { userId },
+        },
+      },
+      include: {
+        messages: {
+          where: {
+            AND: [
+              { NOT: { readBy: { has: userId } } },
+              { NOT: { senderId: userId } },
+            ],
+          },
+        },
+      },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversa não encontrada ou usuário sem acesso');
+    }
+
+    // Marcar todas as mensagens não lidas como lidas
+    const messagesToUpdate = conversation.messages.map(msg => {
+      const readBy = [...msg.readBy];
+      if (!readBy.includes(userId)) {
+        readBy.push(userId);
+      }
+      return { id: msg.id, readBy };
+    });
+
+    if (messagesToUpdate.length > 0) {
+      await Promise.all(
+        messagesToUpdate.map(msg =>
+          this.prisma.conversationMessage.update({
+            where: { id: msg.id },
+            data: { readBy: msg.readBy },
+          })
+        )
+      );
+    }
+
+    return { 
+      success: true, 
+      message: `${messagesToUpdate.length} mensagens marcadas como lidas`
+    };
+  }
+
+  async getThreadParticipants(threadId: string, userId: string) {
+    const conversation = await this.prisma.conversation.findFirst({
+      where: {
+        id: threadId,
+        participants: {
+          some: { userId },
+        },
+      },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: { id: true, name: true, role: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversa não encontrada ou usuário sem acesso');
+    }
+
+    return conversation.participants.map(p => ({
+      id: p.user.id,
+      name: p.user.name,
+      role: p.user.role,
+      isMuted: p.isMuted,
+      isArchived: p.isArchived,
+      joinedAt: p.joinedAt.toISOString(),
+    }));
   }
 }

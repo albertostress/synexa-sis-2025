@@ -315,6 +315,81 @@ startxref
   }
 
   /**
+   * Gera PDF a partir de HTML já renderizado
+   */
+  async generatePdfFromHtml(html: string, cacheKey?: any): Promise<Buffer> {
+    // Verificar cache se fornecido
+    if (cacheKey) {
+      const cachedPdf = this.cacheService.get('pdf', cacheKey);
+      if (cachedPdf) {
+        this.logger.debug(`PDF recuperado do cache para HTML`);
+        return cachedPdf;
+      }
+    }
+
+    if (!this.browser) {
+      this.logger.warn(`Modo simulado: gerando PDF mock para HTML`);
+      const mockPdf = await this.generateMockPdf('html-template', { html: html.substring(0, 100) });
+      // Armazenar mock no cache se fornecido
+      if (cacheKey) {
+        this.cacheService.set('pdf', cacheKey, mockPdf);
+      }
+      return mockPdf;
+    }
+
+    let page: Page | null = null;
+
+    try {
+      // Criar nova página no browser
+      page = await this.browser.newPage();
+
+      // Configurar viewport para PDF
+      await page.setViewportSize({ width: 1024, height: 1448 }); // A4 proporção
+
+      // Carregar HTML na página
+      await page.setContent(html, {
+        waitUntil: 'networkidle',
+        timeout: 30000,
+      });
+
+      // Aguardar carregamento de recursos (fontes, imagens)
+      await page.waitForTimeout(1000);
+
+      // Gerar PDF
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        landscape: true,
+        printBackground: true,
+        margin: {
+          top: '15mm',
+          right: '20mm',
+          bottom: '15mm',
+          left: '20mm',
+        },
+        preferCSSPageSize: true,
+      });
+
+      const resultBuffer = Buffer.from(pdfBuffer);
+      
+      // Armazenar no cache se fornecido
+      if (cacheKey) {
+        this.cacheService.set('pdf', cacheKey, resultBuffer);
+      }
+      
+      this.logger.log(`PDF gerado com sucesso a partir de HTML`);
+      return resultBuffer;
+
+    } catch (error) {
+      this.logger.error(`Erro ao gerar PDF a partir de HTML:`, error);
+      throw error;
+    } finally {
+      if (page) {
+        await page.close();
+      }
+    }
+  }
+
+  /**
    * Verifica se o serviço está funcionando corretamente
    */
   async healthCheck(): Promise<{ 

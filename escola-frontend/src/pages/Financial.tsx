@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -33,7 +34,11 @@ import {
   Receipt,
   Banknote,
   Wallet,
-  Target
+  Target,
+  BarChart3,
+  Bell,
+  Mail,
+  CheckSquare,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -58,16 +63,10 @@ import {
   formatCurrency,
   MONTHS_PT
 } from '@/types/finance';
-
-// Schema de validação para nova fatura
-const invoiceSchema = z.object({
-  studentId: z.string().min(1, 'Selecione um aluno'),
-  amount: z.number().min(0.01, 'Valor deve ser maior que zero'),
-  description: z.string().min(5, 'Descrição deve ter pelo menos 5 caracteres'),
-  dueDate: z.string().min(1, 'Data de vencimento é obrigatória'),
-  month: z.number().min(1).max(12),
-  year: z.number().min(2020).max(2030),
-});
+import { FinancialDashboard } from '@/components/financial/FinancialDashboard';
+import { InvoiceModal } from '@/components/financial/InvoiceModal';
+import { InvoicesTable } from '@/components/financial/InvoicesTable';
+import { useFinancialData } from '@/hooks/useFinancialData';
 
 // Schema de validação para pagamento
 const paymentSchema = z.object({
@@ -76,39 +75,30 @@ const paymentSchema = z.object({
   reference: z.string().optional(),
 });
 
-type InvoiceFormData = z.infer<typeof invoiceSchema>;
 type PaymentFormData = z.infer<typeof paymentSchema>;
 
 export default function Financial() {
   const { user, hasRole } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   
   // Estados locais
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
   const [monthFilter, setMonthFilter] = useState<number | undefined>();
   const [yearFilter, setYearFilter] = useState<number>(new Date().getFullYear());
   const [isNewInvoiceOpen, setIsNewInvoiceOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [isViewInvoiceOpen, setIsViewInvoiceOpen] = useState(false);
   const [page, setPage] = useState(1);
   const limit = 20;
 
-  // Form setup
-  const invoiceForm = useForm<InvoiceFormData>({
-    resolver: zodResolver(invoiceSchema),
-    defaultValues: {
-      studentId: '',
-      amount: 0,
-      description: '',
-      dueDate: '',
-      month: new Date().getMonth() + 1,
-      year: new Date().getFullYear(),
-    },
-  });
+  // Hook para dados financeiros do dashboard
+  const { data: dashboardData, isLoading: loadingDashboard } = useFinancialData();
 
+  // Form setup para pagamentos
   const paymentForm = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
@@ -122,7 +112,7 @@ export default function Financial() {
 
   // Buscar faturas
   const { data: invoicesData, isLoading: loadingInvoices } = useQuery({
-    queryKey: ['invoices', searchTerm, statusFilter, typeFilter, monthFilter, yearFilter, page],
+    queryKey: ['invoices', searchTerm, statusFilter, monthFilter, yearFilter, page],
     queryFn: () => {
       const filters: InvoiceFilters = {
         page,
@@ -145,15 +135,26 @@ export default function Financial() {
 
   // Criar nova fatura
   const createInvoiceMutation = useMutation({
-    mutationFn: (data: CreateInvoiceDto) => financialAPI.createInvoice(data),
+    mutationFn: (data: any) => {
+      // Adaptar dados do modal avançado para o formato do backend
+      const createData: CreateInvoiceDto = {
+        studentId: data.studentId,
+        amount: data.amount,
+        description: data.description,
+        dueDate: data.dueDate,
+        month: data.month,
+        year: data.year,
+      };
+      return financialAPI.createInvoice(createData);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
       toast({
         title: 'Fatura Criada!',
         description: 'A fatura foi criada com sucesso.',
       });
       setIsNewInvoiceOpen(false);
-      invoiceForm.reset();
     },
     onError: (error: any) => {
       toast({
@@ -170,6 +171,7 @@ export default function Financial() {
       financialAPI.payInvoice(invoiceId, paymentData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
       toast({
         title: 'Pagamento Registrado!',
         description: 'O pagamento foi registrado com sucesso.',
@@ -192,6 +194,7 @@ export default function Financial() {
     mutationFn: (invoiceId: string) => financialAPI.cancelInvoice(invoiceId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
       toast({
         title: 'Fatura Cancelada',
         description: 'A fatura foi cancelada com sucesso.',
@@ -206,20 +209,45 @@ export default function Financial() {
     },
   });
 
+  // Automação - Notificar alunos em atraso
+  const notifyOverdueMutation = useMutation({
+    mutationFn: financialAPI.sendOverdueReminders,
+    onSuccess: (result) => {
+      toast({
+        title: 'Lembretes Enviados!',
+        description: `Lembretes enviados para ${result.count || 'todos os'} alunos em atraso.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Erro ao Enviar Lembretes',
+        description: error.response?.data?.message || 'Erro interno do servidor',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Marcar pagamentos em atraso
+  const markOverduePaymentsMutation = useMutation({
+    mutationFn: financialAPI.markOverduePayments,
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
+      toast({
+        title: 'Pagamentos Atualizados!',
+        description: `${result.count || 'Algumas'} faturas foram marcadas como vencidas.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Erro ao Atualizar Pagamentos',
+        description: error.response?.data?.message || 'Erro interno do servidor',
+        variant: 'destructive',
+      });
+    },
+  });
+
   // ==================== HANDLERS ====================
-
-  const handleSubmitInvoice = (data: InvoiceFormData) => {
-    const createData: CreateInvoiceDto = {
-      studentId: data.studentId,
-      amount: data.amount,
-      description: data.description,
-      dueDate: data.dueDate,
-      month: data.month,
-      year: data.year,
-    };
-
-    createInvoiceMutation.mutate(createData);
-  };
 
   const handleSubmitPayment = (data: PaymentFormData) => {
     if (!selectedInvoice) return;
@@ -242,26 +270,25 @@ export default function Financial() {
     setIsPaymentOpen(true);
   };
 
-  const handleDownloadPdf = async (invoiceId: string) => {
-    try {
-      await financialAPI.downloadInvoicePdf(invoiceId, `fatura_${invoiceId}.pdf`);
-      toast({
-        title: 'PDF Baixado',
-        description: 'O PDF da fatura foi baixado com sucesso.',
-      });
-    } catch (error) {
-      toast({
-        title: 'Erro ao Baixar PDF',
-        description: 'Não foi possível baixar o PDF da fatura.',
-        variant: 'destructive',
-      });
-    }
+  const handleViewInvoice = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setIsViewInvoiceOpen(true);
   };
 
   const handleCancelInvoice = (invoiceId: string) => {
-    if (window.confirm('Tem certeza que deseja cancelar esta fatura?')) {
-      cancelInvoiceMutation.mutate(invoiceId);
-    }
+    cancelInvoiceMutation.mutate(invoiceId);
+  };
+
+  const handleViewStudentHistory = (studentId: string) => {
+    navigate(`/finance/student/${studentId}/history`);
+  };
+
+  const handleNotifyOverdue = () => {
+    notifyOverdueMutation.mutate();
+  };
+
+  const handleMarkOverduePayments = () => {
+    markOverduePaymentsMutation.mutate();
   };
 
   // ==================== COMPUTED VALUES ====================
@@ -275,16 +302,6 @@ export default function Financial() {
     invoice.student?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     invoice.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  // KPIs calculados
-  const totalRevenue = currentInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
-  const pendingAmount = currentInvoices
-    .filter(inv => inv.status === 'PENDENTE')
-    .reduce((sum, inv) => sum + inv.balance, 0);
-  const overdueAmount = currentInvoices
-    .filter(inv => inv.status === 'VENCIDA')
-    .reduce((sum, inv) => sum + inv.balance, 0);
-  const totalInvoices = currentInvoices.length;
 
   // Verificar permissões
   const canManageFinance = financialAPI.canManageFinance(user?.role || '');
@@ -307,468 +324,152 @@ export default function Financial() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Gestão Financeira</h1>
+          <h1 className="text-3xl font-bold flex items-center space-x-2">
+            <Wallet className="h-8 w-8 text-green-600" />
+            <span>Gestão Financeira</span>
+          </h1>
           <p className="text-muted-foreground">
-            Sistema financeiro escolar adaptado para Angola (AOA)
+            Sistema financeiro escolar completo adaptado para Angola (AOA)
           </p>
         </div>
         
         <div className="flex items-center space-x-2">
           {canManageFinance && (
-            <Dialog open={isNewInvoiceOpen} onOpenChange={setIsNewInvoiceOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nova Fatura
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Criar Nova Fatura</DialogTitle>
-                </DialogHeader>
-                
-                <Form {...invoiceForm}>
-                  <form onSubmit={invoiceForm.handleSubmit(handleSubmitInvoice)} className="space-y-4">
-                    {/* Aluno */}
-                    <FormField
-                      control={invoiceForm.control}
-                      name="studentId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Aluno</FormLabel>
-                          <FormControl>
-                            <Select value={field.value} onValueChange={field.onChange}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione o aluno" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {students.map((student: any) => (
-                                  <SelectItem key={student.id} value={student.id}>
-                                    {student.firstName} {student.lastName} - {student.studentNumber}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Valor */}
-                    <FormField
-                      control={invoiceForm.control}
-                      name="amount"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Valor (AOA)</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number"
-                              step="0.01"
-                              placeholder="0.00"
-                              {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Descrição */}
-                    <FormField
-                      control={invoiceForm.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Descrição</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="Ex: Mensalidade Janeiro 2024"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Data de Vencimento */}
-                    <FormField
-                      control={invoiceForm.control}
-                      name="dueDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Data de Vencimento</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="date"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Mês/Ano */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <FormField
-                        control={invoiceForm.control}
-                        name="month"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Mês</FormLabel>
-                            <FormControl>
-                              <Select value={field.value.toString()} onValueChange={(value) => field.onChange(parseInt(value))}>
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {MONTHS_PT.map((month, index) => (
-                                    <SelectItem key={index + 1} value={(index + 1).toString()}>
-                                      {month}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={invoiceForm.control}
-                        name="year"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Ano</FormLabel>
-                            <FormControl>
-                              <Input 
-                                type="number"
-                                min="2020"
-                                max="2030"
-                                {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || new Date().getFullYear())}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    {/* Botões */}
-                    <div className="flex justify-end space-x-2 pt-4">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        onClick={() => setIsNewInvoiceOpen(false)}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button 
-                        type="submit" 
-                        disabled={createInvoiceMutation.isPending}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        {createInvoiceMutation.isPending ? (
-                          <Clock className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Plus className="w-4 h-4 mr-2" />
-                        )}
-                        Criar Fatura
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
+            <Button 
+              onClick={() => setIsNewInvoiceOpen(true)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Fatura
+            </Button>
           )}
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(totalRevenue)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              valores recebidos
-            </p>
-          </CardContent>
-        </Card>
+      {/* Dashboard Financeiro Avançado */}
+      {dashboardData && (
+        <FinancialDashboard 
+          data={dashboardData}
+          onNotifyOverdue={handleNotifyOverdue}
+          onMarkOverduePayments={handleMarkOverduePayments}
+        />
+      )}
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Valores Pendentes</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              {formatCurrency(pendingAmount)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              aguardando pagamento
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Em Atraso</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {formatCurrency(overdueAmount)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              faturas vencidas
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Faturas</CardTitle>
-            <FileText className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{totalInvoices}</div>
-            <p className="text-xs text-muted-foreground">
-              no período
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filtros */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {/* Busca */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Buscar por aluno..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            {/* Filtro de Status */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Status</SelectItem>
-                <SelectItem value="PENDENTE">⏳ Pendente</SelectItem>
-                <SelectItem value="PAGA">✅ Paga</SelectItem>
-                <SelectItem value="VENCIDA">🔴 Vencida</SelectItem>
-                <SelectItem value="PARCIAL">🔵 Parcial</SelectItem>
-                <SelectItem value="CANCELADA">❌ Cancelada</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Filtro de Mês */}
-            <Select 
-              value={monthFilter?.toString() || 'all'} 
-              onValueChange={(value) => setMonthFilter(value === 'all' ? undefined : parseInt(value))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Mês" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Meses</SelectItem>
-                {MONTHS_PT.map((month, index) => (
-                  <SelectItem key={index + 1} value={(index + 1).toString()}>
-                    {month}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Filtro de Ano */}
-            <Select 
-              value={yearFilter.toString()} 
-              onValueChange={(value) => setYearFilter(parseInt(value))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Ano" />
-              </SelectTrigger>
-              <SelectContent>
-                {[2024, 2023, 2022, 2021, 2020].map(year => (
-                  <SelectItem key={year} value={year.toString()}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Limpar Filtros */}
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setSearchTerm('');
-                setStatusFilter('all');
-                setMonthFilter(undefined);
-                setYearFilter(new Date().getFullYear());
-              }}
-            >
-              Limpar Filtros
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Lista de Faturas */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+      {/* Abas */}
+      <Tabs defaultValue="invoices" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="invoices" className="flex items-center space-x-2">
+            <Receipt className="h-4 w-4" />
             <span>Faturas</span>
-            {currentPagination && (
-              <span className="text-sm text-muted-foreground">
-                {currentPagination.total} fatura(s)
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingInvoices ? (
-            <div className="flex justify-center p-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : filteredInvoices.length === 0 ? (
-            <div className="text-center p-8 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhuma fatura encontrada</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Aluno</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead className="w-32">Valor</TableHead>
-                  <TableHead className="w-32">Pago</TableHead>
-                  <TableHead className="w-32">Saldo</TableHead>
-                  <TableHead className="w-32">Status</TableHead>
-                  <TableHead className="w-32">Vencimento</TableHead>
-                  <TableHead className="w-40">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredInvoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    {/* Aluno */}
-                    <TableCell className="font-medium">
-                      <div>
-                        <div>{invoice.student?.name || 'N/A'}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {invoice.student?.studentNumber}
-                        </div>
-                      </div>
-                    </TableCell>
+          </TabsTrigger>
+          <TabsTrigger value="reports" className="flex items-center space-x-2">
+            <BarChart3 className="h-4 w-4" />
+            <span>Relatórios</span>
+          </TabsTrigger>
+          <TabsTrigger value="automation" className="flex items-center space-x-2">
+            <Bell className="h-4 w-4" />
+            <span>Automação</span>
+          </TabsTrigger>
+        </TabsList>
 
-                    {/* Descrição */}
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{invoice.description}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {MONTHS_PT[invoice.month - 1]} {invoice.year}
-                        </div>
-                      </div>
-                    </TableCell>
+        {/* Aba de Faturas */}
+        <TabsContent value="invoices" className="space-y-4">
+          {/* Filtros */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                {/* Busca */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Buscar por aluno..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
 
-                    {/* Valor */}
-                    <TableCell className="font-mono">
-                      {formatCurrency(invoice.amount)}
-                    </TableCell>
+                {/* Filtro de Status */}
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os Status</SelectItem>
+                    <SelectItem value="PENDENTE">⏳ Pendente</SelectItem>
+                    <SelectItem value="PAGA">✅ Paga</SelectItem>
+                    <SelectItem value="VENCIDA">🔴 Vencida</SelectItem>
+                    <SelectItem value="PARCIAL">🔵 Parcial</SelectItem>
+                    <SelectItem value="CANCELADA">❌ Cancelada</SelectItem>
+                  </SelectContent>
+                </Select>
 
-                    {/* Pago */}
-                    <TableCell className="font-mono">
-                      {formatCurrency(invoice.paidAmount)}
-                    </TableCell>
+                {/* Filtro de Mês */}
+                <Select 
+                  value={monthFilter?.toString() || 'all'} 
+                  onValueChange={(value) => setMonthFilter(value === 'all' ? undefined : parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os Meses</SelectItem>
+                    {MONTHS_PT.map((month, index) => (
+                      <SelectItem key={index + 1} value={(index + 1).toString()}>
+                        {month}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-                    {/* Saldo */}
-                    <TableCell className="font-mono">
-                      {formatCurrency(invoice.balance)}
-                    </TableCell>
+                {/* Filtro de Ano */}
+                <Select 
+                  value={yearFilter.toString()} 
+                  onValueChange={(value) => setYearFilter(parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[2024, 2023, 2022, 2021, 2020].map(year => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-                    {/* Status */}
-                    <TableCell>
-                      <Badge className={InvoiceStatusColors[invoice.status]}>
-                        {InvoiceStatusLabels[invoice.status]}
-                      </Badge>
-                    </TableCell>
+                {/* Limpar Filtros */}
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatusFilter('all');
+                    setMonthFilter(undefined);
+                    setYearFilter(new Date().getFullYear());
+                  }}
+                >
+                  Limpar Filtros
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-                    {/* Vencimento */}
-                    <TableCell className="text-sm">
-                      {format(new Date(invoice.dueDate), 'dd/MM/yyyy', { locale: pt })}
-                      {financialAPI.isOverdue(invoice.dueDate) && invoice.status !== 'PAGA' && (
-                        <div className="text-xs text-red-600">
-                          {financialAPI.calculateDebtAge(invoice.dueDate)} dias atraso
-                        </div>
-                      )}
-                    </TableCell>
-
-                    {/* Ações */}
-                    <TableCell>
-                      <div className="flex items-center space-x-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDownloadPdf(invoice.id)}
-                          title="Baixar PDF"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        
-                        {canManageFinance && invoice.status !== 'PAGA' && invoice.status !== 'CANCELADA' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleOpenPayment(invoice)}
-                            title="Registrar Pagamento"
-                            className="text-green-600 hover:text-green-700"
-                          >
-                            <CreditCard className="h-4 w-4" />
-                          </Button>
-                        )}
-
-                        {canManageFinance && invoice.status === 'PENDENTE' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleCancelInvoice(invoice.id)}
-                            title="Cancelar Fatura"
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          {/* Tabela de Faturas Avançada */}
+          <InvoicesTable
+            invoices={filteredInvoices}
+            isLoading={loadingInvoices}
+            pagination={currentPagination}
+            onViewInvoice={handleViewInvoice}
+            onPayInvoice={handleOpenPayment}
+            onCancelInvoice={handleCancelInvoice}
+            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['invoices'] })}
+            canManage={canManageFinance}
+          />
 
           {/* Paginação */}
           {currentPagination && currentPagination.pages > 1 && (
-            <div className="flex justify-between items-center mt-4">
+            <div className="flex justify-between items-center">
               <div className="text-sm text-muted-foreground">
                 Página {currentPagination.page} de {currentPagination.pages}
               </div>
@@ -792,8 +493,128 @@ export default function Financial() {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
+
+        {/* Aba de Relatórios */}
+        <TabsContent value="reports">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Relatórios Disponíveis</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button variant="outline" className="w-full justify-start">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Resumo Mensal
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <Users className="h-4 w-4 mr-2" />
+                  Histórico por Aluno
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Análise de Inadimplência
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <Target className="h-4 w-4 mr-2" />
+                  Metas vs Realizado
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Exportações</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button variant="outline" className="w-full justify-start">
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar CSV
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <Download className="h-4 w-4 mr-2" />
+                  Relatório PDF Completo
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <Mail className="h-4 w-4 mr-2" />
+                  Enviar por Email
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Aba de Automação */}
+        <TabsContent value="automation">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="border-orange-200">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Bell className="h-5 w-5 text-orange-600" />
+                  <span>Lembretes Automáticos</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Configure lembretes automáticos para alunos com faturas pendentes ou vencidas.
+                </p>
+                <div className="space-y-2">
+                  <Button 
+                    onClick={handleNotifyOverdue}
+                    disabled={notifyOverdueMutation.isPending}
+                    className="w-full bg-orange-600 hover:bg-orange-700"
+                  >
+                    <Mail className="h-4 w-4 mr-2" />
+                    {notifyOverdueMutation.isPending ? 'Enviando...' : 'Enviar Lembretes Agora'}
+                  </Button>
+                  <Button variant="outline" className="w-full">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Configurar Agendamento
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-blue-200">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <CheckSquare className="h-5 w-5 text-blue-600" />
+                  <span>Atualizações Automáticas</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Automatize a marcação de faturas como vencidas e outras atualizações de status.
+                </p>
+                <div className="space-y-2">
+                  <Button 
+                    onClick={handleMarkOverduePayments}
+                    disabled={markOverduePaymentsMutation.isPending}
+                    variant="outline" 
+                    className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    {markOverduePaymentsMutation.isPending ? 'Processando...' : 'Atualizar Status'}
+                  </Button>
+                  <Button variant="outline" className="w-full">
+                    <Clock className="h-4 w-4 mr-2" />
+                    Configurar Rotinas
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Modal de Nova Fatura Avançada */}
+      <InvoiceModal
+        open={isNewInvoiceOpen}
+        onClose={() => setIsNewInvoiceOpen(false)}
+        onSubmit={(data) => createInvoiceMutation.mutate(data)}
+        students={students}
+        isLoading={createInvoiceMutation.isPending}
+      />
 
       {/* Modal de Pagamento */}
       {selectedInvoice && (
@@ -801,10 +622,13 @@ export default function Financial() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Registrar Pagamento</DialogTitle>
+              <DialogDescription>
+                Registre um novo pagamento para esta fatura
+              </DialogDescription>
             </DialogHeader>
             
             <div className="mb-4 p-4 bg-muted rounded-lg">
-              <div className="text-sm">
+              <div className="text-sm space-y-1">
                 <div><strong>Aluno:</strong> {selectedInvoice.student?.name}</div>
                 <div><strong>Fatura:</strong> {selectedInvoice.description}</div>
                 <div><strong>Valor Total:</strong> {formatCurrency(selectedInvoice.amount)}</div>
@@ -815,7 +639,6 @@ export default function Financial() {
             
             <Form {...paymentForm}>
               <form onSubmit={paymentForm.handleSubmit(handleSubmitPayment)} className="space-y-4">
-                {/* Valor */}
                 <FormField
                   control={paymentForm.control}
                   name="amount"
@@ -836,7 +659,6 @@ export default function Financial() {
                   )}
                 />
 
-                {/* Método */}
                 <FormField
                   control={paymentForm.control}
                   name="method"
@@ -862,7 +684,6 @@ export default function Financial() {
                   )}
                 />
 
-                {/* Referência */}
                 <FormField
                   control={paymentForm.control}
                   name="reference"
@@ -880,7 +701,6 @@ export default function Financial() {
                   )}
                 />
 
-                {/* Botões */}
                 <div className="flex justify-end space-x-2 pt-4">
                   <Button 
                     type="button" 
@@ -895,11 +715,16 @@ export default function Financial() {
                     className="bg-green-600 hover:bg-green-700"
                   >
                     {payInvoiceMutation.isPending ? (
-                      <Clock className="w-4 h-4 mr-2 animate-spin" />
+                      <>
+                        <Clock className="w-4 h-4 mr-2 animate-spin" />
+                        Registrando...
+                      </>
                     ) : (
-                      <CreditCard className="w-4 h-4 mr-2" />
+                      <>
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Registrar Pagamento
+                      </>
                     )}
-                    Registrar Pagamento
                   </Button>
                 </div>
               </form>
@@ -908,35 +733,110 @@ export default function Financial() {
         </Dialog>
       )}
 
-      {/* Informações sobre Sistema Financeiro Angola */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Sistema Financeiro Escolar Angola</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-semibold mb-2">Funcionalidades:</h4>
-              <ul className="text-sm space-y-1 text-muted-foreground">
-                <li>• <span className="text-primary font-medium">Moeda:</span> Kwanza Angolano (AOA)</li>
-                <li>• <span className="text-primary font-medium">Pagamentos:</span> Multicaixa, Express, PayWay</li>
-                <li>• <span className="text-primary font-medium">Geração de PDF</span> automática</li>
-                <li>• <span className="text-primary font-medium">Controle de vencimentos</span> e multas</li>
-                <li>• <span className="text-primary font-medium">Histórico completo</span> por aluno</li>
-              </ul>
+      {/* Modal de Visualização de Fatura */}
+      {selectedInvoice && (
+        <Dialog open={isViewInvoiceOpen} onOpenChange={setIsViewInvoiceOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center justify-between">
+                <span>Detalhes da Fatura</span>
+                <Badge 
+                  className={InvoiceStatusColors[selectedInvoice.status]}
+                  variant="outline"
+                >
+                  {InvoiceStatusLabels[selectedInvoice.status]}
+                </Badge>
+              </DialogTitle>
+              <DialogDescription>
+                Informações completas da fatura selecionada
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-sm text-muted-foreground">ALUNO</h4>
+                  <p className="font-medium">{selectedInvoice.student?.name}</p>
+                  <p className="text-sm text-muted-foreground">{selectedInvoice.student?.studentNumber}</p>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-sm text-muted-foreground">DESCRIÇÃO</h4>
+                  <p>{selectedInvoice.description}</p>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-sm text-muted-foreground">PERÍODO</h4>
+                  <p>{MONTHS_PT[selectedInvoice.month - 1]} {selectedInvoice.year}</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-sm text-muted-foreground">VALORES</h4>
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span>Total:</span>
+                      <span className="font-mono">{formatCurrency(selectedInvoice.amount)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Pago:</span>
+                      <span className="font-mono text-green-600">{formatCurrency(selectedInvoice.paidAmount)}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1">
+                      <span className="font-medium">Saldo:</span>
+                      <span className="font-mono font-medium">{formatCurrency(selectedInvoice.balance)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-sm text-muted-foreground">VENCIMENTO</h4>
+                  <p>{format(new Date(selectedInvoice.dueDate), 'dd/MM/yyyy', { locale: pt })}</p>
+                  {financialAPI.isOverdue(selectedInvoice.dueDate) && selectedInvoice.status !== 'PAGA' && (
+                    <p className="text-red-600 text-sm">
+                      {financialAPI.calculateDebtAge(selectedInvoice.dueDate)} dias em atraso
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
-            <div>
-              <h4 className="font-semibold mb-2">Métodos de Pagamento:</h4>
-              <ul className="text-sm space-y-1 text-muted-foreground">
-                <li>• <span className="text-green-600 font-medium">💵 Dinheiro:</span> Pagamento presencial</li>
-                <li>• <span className="text-blue-600 font-medium">🏦 Transferência:</span> Bancária</li>
-                <li>• <span className="text-purple-600 font-medium">💳 Multicaixa:</span> Sistema nacional</li>
-                <li>• <span className="text-orange-600 font-medium">📱 Express:</span> Mobile payment</li>
-              </ul>
+
+            <div className="flex justify-between items-center pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => handleViewStudentHistory(selectedInvoice.student?.id)}
+              >
+                <Users className="h-4 w-4 mr-2" />
+                Ver Histórico do Aluno
+              </Button>
+              
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => financialAPI.downloadInvoicePdf(selectedInvoice.id, `fatura_${selectedInvoice.id}.pdf`)}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Baixar PDF
+                </Button>
+                
+                {canManageFinance && selectedInvoice.status !== 'PAGA' && selectedInvoice.status !== 'CANCELADA' && (
+                  <Button
+                    onClick={() => {
+                      setIsViewInvoiceOpen(false);
+                      handleOpenPayment(selectedInvoice);
+                    }}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Registrar Pagamento
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

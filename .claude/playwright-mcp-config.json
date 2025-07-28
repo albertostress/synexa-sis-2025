@@ -1,0 +1,12 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "headless": true,
+    "launchOptions": {
+      "headless": true
+    }
+  },
+  "capabilities": ["tabs", "install", "pdf", "vision"],
+  "outputDir": "/tmp/playwright-mcp",
+  "imageResponses": "allow"
+}

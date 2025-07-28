@@ -92,6 +92,13 @@ export class StudentInfo {
   name: string;
 
   @ApiProperty({
+    description: 'Nome do pai/responsável',
+    example: 'António Silva',
+    required: false,
+  })
+  fatherName?: string;
+
+  @ApiProperty({
     description: 'Email dos pais/responsáveis',
     example: 'pais.joao@email.com',
   })
@@ -108,6 +115,13 @@ export class StudentInfo {
     example: '2010-05-15T00:00:00.000Z',
   })
   birthDate: Date;
+
+  @ApiProperty({
+    description: 'URL da foto do aluno',
+    example: '/uploads/photos/student123.jpg',
+    required: false,
+  })
+  photoUrl?: string;
 }
 
 export class ClassInfo {

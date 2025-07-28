@@ -593,14 +593,6 @@ export function SecretariaDashboardIntegrated() {
             <Button 
               variant="ghost" 
               className="justify-start h-auto py-3"
-              onClick={() => navigate('/communication')}
-            >
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Comunicação
-            </Button>
-            <Button 
-              variant="ghost" 
-              className="justify-start h-auto py-3"
               onClick={() => navigate('/reports')}
             >
               <BookOpen className="w-4 h-4 mr-2" />

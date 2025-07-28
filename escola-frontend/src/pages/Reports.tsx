@@ -1,28 +1,24 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { FileCheck, Download, FileText, User, GraduationCap, Loader2 } from 'lucide-react';
+import { FileCheck, Download, FileText, User, GraduationCap, Loader2, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { reportsAPI, studentsAPI, classesAPI } from '@/lib/api';
-import { 
-  ReportCard, 
-  getStatusBadge, 
-  getGradeClassification, 
-  formatAcademicYear, 
-  formatTerm,
-  getGradeTypeName 
-} from '@/types/report';
+import { classesAPI } from '@/lib/api';
+import { reportService, AngolaReportCard } from '@/services/reportService';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function Reports() {
-  const [selectedStudent, setSelectedStudent] = useState<string>('all');
+  const [selectedStudent, setSelectedStudent] = useState<string>('');
   const [selectedTerm, setSelectedTerm] = useState<string>('1');
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState<number>(2024);
   const [selectedClass, setSelectedClass] = useState<string>('');
+  const [studentSearchTerm, setStudentSearchTerm] = useState<string>('');
+  const [downloadingStudentId, setDownloadingStudentId] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Carregar turmas para filtro
@@ -34,79 +30,94 @@ export default function Reports() {
     }
   });
 
-  // Carregar alunos baseado na turma selecionada
-  const { data: students = [] } = useQuery({
+  // FASE 2: Carregar alunos baseado na turma selecionada para autocomplete
+  const { 
+    data: students = [], 
+    isLoading: loadingStudents,
+    error: studentsError 
+  } = useQuery({
     queryKey: ['students-by-class', selectedClass, selectedYear],
-    queryFn: () => {
-      if (selectedClass) {
-        return reportsAPI.getStudentsByClass(selectedClass, selectedYear);
+    queryFn: async () => {
+      if (!selectedClass) {
+        console.log('❌ Nenhuma turma selecionada');
+        return [];
       }
-      return studentsAPI.getAll();
+      
+      console.log('📚 Carregando alunos da turma:', selectedClass, 'ano:', selectedYear);
+      const studentsData = await reportService.getStudentsByClass(selectedClass, selectedYear);
+      console.log('✅ Alunos carregados:', studentsData.length);
+      return studentsData;
     },
-    enabled: !!selectedClass || selectedStudent === 'all',
+    enabled: !!selectedClass,
+    staleTime: 5 * 60 * 1000, // 5 minutos de cache
     onError: (error: any) => {
-      console.error('Erro ao carregar alunos:', error);
+      console.error('❌ Erro ao carregar alunos:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os alunos da turma',
+        variant: 'destructive'
+      });
+    },
+    onSuccess: (data) => {
+      console.log('✅ Query alunos bem-sucedida:', data.length, 'alunos encontrados');
     }
   });
 
-  // Carregar boletins baseado nos filtros
-  const { data: reports = [], isLoading: loadingReports, refetch } = useQuery({
-    queryKey: ['reports', selectedStudent, selectedClass, selectedTerm, selectedYear],
-    queryFn: async () => {
-      console.log('📊 Carregando boletins...');
+  // FASE 2: Filtrar alunos com base na pesquisa (autocomplete)
+  const filteredStudents = useMemo(() => {
+    return reportService.filterStudentsByName(students, studentSearchTerm);
+  }, [students, studentSearchTerm]);
+
+  // FASE 1: Carregar boletim Angola usando o novo endpoint otimizado
+  const { data: reportCard, isLoading: loadingReports, refetch } = useQuery({
+    queryKey: ['angola-report-card', selectedStudent, selectedTerm, selectedYear],
+    queryFn: async (): Promise<AngolaReportCard | null> => {
+      if (!selectedStudent) return null;
       
-      if (selectedStudent !== 'all') {
-        // Boletim de um aluno específico
-        const report = await reportsAPI.getReportCard(selectedStudent, {
-          year: selectedYear,
-          term: selectedTerm === 'FINAL' ? undefined : parseInt(selectedTerm)
-        });
-        return [report];
-      } else if (selectedClass) {
-        // Boletins de toda uma turma
-        const reports = await reportsAPI.getClassReportCards(selectedClass, {
-          year: selectedYear,
-          term: selectedTerm === 'FINAL' ? undefined : parseInt(selectedTerm)
-        });
-        return reports;
-      }
+      console.log('📊 Carregando boletim Angola...');
       
-      return [];
+      const report = await reportService.getAngolaReportCard(selectedStudent, {
+        year: selectedYear,
+        term: selectedTerm === 'FINAL' ? undefined : parseInt(selectedTerm)
+      });
+      
+      return report;
     },
-    enabled: selectedStudent !== 'all' || !!selectedClass,
+    enabled: !!selectedStudent && selectedStudent !== '',
     onSuccess: (data) => {
-      console.log('✅ Boletins carregados:', data?.length, 'boletins');
+      console.log('✅ Boletim Angola carregado:', data ? 'sucesso' : 'vazio');
     },
     onError: (error: any) => {
-      console.error('❌ Erro ao carregar boletins:', error);
+      console.error('❌ Erro ao carregar boletim:', error);
+      const errorMessage = error.response?.data?.message || 'Não foi possível carregar o boletim';
       toast({
         title: 'Erro',
-        description: 'Não foi possível carregar os boletins',
+        description: errorMessage,
         variant: 'destructive'
       });
     }
   });
 
-  // Mutation para download de PDF
+  // FASE 4: Mutation para gerar PDF do boletim Angola
   const downloadMutation = useMutation({
     mutationFn: async (reportData: { studentId: string; year: number; term?: number }) => {
-      console.log('📥 Baixando PDF do boletim...', reportData);
-      return reportsAPI.downloadReportCardPdfWithFilename(reportData.studentId, {
+      console.log('📥 Gerando PDF do boletim Angola...', reportData);
+      return reportService.generateReportCardPdfWithFilename(reportData.studentId, {
         year: reportData.year,
         term: reportData.term
       });
     },
     onSuccess: ({ blob, filename }) => {
-      console.log('✅ PDF baixado com sucesso:', filename);
-      reportsAPI.triggerDownload(blob, filename);
+      console.log('✅ PDF gerado com sucesso:', filename);
+      reportService.triggerDownload(blob, filename);
       toast({
         title: 'Sucesso!',
-        description: 'Boletim baixado com sucesso!'
+        description: 'Boletim PDF gerado e baixado com sucesso!'
       });
     },
     onError: (error: any) => {
-      console.error('❌ Erro ao baixar PDF:', error);
-      const errorMessage = error.response?.data?.message || 'Erro ao baixar boletim';
+      console.error('❌ Erro ao gerar PDF:', error);
+      const errorMessage = error.response?.data?.message || 'Erro ao gerar boletim PDF';
       toast({
         title: 'Erro!',
         description: errorMessage,
@@ -115,39 +126,102 @@ export default function Reports() {
     }
   });
 
-  const handleDownloadReport = (report: ReportCard) => {
+  // FASE 4: Handler para gerar PDF do boletim
+  const handleDownloadReport = () => {
+    if (!reportCard) return;
+    
+    setDownloadingStudentId(selectedStudent);
     downloadMutation.mutate({
-      studentId: report.student.id,
-      year: report.year,
-      term: report.term
+      studentId: selectedStudent,
+      year: selectedYear,
+      term: selectedTerm === 'FINAL' ? undefined : parseInt(selectedTerm)
+    }, {
+      onSettled: () => {
+        setDownloadingStudentId(null);
+      }
     });
   };
 
   const handleClassChange = (classId: string) => {
-    setSelectedClass(classId === 'ALL' ? '' : classId);
-    setSelectedStudent('all'); // Reset student selection when class changes
+    console.log('🏫 Mudança de turma:', classId);
+    const newClassId = classId === 'ALL' ? '' : classId;
+    
+    setSelectedClass(newClassId);
+    setSelectedStudent(''); // Reset student selection when class changes
+    setStudentSearchTerm(''); // Reset search term
+    
+    console.log('🔄 Estado resetado para nova turma');
+  };
+
+  // FASE 2: Handler para seleção de aluno no autocomplete
+  const handleStudentSelect = (studentId: string) => {
+    setSelectedStudent(studentId);
+    const selectedStudentData = students.find(s => s.id === studentId);
+    if (selectedStudentData) {
+      setStudentSearchTerm(selectedStudentData.name);
+    }
+  };
+
+  // FASE 3: Helper para formatar ano acadêmico
+  const formatAcademicYear = (year: number) => `${year}/${year + 1}`;
+
+  // FASE 3: Helper para formatar trimestre
+  const formatTerm = (term: number | null) => {
+    if (!term) return 'Boletim Final';
+    return `${term}º Trimestre`;
   };
 
   return (
     <ErrorBoundary>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
+      <div className="flex flex-col h-full">
+        <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold">Boletins Escolares</h1>
             <p className="text-muted-foreground">Sistema de boletins conforme padrão do MINED Angola</p>
           </div>
+          {reportCard && (
+            <div className="flex items-center gap-3">
+              <Badge variant="secondary" className="text-sm">
+                Boletim carregado
+              </Badge>
+              {/* FASE 4: Botão Gerar PDF no topo */}
+              <Button 
+                variant="default"
+                onClick={handleDownloadReport}
+                disabled={downloadingStudentId !== null}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {downloadingStudentId ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Gerando PDF...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    Gerar PDF
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Filtros</CardTitle>
+        {/* FASE 3: Filtros em layout 2x2 limpo e responsivo */}
+        <Card className="mb-6 border-2 border-primary/10">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <FileText className="w-5 h-5" />
+              Filtros de Pesquisa
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Ano Letivo</label>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Primeira linha: Ano Letivo | Turma */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Ano Letivo</label>
                 <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -160,14 +234,13 @@ export default function Reports() {
                 </Select>
               </div>
 
-              <div>
-                <label className="text-sm font-medium mb-2 block">Turma</label>
-                <Select value={selectedClass || 'ALL'} onValueChange={handleClassChange}>
-                  <SelectTrigger>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Turma</label>
+                <Select value={selectedClass || ''} onValueChange={handleClassChange}>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Selecione uma turma" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Selecionar turma</SelectItem>
                     {classes.map((cls) => (
                       <SelectItem key={cls.id} value={cls.id}>
                         {cls.name}
@@ -176,28 +249,76 @@ export default function Reports() {
                   </SelectContent>
                 </Select>
               </div>
-              
-              <div>
-                <label className="text-sm font-medium mb-2 block">Aluno</label>
-                <Select value={selectedStudent} onValueChange={setSelectedStudent}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um aluno" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os alunos da turma</SelectItem>
-                    {students.map((student) => (
-                      <SelectItem key={student.id} value={student.id}>
-                        {student.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
+              {/* Segunda linha: Aluno (autocomplete) | Trimestre */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Aluno
+                  {loadingStudents && (
+                    <Loader2 className="w-3 h-3 ml-2 inline animate-spin" />
+                  )}
+                </label>
+                {/* FASE 2: Campo com autocomplete inteligente */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={
+                      !selectedClass 
+                        ? "Selecione uma turma primeiro"
+                        : loadingStudents 
+                        ? "Carregando alunos..."
+                        : "Pesquisar aluno por nome..."
+                    }
+                    value={studentSearchTerm}
+                    onChange={(e) => setStudentSearchTerm(e.target.value)}
+                    disabled={!selectedClass || loadingStudents}
+                    className="pl-10"
+                  />
+                  
+                  {/* Dropdown com resultados filtrados */}
+                  {selectedClass && !loadingStudents && studentSearchTerm.length >= 2 && filteredStudents.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {filteredStudents.slice(0, 8).map((student) => (
+                        <button
+                          key={student.id}
+                          onClick={() => handleStudentSelect(student.id)}
+                          className="w-full px-3 py-2 text-left hover:bg-muted transition-colors text-sm border-b border-border last:border-b-0"
+                        >
+                          <div className="font-medium">{student.name}</div>
+                          <div className="text-xs text-muted-foreground">ID: {student.id}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Mensagem quando não encontra alunos */}
+                  {selectedClass && !loadingStudents && studentSearchTerm.length >= 2 && filteredStudents.length === 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-md shadow-lg p-3">
+                      <p className="text-sm text-muted-foreground text-center">
+                        Nenhum aluno encontrado com "{studentSearchTerm}"
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Mensagens de estado */}
+                {!selectedClass ? (
+                  <p className="text-xs text-muted-foreground">Selecione uma turma primeiro</p>
+                ) : loadingStudents ? (
+                  <p className="text-xs text-blue-600">Carregando lista de alunos...</p>
+                ) : studentsError ? (
+                  <p className="text-xs text-red-600">Erro ao carregar alunos. Tente novamente.</p>
+                ) : students.length === 0 ? (
+                  <p className="text-xs text-orange-600">Nenhum aluno encontrado nesta turma</p>
+                ) : (
+                  <p className="text-xs text-green-600">{students.length} alunos disponíveis</p>
+                )}
               </div>
-              
-              <div>
-                <label className="text-sm font-medium mb-2 block">Trimestre</label>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Trimestre</label>
                 <Select value={selectedTerm} onValueChange={setSelectedTerm}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -212,49 +333,38 @@ export default function Reports() {
           </CardContent>
         </Card>
 
-        <div className="grid gap-6">
-          {loadingReports ? (
+        <div className="flex-1 overflow-hidden">
+          <div className="h-full overflow-y-auto px-1">
+            <div className="grid gap-6 pb-6">
+            {loadingReports ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <Loader2 className="w-8 h-8 mx-auto animate-spin mb-4" />
-                <h3 className="text-lg font-medium mb-2">Carregando boletins...</h3>
+                <h3 className="text-lg font-medium mb-2">Carregando boletim...</h3>
                 <p className="text-muted-foreground">
-                  Aguarde enquanto geramos os boletins escolares.
+                  Aguarde enquanto carregamos o boletim escolar Angola.
                 </p>
               </CardContent>
             </Card>
-          ) : reports.length > 0 ? (
-            reports.map((report) => (
-              <Card key={`${report.student.id}-${report.year}-${report.term}`} className="overflow-hidden">
+          ) : reportCard ? (
+            // FASE 1 & 4: Mostrar boletim Angola com novo formato
+            <Card className="overflow-hidden">
                 <CardHeader className="bg-muted/50">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3">
                       <GraduationCap className="w-8 h-8 p-1.5 bg-primary text-primary-foreground rounded-full" />
                       <div>
                         <CardTitle className="text-xl">REPÚBLICA DE ANGOLA</CardTitle>
-                        <p className="text-sm font-medium">{report.school.name}</p>
+                        <p className="text-sm font-medium">MINISTÉRIO DA EDUCAÇÃO</p>
                         <p className="text-muted-foreground text-sm">
-                          {report.school.province} • {report.school.municipality}
+                          Escola Synexa-SIS • Luanda
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={getStatusBadge(report.status) as any}>
-                        {report.status}
+                      <Badge variant={reportCard.finalStatus === 'Aprovado' ? 'default' : 'destructive'}>
+                        {reportCard.finalStatus}
                       </Badge>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleDownloadReport(report)}
-                        disabled={downloadMutation.isPending}
-                      >
-                        {downloadMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Download className="w-4 h-4 mr-2" />
-                        )}
-                        Descarregar PDF
-                      </Button>
                     </div>
                   </div>
                 </CardHeader>
@@ -262,73 +372,96 @@ export default function Reports() {
                 <CardContent className="p-6">
                   {/* Informações do Aluno */}
                   <div className="mb-6">
-                    <h3 className="text-lg font-semibold mb-2">Informações do Aluno</h3>
+                    <h3 className="text-lg font-semibold mb-3">Informações do Aluno</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <span className="font-medium">Nome:</span>
-                        <p>{report.student.name}</p>
+                        <span className="font-medium text-muted-foreground">Nome:</span>
+                        <p className="font-medium">{reportCard.student.name}</p>
                       </div>
                       <div>
-                        <span className="font-medium">Nº Estudante:</span>
-                        <p>{report.student.studentNumber}</p>
+                        <span className="font-medium text-muted-foreground">Nome do Pai:</span>
+                        <p>{reportCard.student.fatherName || 'Não informado'}</p>
                       </div>
                       <div>
-                        <span className="font-medium">Classe:</span>
-                        <p>{report.class.name}</p>
+                        <span className="font-medium text-muted-foreground">Classe:</span>
+                        <p>{reportCard.student.className}</p>
                       </div>
                       <div>
-                        <span className="font-medium">Período:</span>
-                        <p>{formatTerm(report.term)} - {formatAcademicYear(report.year)}</p>
+                        <span className="font-medium text-muted-foreground">Período:</span>
+                        <p>{formatTerm(reportCard.term)} - {formatAcademicYear(reportCard.year)}</p>
                       </div>
                     </div>
                   </div>
 
                   <Separator className="my-6" />
                   
-                  {/* Disciplinas Curriculares */}
+                  {/* FASE 4: Botão adicional de PDF na área de conteúdo */}
+                  <div className="mb-6 flex justify-end">
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadReport}
+                      disabled={downloadingStudentId !== null}
+                      className="border-green-200 text-green-700 hover:bg-green-50"
+                    >
+                      {downloadingStudentId ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Gerando PDF...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 mr-2" />
+                          Baixar Boletim PDF
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {/* Disciplinas Curriculares - Formato Angola */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Disciplinas Curriculares</h3>
+                    <h3 className="text-lg font-semibold mb-4">Disciplinas Curriculares (Sistema MINED Angola)</h3>
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
+                      <table className="w-full text-sm border-collapse">
                         <thead>
-                          <tr className="border-b">
-                            <th className="text-left p-2">Disciplina</th>
-                            <th className="text-center p-2">MAC</th>
-                            <th className="text-center p-2">NPP</th>
-                            <th className="text-center p-2">NPT</th>
-                            <th className="text-center p-2">MT</th>
-                            <th className="text-center p-2">FAL</th>
-                            <th className="text-center p-2">Classificação</th>
-                            <th className="text-center p-2">Professor</th>
+                          <tr className="bg-muted/50">
+                            <th className="text-left p-3 border font-semibold">Disciplina</th>
+                            <th className="text-center p-3 border font-semibold">MAC</th>
+                            <th className="text-center p-3 border font-semibold">NPP</th>
+                            <th className="text-center p-3 border font-semibold">NPT</th>
+                            <th className="text-center p-3 border font-semibold bg-primary/10">MT</th>
+                            <th className="text-center p-3 border font-semibold">FAL</th>
+                            <th className="text-center p-3 border font-semibold">Classificação</th>
+                            <th className="text-center p-3 border font-semibold">Professor</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {report.subjects.map((subject) => {
-                            const macGrade = subject.grades.find(g => g.type === 'MAC');
-                            const nppGrade = subject.grades.find(g => g.type === 'NPP');
-                            const nptGrade = subject.grades.find(g => g.type === 'NPT');
-                            const mtValue = subject.averageGrade || 0;
-                            const classification = getGradeClassification(mtValue);
-                            
-                            return (
-                              <tr key={subject.subjectId} className="border-b">
-                                <td className="p-2 font-medium">{subject.subjectName}</td>
-                                <td className="text-center p-2">{macGrade?.value || '-'}</td>
-                                <td className="text-center p-2">{nppGrade?.value || '-'}</td>
-                                <td className="text-center p-2">{nptGrade?.value || '-'}</td>
-                                <td className={`text-center p-2 font-bold ${classification.color}`}>
-                                  {mtValue.toFixed(1)}
-                                </td>
-                                <td className="text-center p-2">{subject.absences}</td>
-                                <td className={`text-center p-2 text-xs ${classification.color}`}>
-                                  {classification.label}
-                                </td>
-                                <td className="text-center p-2 text-xs">
-                                  {subject.teacherName.split(' ').slice(0, 2).join(' ')}
-                                </td>
-                              </tr>
-                            );
-                          })}
+                          {reportCard.subjects.map((subject, index) => (
+                            <tr key={index} className="hover:bg-muted/20">
+                              <td className="p-3 border font-medium">{subject.subjectName}</td>
+                              <td className="text-center p-3 border">{subject.mac || '-'}</td>
+                              <td className="text-center p-3 border">{subject.npp || '-'}</td>
+                              <td className="text-center p-3 border">{subject.npt || '-'}</td>
+                              <td className="text-center p-3 border font-bold bg-primary/5">
+                                {subject.mt ? subject.mt.toFixed(1) : '-'}
+                              </td>
+                              <td className="text-center p-3 border">{subject.fal}</td>
+                              <td className="text-center p-3 border">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  subject.classification === 'Excelente' ? 'bg-green-100 text-green-800' :
+                                  subject.classification === 'Muito Bom' ? 'bg-blue-100 text-blue-800' :
+                                  subject.classification === 'Bom' ? 'bg-yellow-100 text-yellow-800' :
+                                  subject.classification === 'Satisfatório' ? 'bg-orange-100 text-orange-800' :
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {subject.classification}
+                                </span>
+                              </td>
+                              <td className="text-center p-3 border text-xs">
+                                {subject.teacherName.split(' ').slice(0, 2).join(' ')}
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -339,28 +472,43 @@ export default function Reports() {
                   {/* Resumo e Legenda */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div>
-                      <h4 className="font-semibold mb-2">Resumo Académico</h4>
-                      <div className="space-y-2 text-sm">
-                        <p><strong>Média Geral:</strong> {report.averageGrade.toFixed(1)} valores</p>
-                        <p><strong>Frequência:</strong> {report.attendancePercentage.toFixed(1)}%</p>
-                        <p className={
-                          report.status === 'APROVADO' ? 'text-green-600 font-bold' :
-                          report.status === 'REPROVADO' ? 'text-red-600 font-bold' :
-                          'text-yellow-600 font-bold'
-                        }>
-                          <strong>Estado:</strong> {report.status}
-                        </p>
+                      <h4 className="font-semibold mb-3">Resumo Académico</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center p-3 bg-muted/30 rounded">
+                          <span className="font-medium">Média Geral:</span>
+                          <span className="text-lg font-bold text-primary">
+                            {reportCard.averageGrade.toFixed(1)} valores
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-muted/30 rounded">
+                          <span className="font-medium">Frequência:</span>
+                          <span className="text-lg font-bold text-blue-600">
+                            {reportCard.attendancePercentage.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-muted/30 rounded">
+                          <span className="font-medium">Situação Final:</span>
+                          <span className={`text-lg font-bold ${
+                            reportCard.finalStatus === 'Aprovado' ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {reportCard.finalStatus}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     
                     <div>
-                      <h4 className="font-semibold mb-2">Legenda</h4>
-                      <div className="text-xs space-y-1">
+                      <h4 className="font-semibold mb-3">Legenda (Sistema Angola)</h4>
+                      <div className="text-xs space-y-1 bg-muted/20 p-4 rounded">
                         <p><strong>MAC</strong> = Média das Avaliações Contínuas</p>
                         <p><strong>NPP</strong> = Nota da Prova do Professor</p>
                         <p><strong>NPT</strong> = Nota da Prova Trimestral</p>
                         <p><strong>MT</strong> = Média Trimestral</p>
                         <p><strong>FAL</strong> = Faltas</p>
+                        <Separator className="my-2" />
+                        <p className="font-medium">Classificação:</p>
+                        <p>18-20: Excelente | 16-17: Muito Bom | 14-15: Bom</p>
+                        <p>12-13: Satisfatório | 0-11: Não Satisfatório</p>
                       </div>
                     </div>
                   </div>
@@ -368,12 +516,11 @@ export default function Reports() {
                   <Separator className="my-6" />
                   
                   <div className="flex justify-between items-center text-sm text-muted-foreground">
-                    <p>Boletim gerado em: {new Date(report.generatedAt).toLocaleDateString('pt-AO')}</p>
-                    <p>Sistema: <span className="font-bold">Synexa-SIS {report.year}</span></p>
+                    <p>Boletim gerado em: {new Date(reportCard.generatedAt).toLocaleDateString('pt-AO')}</p>
+                    <p>Sistema: <span className="font-bold">Synexa-SIS {reportCard.year} | MINED Angola</span></p>
                   </div>
                 </CardContent>
               </Card>
-            ))
           ) : (
             <Card>
               <CardContent className="py-12 text-center">
@@ -381,13 +528,22 @@ export default function Reports() {
                 <h3 className="text-lg font-medium mb-2">Nenhum boletim encontrado</h3>
                 <p className="text-muted-foreground">
                   {!selectedClass 
-                    ? 'Selecione uma turma para visualizar os boletins disponíveis.' 
-                    : 'Nenhum boletim encontrado para os filtros selecionados.'
+                    ? 'Selecione uma turma e depois pesquise um aluno para visualizar o boletim.' 
+                    : !selectedStudent
+                    ? 'Pesquise e selecione um aluno para visualizar seu boletim escolar.'
+                    : 'Nenhum boletim encontrado para este aluno no período selecionado.'
                   }
                 </p>
+                {selectedClass && !selectedStudent && (
+                  <div className="mt-4 text-sm text-muted-foreground">
+                    <p>💡 <strong>Dica:</strong> Digite pelo menos 2 caracteres no campo "Aluno" para pesquisar</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
+            </div>
+          </div>
         </div>
       </div>
     </ErrorBoundary>

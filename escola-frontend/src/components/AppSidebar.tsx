@@ -9,7 +9,6 @@ import {
   FileText,
   Calendar,
   FileCheck,
-  MessageSquare,
   DollarSign,
   Library,
   Bus,
@@ -102,12 +101,6 @@ const navigationItems: NavigationItem[] = [
     roles: ['ADMIN', 'SECRETARIA', 'PROFESSOR'],
   },
   {
-    title: 'Comunicação',
-    url: '/communication',
-    icon: MessageSquare,
-    roles: ['ADMIN', 'SECRETARIA', 'PROFESSOR'],
-  },
-  {
     title: 'Financeiro',
     url: '/financial',
     icon: DollarSign,
@@ -162,13 +155,19 @@ export function AppSidebar() {
         {/* Header */}
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-lg flex items-center justify-center">
-              <GraduationCap className="w-4 h-4 text-primary-foreground" />
-            </div>
+            <img 
+              src="/synexa-icon.png" 
+              alt="Synexa" 
+              className="w-8 h-8 object-contain"
+            />
             {!collapsed && (
-              <div>
-                <h2 className="text-sm font-semibold text-sidebar-foreground">Synexa-SIS</h2>
-                <p className="text-xs text-sidebar-foreground/60">{user?.role}</p>
+              <div className="flex-1">
+                <img 
+                  src="/Synexa-logo.png" 
+                  alt="Synexa-SIS" 
+                  className="h-8 object-contain"
+                />
+                <p className="text-xs text-sidebar-foreground/60 mt-1">{user?.role}</p>
               </div>
             )}
           </div>

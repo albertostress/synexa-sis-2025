@@ -19,7 +19,6 @@ import Grades from "./pages/Grades";
 import Reports from "./pages/Reports";
 import Documents from "./pages/Documents";
 import Attendance from "./pages/Attendance";
-import Communication from "./pages/Communication";
 import Financial from "./pages/Financial";
 import Library from "./pages/Library";
 import Transport from "./pages/Transport";
@@ -30,6 +29,7 @@ import CalendarTest from "./pages/CalendarTest";
 import CalendarTestSimple from "./pages/CalendarTestSimple";
 import GradeDemo from "./pages/GradeDemo";
 import GradeTest from "./pages/GradeTest";
+import StudentFinancialHistory from "./pages/StudentFinancialHistory";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
 
@@ -42,7 +42,12 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
             <Routes>
               {/* Public Routes */}
               <Route path="/login" element={<Login />} />
@@ -163,21 +168,21 @@ const App = () => (
                 }
               />
               <Route
-                path="/communication"
-                element={
-                  <ProtectedRoute>
-                    <DashboardLayout>
-                      <Communication />
-                    </DashboardLayout>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
                 path="/financial"
                 element={
                   <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}>
                     <DashboardLayout>
                       <Financial />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/finance/student/:studentId/history"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}>
+                    <DashboardLayout>
+                      <StudentFinancialHistory />
                     </DashboardLayout>
                   </ProtectedRoute>
                 }

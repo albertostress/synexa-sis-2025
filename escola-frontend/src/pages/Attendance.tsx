@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,27 +7,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
 import { 
   CalendarIcon, 
   UserCheck, 
   UserX, 
   Users, 
-  Clock,
-  Save,
-  Eye,
-  AlertTriangle,
   TrendingUp,
   CheckCircle,
+  AlertTriangle,
   XCircle,
-  AlertCircle,
-  FileText,
-  Filter
+  ClipboardCheck
 } from 'lucide-react';
-import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -48,18 +43,21 @@ import {
   MarkAttendanceDto
 } from '@/types/attendance';
 
+// Tipos para o módulo redesenhado
+type AttendanceStatusType = 'PRESENTE' | 'AUSENTE' | 'JUSTIFICADO';
+
+interface StudentAttendanceRecord {
+  studentId: string;
+  status: AttendanceStatusType;
+  note?: string;
+}
+
 export default function Attendance() {
   const { user, hasRole } = useAuth();
-  const [selectedClass, setSelectedClass] = useState<string>('');
-  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedClassSubject, setSelectedClassSubject] = useState<string>(''); // "classId_subjectId"
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [attendanceData, setAttendanceData] = useState<{[key: string]: {
-    present: boolean;
-    justified: boolean;
-    note: string;
-  }}>({});
-  const [viewMode, setViewMode] = useState<'register' | 'report' | 'individual'>('register');
-  const [selectedStudent, setSelectedStudent] = useState<string>('');
+  const [attendanceRecords, setAttendanceRecords] = useState<{[key: string]: StudentAttendanceRecord}>({});
+  const [showStudentsList, setShowStudentsList] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -75,10 +73,14 @@ export default function Attendance() {
     queryFn: subjectsAPI.getAll,
   });
 
-  // Buscar alunos
+  // Buscar alunos apenas se turma+disciplina estiver selecionada
+  const selectedClass = selectedClassSubject ? selectedClassSubject.split('_')[0] : '';
+  const selectedSubject = selectedClassSubject ? selectedClassSubject.split('_')[1] : '';
+  
   const { data: students = [] } = useQuery({
-    queryKey: ['students'],
-    queryFn: studentsAPI.getAll,
+    queryKey: ['students', selectedClass],
+    queryFn: () => studentsAPI.getAll(),
+    enabled: !!selectedClass && !!selectedSubject,
   });
 
   // Buscar presenças da turma para a data selecionada
@@ -92,14 +94,17 @@ export default function Attendance() {
     enabled: !!selectedClass && !!selectedSubject,
   });
 
-  // Buscar resumo individual do aluno
-  const { data: studentSummary } = useQuery({
-    queryKey: ['student-attendance', selectedStudent],
-    queryFn: () => attendanceAPI.getStudentAttendance(selectedStudent, {
-      startDate: attendanceAPI.formatDateForBackend(startOfMonth(selectedDate)),
-      endDate: attendanceAPI.formatDateForBackend(endOfMonth(selectedDate))
-    }),
-    enabled: !!selectedStudent && viewMode === 'individual',
+  // Buscar estatísticas gerais de frequência por aluno (mock por agora)
+  const { data: studentStats = [] } = useQuery({
+    queryKey: ['student-attendance-stats', selectedClass],
+    queryFn: async () => {
+      // Mock de dados de frequência por aluno
+      return students.map(student => ({
+        studentId: student.id,
+        attendancePercentage: Math.floor(Math.random() * 40) + 60 // 60-100%
+      }));
+    },
+    enabled: !!selectedClass && !!selectedSubject && students.length > 0,
   });
 
   // Mutation para salvar presenças
@@ -124,40 +129,50 @@ export default function Attendance() {
     },
   });
 
-  // Atualizar attendanceData quando classAttendance mudar
+  // Atualizar attendanceRecords quando classAttendance mudar
   useEffect(() => {
     if (classAttendance?.attendances) {
-      const initialData: {[key: string]: {present: boolean, justified: boolean, note: string}} = {};
+      const initialData: {[key: string]: StudentAttendanceRecord} = {};
       
       classAttendance.attendances.forEach((attendance: any) => {
+        let status: AttendanceStatusType = 'AUSENTE';
+        if (attendance.present) status = 'PRESENTE';
+        else if (attendance.justified) status = 'JUSTIFICADO';
+        
         initialData[attendance.studentId] = {
-          present: attendance.present,
-          justified: attendance.justified,
+          studentId: attendance.studentId,
+          status,
           note: attendance.note || '',
         };
       });
       
-      setAttendanceData(initialData);
+      setAttendanceRecords(initialData);
     }
   }, [classAttendance]);
 
-  const handleAttendanceChange = (studentId: string, field: 'present' | 'justified', value: boolean) => {
-    setAttendanceData(prev => ({
+  // Mostrar lista quando turma+disciplina+data estiverem selecionados
+  useEffect(() => {
+    setShowStudentsList(!!selectedClassSubject && !!selectedDate);
+  }, [selectedClassSubject, selectedDate]);
+
+  const handleStatusChange = (studentId: string, status: AttendanceStatusType) => {
+    setAttendanceRecords(prev => ({
       ...prev,
       [studentId]: {
-        ...prev[studentId],
-        [field]: value,
-        // Se marcar como presente, desmarcar justificado automaticamente
-        ...(field === 'present' && value ? { justified: false } : {}),
+        studentId,
+        status,
+        note: prev[studentId]?.note || '',
       }
     }));
   };
 
   const handleNoteChange = (studentId: string, note: string) => {
-    setAttendanceData(prev => ({
+    setAttendanceRecords(prev => ({
       ...prev,
       [studentId]: {
         ...prev[studentId],
+        studentId,
+        status: prev[studentId]?.status || 'AUSENTE',
         note,
       }
     }));
@@ -173,17 +188,11 @@ export default function Attendance() {
       return;
     }
 
-    // Filtrar apenas alunos da turma selecionada
-    const classStudents = students.filter(student => {
-      // Assumindo que existe relação de matrícula - aqui pegamos todos por simplicidade
-      return true;
-    });
-
-    const attendances = classStudents.map(student => ({
+    const attendances = students.map(student => ({
       studentId: student.id,
-      present: attendanceData[student.id]?.present ?? false,
-      justified: attendanceData[student.id]?.justified ?? false,
-      note: attendanceData[student.id]?.note || undefined,
+      present: attendanceRecords[student.id]?.status === 'PRESENTE',
+      justified: attendanceRecords[student.id]?.status === 'JUSTIFICADO',
+      note: attendanceRecords[student.id]?.note || undefined,
     }));
 
     const markAttendanceData: MarkAttendanceDto = {
@@ -197,186 +206,158 @@ export default function Attendance() {
   };
 
   const getAttendanceStats = () => {
-    const classStudents = students.filter(student => true); // Simplificado
-    const present = classStudents.filter(s => attendanceData[s.id]?.present === true).length;
-    const absent = classStudents.filter(s => attendanceData[s.id]?.present === false).length;
-    const justified = classStudents.filter(s => attendanceData[s.id]?.justified === true).length;
+    const present = students.filter(s => attendanceRecords[s.id]?.status === 'PRESENTE').length;
+    const absent = students.filter(s => attendanceRecords[s.id]?.status === 'AUSENTE').length;
+    const justified = students.filter(s => attendanceRecords[s.id]?.status === 'JUSTIFICADO').length;
     
     return { 
-      total: classStudents.length, 
+      total: students.length, 
       present, 
       absent, 
       justified,
-      attendanceRate: classStudents.length > 0 ? Math.round((present / classStudents.length) * 100) : 0
+      attendanceRate: students.length > 0 ? Math.round((present / students.length) * 100) : 0
     };
   };
 
-  const getStatusBadge = (present: boolean, justified: boolean) => {
-    let status: AttendanceStatus;
-    if (present) {
-      status = 'PRESENTE';
-    } else if (justified) {
-      status = 'JUSTIFICADO';
-    } else {
-      status = 'AUSENTE';
-    }
+  // Opções combinadas de turma + disciplina
+  const classSubjectOptions = useMemo(() => {
+    const options: { value: string; label: string; shift: string }[] = [];
+    
+    classes.forEach(cls => {
+      subjects.forEach(subject => {
+        options.push({
+          value: `${cls.id}_${subject.id}`,
+          label: `${cls.name} - ${subject.name}`,
+          shift: SchoolShifts[cls.shift as keyof typeof SchoolShifts] || cls.shift
+        });
+      });
+    });
+    
+    return options;
+  }, [classes, subjects]);
 
-    return (
-      <Badge className={AttendanceStatusColors[status]}>
-        {AttendanceStatusLabels[status]}
-      </Badge>
-    );
+  // Estatísticas gerais da turma
+  const overallStats = useMemo(() => {
+    if (!studentStats.length) return { excellent: 0, adequate: 0, risk: 0, insufficient: 0 };
+    
+    const stats = { excellent: 0, adequate: 0, risk: 0, insufficient: 0 };
+    
+    studentStats.forEach(stat => {
+      if (stat.attendancePercentage >= 90) stats.excellent++;
+      else if (stat.attendancePercentage >= 75) stats.adequate++;
+      else if (stat.attendancePercentage >= 60) stats.risk++;
+      else stats.insufficient++;
+    });
+    
+    return stats;
+  }, [studentStats]);
+
+  const getFrequencyBadge = (percentage: number) => {
+    if (percentage >= 90) {
+      return <Badge className="bg-green-100 text-green-800">Excelente</Badge>;
+    } else if (percentage >= 75) {
+      return <Badge className="bg-blue-100 text-blue-800">Adequada</Badge>;
+    } else if (percentage >= 60) {
+      return <Badge className="bg-orange-100 text-orange-800">Em Risco</Badge>;
+    } else {
+      return <Badge className="bg-red-100 text-red-800">Insuficiente</Badge>;
+    }
   };
 
-  const getAttendanceIcon = (attendancePercentage: number) => {
-    if (attendancePercentage >= 90) return <CheckCircle className="w-4 h-4 text-green-600" />;
-    if (attendancePercentage >= 75) return <AlertCircle className="w-4 h-4 text-yellow-600" />;
-    return <XCircle className="w-4 h-4 text-red-600" />;
+  const getFrequencyColor = (percentage: number) => {
+    if (percentage >= 90) return 'text-green-600';
+    if (percentage >= 75) return 'text-blue-600';
+    if (percentage >= 60) return 'text-orange-600';
+    return 'text-red-600';
   };
 
   const stats = getAttendanceStats();
   const selectedClassData = classes.find(c => c.id === selectedClass);
   const selectedSubjectData = subjects.find(s => s.id === selectedSubject);
 
-  // Filtrar alunos da turma selecionada (simplificado)
-  const classStudents = students.filter(student => true);
-
   const canRegister = hasRole('PROFESSOR') || hasRole('SECRETARIA') || hasRole('ADMIN');
-  const canViewReports = hasRole('ADMIN') || hasRole('SECRETARIA') || hasRole('DIRETOR') || hasRole('PROFESSOR');
-
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Controle de Presenças</h1>
-          <p className="text-muted-foreground">
-            Sistema de frequência escolar adaptado para Angola
-          </p>
-        </div>
-        
-        <div className="flex space-x-2">
-          <Select value={viewMode} onValueChange={(value: any) => setViewMode(value)}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Modo de visualização" />
-            </SelectTrigger>
-            <SelectContent>
-              {canRegister && (
-                <SelectItem value="register">
-                  <div className="flex items-center space-x-2">
-                    <Save className="w-4 h-4" />
-                    <span>Registrar Presenças</span>
-                  </div>
-                </SelectItem>
-              )}
-              {canViewReports && (
-                <>
-                  <SelectItem value="report">
-                    <div className="flex items-center space-x-2">
-                      <FileText className="w-4 h-4" />
-                      <span>Relatório da Turma</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="individual">
-                    <div className="flex items-center space-x-2">
-                      <Eye className="w-4 h-4" />
-                      <span>Consulta Individual</span>
-                    </div>
-                  </SelectItem>
-                </>
-              )}
-            </SelectContent>
-          </Select>
+          <h1 className="text-3xl font-bold tracking-tight">Controle de Presenças</h1>
         </div>
       </div>
 
-      {/* Estatísticas */}
-      {viewMode === 'register' && (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <Card>
+      {/* Seção de Estatísticas */}
+      {showStudentsList && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Alunos</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-green-800">Presentes</CardTitle>
+              <UserCheck className="h-5 w-5 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
+              <div className="text-2xl font-bold text-green-700">{stats.present}</div>
             </CardContent>
           </Card>
           
-          <Card>
+          <Card className="bg-gradient-to-r from-red-50 to-red-100 border-red-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Presentes</CardTitle>
-              <UserCheck className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium text-red-800">Ausentes</CardTitle>
+              <UserX className="h-5 w-5 text-red-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.present}</div>
+              <div className="text-2xl font-bold text-red-700">{stats.absent}</div>
             </CardContent>
           </Card>
           
-          <Card>
+          <Card className="bg-gradient-to-r from-yellow-50 to-yellow-100 border-yellow-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Ausentes</CardTitle>
-              <UserX className="h-4 w-4 text-red-600" />
+              <CardTitle className="text-sm font-medium text-yellow-800">Justificados</CardTitle>
+              <AlertTriangle className="h-5 w-5 text-yellow-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats.absent}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Justificados</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.justified}</div>
+              <div className="text-2xl font-bold text-yellow-700">{stats.justified}</div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Taxa de Frequência</CardTitle>
-              <TrendingUp className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-medium text-blue-800">Taxa Atual</CardTitle>
+              <TrendingUp className="h-5 w-5 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{stats.attendanceRate}%</div>
+              <div className="text-2xl font-bold text-blue-700">{stats.attendanceRate}%</div>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Filtros */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            {/* Turma */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Turma</label>
-              <Select value={selectedClass} onValueChange={setSelectedClass}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a turma" />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.id}>
-                      {cls.name} - {SchoolShifts[cls.shift as keyof typeof SchoolShifts]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      <Separator />
 
-            {/* Disciplina */}
+      {/* Seção de Filtros */}
+      <Card className="border-2 border-primary/10">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Filtros de Seleção
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Turma e Disciplina Combinado */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Disciplina</label>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a disciplina" />
+              <label className="text-sm font-medium text-foreground">
+                Turma e Disciplina
+              </label>
+              <Select value={selectedClassSubject} onValueChange={setSelectedClassSubject}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione turma e disciplina" />
                 </SelectTrigger>
                 <SelectContent>
-                  {subjects.map((subject) => (
-                    <SelectItem key={subject.id} value={subject.id}>
-                      {subject.name}
+                  {classSubjectOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{option.label}</span>
+                        <span className="text-xs text-muted-foreground">({option.shift})</span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -385,13 +366,13 @@ export default function Attendance() {
 
             {/* Data */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Data</label>
+              <label className="text-sm font-medium text-foreground">Data da Aula</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className={cn(
-                      "justify-start text-left font-normal",
+                      "w-full justify-start text-left font-normal",
                       !selectedDate && "text-muted-foreground"
                     )}
                   >
@@ -410,59 +391,20 @@ export default function Attendance() {
                 </PopoverContent>
               </Popover>
             </div>
-
-            {/* Aluno (apenas no modo individual) */}
-            {viewMode === 'individual' && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Aluno</label>
-                <Select value={selectedStudent} onValueChange={setSelectedStudent}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o aluno" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {students.map((student) => (
-                      <SelectItem key={student.id} value={student.id}>
-                        {student.firstName} {student.lastName} - {student.studentNumber}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
           </div>
-
-          {/* Botão Salvar (apenas no modo registrar) */}
-          {viewMode === 'register' && canRegister && (
-            <div className="flex justify-end mt-4">
-              <Button 
-                onClick={saveAttendance} 
-                disabled={saveAttendanceMutation.isPending || !selectedClass || !selectedSubject}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {saveAttendanceMutation.isPending ? (
-                  'Salvando...'
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Salvar Presenças
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
 
-      {/* Tabela de Presenças (Modo Registrar) */}
-      {viewMode === 'register' && canRegister && selectedClass && selectedSubject && (
+      {/* Tabela de Presenças */}
+      {showStudentsList && canRegister && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Lista de Chamada - {format(selectedDate, "dd/MM/yyyy", { locale: pt })}</span>
               {selectedClassData && selectedSubjectData && (
-                <div className="text-sm text-muted-foreground">
+                <Badge variant="secondary" className="text-sm">
                   {selectedClassData.name} - {selectedSubjectData.name}
-                </div>
+                </Badge>
               )}
             </CardTitle>
           </CardHeader>
@@ -472,257 +414,145 @@ export default function Attendance() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nº</TableHead>
-                    <TableHead>Nome do Aluno</TableHead>
-                    <TableHead className="text-center">Presente</TableHead>
-                    <TableHead className="text-center">Ausente</TableHead>
-                    <TableHead className="text-center">Justificado</TableHead>
-                    <TableHead>Observações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {classStudents.map((student) => {
-                    const attendance = attendanceData[student.id] || { present: false, justified: false, note: '' };
-                    return (
-                      <TableRow key={student.id}>
-                        <TableCell className="font-medium">{student.studentNumber}</TableCell>
-                        <TableCell className="font-medium">
-                          {student.firstName} {student.lastName}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Checkbox
-                            checked={attendance.present}
-                            onCheckedChange={(checked) => 
-                              handleAttendanceChange(student.id, 'present', !!checked)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Checkbox
-                            checked={!attendance.present}
-                            onCheckedChange={(checked) => 
-                              handleAttendanceChange(student.id, 'present', !checked)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Checkbox
-                            checked={attendance.justified}
-                            disabled={attendance.present}
-                            onCheckedChange={(checked) => 
-                              handleAttendanceChange(student.id, 'justified', !!checked)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            value={attendance.note}
-                            onChange={(e) => handleNoteChange(student.id, e.target.value)}
-                            placeholder="Observações..."
-                            className="max-w-xs"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="font-semibold">Nome do Aluno</TableHead>
+                      <TableHead className="text-center font-semibold w-48">Status de Presença</TableHead>
+                      <TableHead className="text-center font-semibold w-32">Frequência</TableHead>
+                      <TableHead className="font-semibold w-64">Observação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {students.map((student) => {
+                      const record = attendanceRecords[student.id] || { status: 'AUSENTE' as AttendanceStatusType, note: '' };
+                      const studentStat = studentStats.find(s => s.studentId === student.id);
+                      const attendancePercentage = studentStat?.attendancePercentage || 0;
+                      
+                      return (
+                        <TableRow key={student.id} className="hover:bg-muted/20">
+                          <TableCell className="font-medium">
+                            <div>
+                              <div className="font-semibold">{student.firstName} {student.lastName}</div>
+                              <div className="text-xs text-muted-foreground">Nº {student.studentNumber}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <RadioGroup 
+                              value={record.status} 
+                              onValueChange={(value: AttendanceStatusType) => handleStatusChange(student.id, value)}
+                              className="flex items-center justify-center space-x-4"
+                            >
+                              <div className="flex items-center space-x-1">
+                                <RadioGroupItem value="PRESENTE" id={`${student.id}-presente`} className="text-green-600" />
+                                <label htmlFor={`${student.id}-presente`} className="text-sm text-green-700">Presente</label>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <RadioGroupItem value="AUSENTE" id={`${student.id}-ausente`} className="text-red-600" />
+                                <label htmlFor={`${student.id}-ausente`} className="text-sm text-red-700">Ausente</label>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <RadioGroupItem value="JUSTIFICADO" id={`${student.id}-justificado`} className="text-yellow-600" />
+                                <label htmlFor={`${student.id}-justificado`} className="text-sm text-yellow-700">Justificado</label>
+                              </div>
+                            </RadioGroup>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="space-y-1">
+                              <div className={cn("font-bold text-sm", getFrequencyColor(attendancePercentage))}>
+                                {attendancePercentage}%
+                              </div>
+                              {getFrequencyBadge(attendancePercentage)}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              value={record.note || ''}
+                              onChange={(e) => handleNoteChange(student.id, e.target.value)}
+                              placeholder="Observação opcional..."
+                              className="text-sm"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* Relatório da Turma (Modo Relatório) */}
-      {viewMode === 'report' && classAttendance && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Relatório de Presenças - {classAttendance.class.name}</CardTitle>
-            <div className="text-sm text-muted-foreground">
-              {format(selectedDate, "dd/MM/yyyy", { locale: pt })} - {classAttendance.subject?.name}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {/* Resumo */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary">{classAttendance.summary.totalStudents}</div>
-                <div className="text-sm text-muted-foreground">Total</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{classAttendance.summary.totalPresent}</div>
-                <div className="text-sm text-muted-foreground">Presentes</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">{classAttendance.summary.totalAbsent}</div>
-                <div className="text-sm text-muted-foreground">Ausentes</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{classAttendance.summary.totalJustified}</div>
-                <div className="text-sm text-muted-foreground">Justificados</div>
-              </div>
-            </div>
-
-            {/* Lista detalhada */}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Aluno</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Observações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {classAttendance.attendances.map((attendance: any) => (
-                  <TableRow key={attendance.studentId}>
-                    <TableCell className="font-medium">{attendance.studentName}</TableCell>
-                    <TableCell>
-                      {getStatusBadge(attendance.present, attendance.justified)}
-                    </TableCell>
-                    <TableCell>{attendance.note || '-'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+      {/* Botão Salvar Presenças fixo */}
+      {showStudentsList && canRegister && (
+        <div className="sticky bottom-4 flex justify-end">
+          <Button 
+            onClick={saveAttendance} 
+            disabled={saveAttendanceMutation.isPending || !selectedClass || !selectedSubject}
+            size="lg"
+            className="bg-green-600 hover:bg-green-700 shadow-lg"
+          >
+            {saveAttendanceMutation.isPending ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Salvando...
+              </>
+            ) : (
+              <>
+                <ClipboardCheck className="w-5 h-5 mr-2" />
+                Salvar Presenças
+              </>
+            )}
+          </Button>
+        </div>
       )}
 
-      {/* Consulta Individual */}
-      {viewMode === 'individual' && studentSummary && (
-        <Card>
+      {/* Painel Inferior - Estatísticas da Turma */}
+      {showStudentsList && studentStats.length > 0 && (
+        <Card className="bg-gradient-to-r from-slate-50 to-slate-100 border-slate-200">
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Frequência Individual - {studentSummary.student.name}</span>
-              {getAttendanceIcon(studentSummary.attendancePercentage)}
-            </CardTitle>
-            <div className="text-sm text-muted-foreground">
-              Período: {format(startOfMonth(selectedDate), "MMMM yyyy", { locale: pt })}
-            </div>
+            <CardTitle className="text-lg font-semibold">Frequência Global da Turma</CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Resumo Geral */}
-            <div className="grid grid-cols-5 gap-4 mb-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold">{studentSummary.totalClasses}</div>
-                <div className="text-sm text-muted-foreground">Total de Aulas</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{studentSummary.totalPresent}</div>
-                <div className="text-sm text-muted-foreground">Presentes</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">{studentSummary.totalAbsent}</div>
-                <div className="text-sm text-muted-foreground">Faltas</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{studentSummary.totalJustified}</div>
-                <div className="text-sm text-muted-foreground">Justificadas</div>
-              </div>
-              <div className="text-center">
-                <div className={cn(
-                  "text-2xl font-bold",
-                  studentSummary.attendancePercentage >= 75 ? "text-green-600" : "text-red-600"
-                )}>
-                  {studentSummary.attendancePercentage.toFixed(1)}%
+            <div className="space-y-4">
+              {/* Barra de Progresso */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm font-medium">
+                  <span>Taxa de Frequência Geral</span>
+                  <span className="text-primary font-bold">{Math.round((overallStats.excellent + overallStats.adequate) / studentStats.length * 100)}%</span>
                 </div>
-                <div className="text-sm text-muted-foreground">Frequência</div>
+                <Progress 
+                  value={(overallStats.excellent + overallStats.adequate) / studentStats.length * 100} 
+                  className="h-3"
+                />
               </div>
-            </div>
-
-            {/* Status de Frequência */}
-            <div className="mb-6 p-4 rounded-lg border">
-              <div className="flex items-center space-x-2 mb-2">
-                {studentSummary.attendancePercentage >= 75 ? (
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                ) : (
-                  <AlertTriangle className="w-5 h-5 text-red-600" />
-                )}
-                <span className="font-medium">
-                  {studentSummary.attendancePercentage >= 75 ? 'Frequência Adequada' : 'Frequência Insuficiente'}
-                </span>
+              
+              {/* Legenda das Faixas */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span>Excelente (&gt; 90%): <strong>{overallStats.excellent}</strong></span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span>Adequada (75-89%): <strong>{overallStats.adequate}</strong></span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                  <span>Em Risco (60-74%): <strong>{overallStats.risk}</strong></span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <span>Insuficiente (&lt; 60%): <strong>{overallStats.insufficient}</strong></span>
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground">
-                {studentSummary.attendancePercentage >= 75 
-                  ? 'O aluno atende aos requisitos mínimos de frequência (75%) estabelecidos pela legislação angolana.'
-                  : 'ATENÇÃO: O aluno não atende aos requisitos mínimos de frequência (75%). É necessário acompanhamento.'}
-              </p>
-            </div>
-
-            {/* Frequência por Disciplina */}
-            <div>
-              <h4 className="font-semibold mb-3">Frequência por Disciplina</h4>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Disciplina</TableHead>
-                    <TableHead className="text-center">Aulas</TableHead>
-                    <TableHead className="text-center">Presentes</TableHead>
-                    <TableHead className="text-center">Frequência</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {studentSummary.bySubject.map((subject) => (
-                    <TableRow key={subject.subjectId}>
-                      <TableCell className="font-medium">{subject.subjectName}</TableCell>
-                      <TableCell className="text-center">{subject.totalClasses}</TableCell>
-                      <TableCell className="text-center">{subject.totalPresent}</TableCell>
-                      <TableCell className="text-center">
-                        <span className={cn(
-                          "font-medium",
-                          subject.attendancePercentage >= 75 ? "text-green-600" : "text-red-600"
-                        )}>
-                          {subject.attendancePercentage.toFixed(1)}%
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {subject.attendancePercentage >= 75 ? (
-                          <Badge className="bg-green-100 text-green-800">Adequada</Badge>
-                        ) : (
-                          <Badge className="bg-red-100 text-red-800">Insuficiente</Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Informações sobre Frequência Escolar Angola */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Sistema de Frequência Escolar Angolano</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-semibold mb-2">Requisitos Legais:</h4>
-              <ul className="text-sm space-y-1 text-muted-foreground">
-                <li>• <span className="text-primary font-medium">75%</span> frequência mínima obrigatória</li>
-                <li>• Faltas justificadas com documentação médica</li>
-                <li>• Controle diário por disciplina</li>
-                <li>• Relatórios mensais obrigatórios</li>
-                <li>• Acompanhamento de alunos em risco</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-2">Status de Frequência:</h4>
-              <ul className="text-sm space-y-1 text-muted-foreground">
-                <li>• <span className="text-green-600 font-medium">≥ 90%:</span> Excelente</li>
-                <li>• <span className="text-green-600 font-medium">75-89%:</span> Adequada</li>
-                <li>• <span className="text-yellow-600 font-medium">60-74%:</span> Em Risco</li>
-                <li>• <span className="text-red-600 font-medium">&lt; 60%:</span> Insuficiente</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

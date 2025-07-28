@@ -26,9 +26,15 @@ import {
 } from '@nestjs/swagger';
 import { GradeType } from '@prisma/client';
 import { GradesService } from './grades.service';
+import { GradesAngolaService } from './grades-angola.service';
 import { CreateGradeDto } from './dto/create-grade.dto';
 import { UpdateGradeDto } from './dto/update-grade.dto';
 import { Grade, GradeWithRelations } from './entities/grade.entity';
+import { 
+  AngolaStudentTermGradesDto,
+  AngolaClassStudentSummaryDto,
+  AngolaCalculateMtDto
+} from './dto/angola-grades.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -39,7 +45,10 @@ import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.de
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('grades')
 export class GradesController {
-  constructor(private readonly gradesService: GradesService) {}
+  constructor(
+    private readonly gradesService: GradesService,
+    private readonly gradesAngolaService: GradesAngolaService,
+  ) {}
 
   @Post()
   @Roles('PROFESSOR')
@@ -243,125 +252,106 @@ export class GradesController {
     return this.gradesService.remove(id, user.id);
   }
 
-  // ==================== ENDPOINTS ESPECÍFICOS SISTEMA ANGOLANO ====================
+  // ==================== ENDPOINTS OTIMIZADOS SISTEMA ANGOLANO ====================
 
   @Get('angola/student/:studentId/term/:term')
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
+  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA')
   @ApiOperation({ 
-    summary: 'Buscar notas de um aluno por trimestre (Sistema Angolano)',
-    description: 'Retorna todas as notas de um aluno em um trimestre específico, organizadas por disciplina e tipo (MAC, NPP, NPT, MT, FAL)'
+    summary: 'Buscar notas completas de um aluno por trimestre (Otimizado)',
+    description: 'Retorna as notas do aluno com MT calculada e status final. Ideal para boletim escolar.'
   })
   @ApiParam({ name: 'studentId', description: 'ID do aluno' })
   @ApiParam({ name: 'term', description: 'Trimestre (1, 2 ou 3)' })
-  @ApiQuery({ name: 'year', description: 'Ano letivo', required: false, type: 'number' })
   @ApiResponse({
     status: 200,
-    description: 'Notas do aluno no trimestre retornadas com sucesso',
-    type: [GradeWithRelations],
+    description: 'Notas completas do aluno retornadas com sucesso',
+    type: AngolaStudentTermGradesDto,
+    example: {
+      student: "Carlos Mateus Silva",
+      term: "1º Trimestre", 
+      subjects: [
+        {
+          subject: "Matemática",
+          mac: 13,
+          npp: 14,
+          npt: 12,
+          mt: 13.0,
+          status: "APROVADO"
+        }
+      ],
+      average: 14.5,
+      statusGeral: "APROVADO"
+    }
   })
   @ApiResponse({
     status: 404,
     description: 'Aluno não encontrado',
   })
-  async findByStudentAndTerm(
+  async getStudentTermGrades(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Param('term', ParseIntPipe) term: number,
-    @Query('year', ParseIntPipe) year?: number,
-  ): Promise<GradeWithRelations[]> {
-    const currentYear = year || new Date().getFullYear();
-    return this.gradesService.findByStudentAndTerm(studentId, term, currentYear);
-  }
-
-  @Get('angola/type/:type')
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
-  @ApiOperation({ 
-    summary: 'Buscar notas por tipo de avaliação (Sistema Angolano)',
-    description: 'Retorna todas as notas de um tipo específico (MAC, NPP, NPT, MT, FAL)'
-  })
-  @ApiParam({ 
-    name: 'type', 
-    description: 'Tipo de avaliação (MAC, NPP, NPT, MT, FAL)',
-    enum: GradeType
-  })
-  @ApiQuery({ name: 'year', description: 'Ano letivo', required: false, type: 'number' })
-  @ApiResponse({
-    status: 200,
-    description: 'Notas do tipo retornadas com sucesso',
-    type: [GradeWithRelations],
-  })
-  async findByType(
-    @Param('type', new ParseEnumPipe(GradeType)) type: GradeType,
-    @Query('year', ParseIntPipe) year?: number,
-  ): Promise<GradeWithRelations[]> {
-    return this.gradesService.findByType(type, year);
+  ): Promise<AngolaStudentTermGradesDto> {
+    return this.gradesAngolaService.getStudentTermGrades(studentId, term);
   }
 
   @Get('angola/class/:classId/term/:term')
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
+  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA')
   @ApiOperation({ 
-    summary: 'Buscar notas de uma turma por trimestre (Sistema Angolano)',
-    description: 'Retorna todas as notas de uma turma em um trimestre específico, organizadas por aluno e disciplina'
+    summary: 'Resumo de notas de toda a turma por trimestre (Otimizado)',
+    description: 'Retorna média e status de todos os alunos da turma. Ideal para dashboards.'
   })
   @ApiParam({ name: 'classId', description: 'ID da turma' })
   @ApiParam({ name: 'term', description: 'Trimestre (1, 2 ou 3)' })
-  @ApiQuery({ name: 'year', description: 'Ano letivo', required: false, type: 'number' })
   @ApiResponse({
     status: 200,
-    description: 'Notas da turma no trimestre retornadas com sucesso',
-    type: [GradeWithRelations],
+    description: 'Resumo da turma retornado com sucesso',
+    type: [AngolaClassStudentSummaryDto],
+    example: [
+      { student: "Carlos Mateus", mt: 13.0, status: "APROVADO" },
+      { student: "Ana Lopes", mt: 8.5, status: "REPROVADO" }
+    ]
   })
   @ApiResponse({
     status: 404,
     description: 'Turma não encontrada',
   })
-  async findByClassAndTerm(
+  async getClassTermSummary(
     @Param('classId', ParseUUIDPipe) classId: string,
     @Param('term', ParseIntPipe) term: number,
-    @Query('year', ParseIntPipe) year?: number,
-  ): Promise<GradeWithRelations[]> {
-    const currentYear = year || new Date().getFullYear();
-    return this.gradesService.findByClassAndTerm(classId, term, currentYear);
+  ): Promise<AngolaClassStudentSummaryDto[]> {
+    return this.gradesAngolaService.getClassTermSummary(classId, term);
   }
 
   @Get('angola/calculate-mt/:studentId/:subjectId/:term')
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
+  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA')
   @ApiOperation({ 
-    summary: 'Calcular Média Trimestral (MT) - Sistema Angolano',
-    description: 'Calcula a média trimestral de um aluno em uma disciplina baseado nas notas MAC, NPP e NPT. Fórmula: (MAC + NPP + NPT) / 3'
+    summary: 'Calcular MT isolada de uma disciplina (Otimizado)',
+    description: 'Retorna cálculo isolado de MAC, NPP, NPT e MT. Ideal para feedback ao professor.'
   })
   @ApiParam({ name: 'studentId', description: 'ID do aluno' })
   @ApiParam({ name: 'subjectId', description: 'ID da disciplina' })
   @ApiParam({ name: 'term', description: 'Trimestre (1, 2 ou 3)' })
-  @ApiQuery({ name: 'year', description: 'Ano letivo', required: false, type: 'number' })
   @ApiResponse({
     status: 200,
-    description: 'Média trimestral calculada com sucesso',
-    schema: {
-      type: 'object',
-      properties: {
-        mt: { type: 'number', example: 16.5, description: 'Média Trimestral calculada' },
-        studentId: { type: 'string', example: 'uuid' },
-        subjectId: { type: 'string', example: 'uuid' },
-        term: { type: 'number', example: 1 },
-        year: { type: 'number', example: 2024 },
-      },
-    },
+    description: 'MT calculada com sucesso',
+    type: AngolaCalculateMtDto,
+    example: {
+      mac: 14,
+      npp: 12,
+      npt: 15,
+      mt: 13.7,
+      status: "APROVADO"
+    }
   })
-  async calculateMT(
+  @ApiResponse({
+    status: 404,
+    description: 'Aluno ou disciplina não encontrados',
+  })
+  async calculateSubjectMT(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Param('subjectId', ParseUUIDPipe) subjectId: string,
     @Param('term', ParseIntPipe) term: number,
-    @Query('year', ParseIntPipe) year?: number,
-  ): Promise<{ mt: number | null; studentId: string; subjectId: string; term: number; year: number }> {
-    const currentYear = year || new Date().getFullYear();
-    const mt = await this.gradesService.calculateMT(studentId, subjectId, term, currentYear);
-    
-    return {
-      mt,
-      studentId,
-      subjectId,
-      term,
-      year: currentYear,
-    };
+  ): Promise<AngolaCalculateMtDto> {
+    return this.gradesAngolaService.calculateSubjectMT(studentId, subjectId, term);
   }
 }

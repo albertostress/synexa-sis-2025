@@ -208,14 +208,6 @@ export function ProfessorDashboardIntegrated() {
       action: () => navigate('/schedules'),
       color: 'bg-purple-500'
     },
-    {
-      id: 'send-message',
-      title: 'Enviar Recado',
-      description: 'Comunicar com pais',
-      icon: MessageSquare,
-      action: () => navigate('/communication?action=compose'),
-      color: 'bg-orange-500'
-    },
   ];
 
   const getActivityIcon = (type: string) => {
@@ -661,14 +653,6 @@ export function ProfessorDashboardIntegrated() {
             >
               <BookOpen className="w-4 h-4 mr-2" />
               Disciplinas
-            </Button>
-            <Button 
-              variant="ghost" 
-              className="justify-start h-auto py-3"
-              onClick={() => navigate('/communication')}
-            >
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Comunicação
             </Button>
             <Button 
               variant="ghost" 
