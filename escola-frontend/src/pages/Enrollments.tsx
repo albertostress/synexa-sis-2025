@@ -37,37 +37,44 @@ export default function Enrollments() {
   const queryClient = useQueryClient();
 
   // Carregar matrículas do backend
-  const { data: enrollments = [], isLoading: loadingEnrollments, refetch } = useQuery({
+  const { 
+    data: enrollments = [], 
+    isLoading: loadingEnrollments, 
+    error: enrollmentsError,
+    refetch 
+  } = useQuery({
     queryKey: ['enrollments', selectedYear, selectedStatus],
-    queryFn: () => {
+    queryFn: async () => {
       console.log('📚 Carregando matrículas...');
       const filters = {
         ...(selectedYear && { year: selectedYear }),
         ...(selectedStatus && { status: selectedStatus as EnrollmentStatus })
       };
-      return enrollmentAPI.getAll(filters);
-    },
-    onSuccess: (data) => {
+      const data = await enrollmentAPI.getAll(filters);
       console.log('🎓 Matrículas carregadas:', data?.length, 'matrículas');
+      return data;
     },
-    onError: (error: any) => {
-      console.error('❌ Erro ao carregar matrículas:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível carregar as matrículas',
-        variant: 'destructive'
-      });
-    }
+    staleTime: 30000, // Cache por 30 segundos
+    retry: 1
   });
+
+  // Tratamento de erro do lado do React
+  if (enrollmentsError) {
+    console.error('❌ Erro ao carregar matrículas:', enrollmentsError);
+    toast({
+      title: 'Erro',
+      description: 'Não foi possível carregar as matrículas',
+      variant: 'destructive'
+    });
+  }
 
   // Carregar estudantes para seleção
   const { data: students = [], isLoading: loadingStudents } = useQuery({
     queryKey: ['students'],
     queryFn: () => studentsAPI.getAll(),
     enabled: isDialogOpen,
-    onError: (error: any) => {
-      console.error('Erro ao carregar estudantes:', error);
-    }
+    staleTime: 60000, // Cache por 1 minuto
+    retry: 1
   });
 
   // Carregar turmas para seleção
@@ -75,9 +82,8 @@ export default function Enrollments() {
     queryKey: ['classes'],
     queryFn: () => classesAPI.getAll(),
     enabled: isDialogOpen,
-    onError: (error: any) => {
-      console.error('Erro ao carregar turmas:', error);
-    }
+    staleTime: 60000, // Cache por 1 minuto
+    retry: 1
   });
 
   // Mutation para criar matrícula
@@ -477,9 +483,39 @@ export default function Enrollments() {
               </TableHeader>
               <TableBody>
                 {loadingEnrollments ? (
+                  <>
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <TableRow key={index}>
+                        <TableCell colSpan={6} className="py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-muted rounded-full animate-pulse"></div>
+                            <div className="flex-1 space-y-2">
+                              <div className="h-4 bg-muted rounded animate-pulse w-1/3"></div>
+                              <div className="h-3 bg-muted/60 rounded animate-pulse w-1/5"></div>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </>
+                ) : enrollmentsError ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                      <div className="text-red-500">Erro ao carregar matrículas. Tente novamente.</div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="mt-2"
+                        onClick={() => refetch()}
+                      >
+                        Tentar novamente
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ) : !enrollments || enrollments.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      Nenhuma matrícula cadastrada
                     </TableCell>
                   </TableRow>
                 ) : filteredEnrollments.length === 0 ? (

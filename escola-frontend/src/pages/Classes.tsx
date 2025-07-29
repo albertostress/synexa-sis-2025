@@ -35,33 +35,40 @@ export default function Classes() {
   const queryClient = useQueryClient();
 
   // Carregar turmas do backend
-  const { data: classes = [], isLoading: loadingClasses, refetch } = useQuery({
+  const { 
+    data: classes = [], 
+    isLoading: loadingClasses, 
+    error: classesError,
+    refetch 
+  } = useQuery({
     queryKey: ['classes'],
-    queryFn: () => {
+    queryFn: async () => {
       console.log('📚 Carregando turmas...');
-      return classesAPI.getAll();
-    },
-    onSuccess: (data) => {
+      const data = await classesAPI.getAll();
       console.log('🎓 Turmas carregadas:', data?.length, 'turmas');
+      return data;
     },
-    onError: (error: any) => {
-      console.error('❌ Erro ao carregar turmas:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível carregar as turmas',
-        variant: 'destructive'
-      });
-    }
+    staleTime: 30000, // Cache por 30 segundos
+    retry: 1
   });
+
+  // Tratamento de erro do lado do React
+  if (classesError) {
+    console.error('❌ Erro ao carregar turmas:', classesError);
+    toast({
+      title: 'Erro',
+      description: 'Não foi possível carregar as turmas',
+      variant: 'destructive'
+    });
+  }
 
   // Carregar estudantes para seleção
   const { data: students = [], isLoading: loadingStudents } = useQuery({
     queryKey: ['students'],
     queryFn: () => studentsAPI.getAll(),
     enabled: isDialogOpen,
-    onError: (error: any) => {
-      console.error('Erro ao carregar estudantes:', error);
-    }
+    staleTime: 60000, // Cache por 1 minuto
+    retry: 1
   });
 
   // Carregar professores para seleção
@@ -69,9 +76,8 @@ export default function Classes() {
     queryKey: ['teachers'],
     queryFn: () => teachersAPI.getAll(),
     enabled: isDialogOpen,
-    onError: (error: any) => {
-      console.error('Erro ao carregar professores:', error);
-    }
+    staleTime: 60000, // Cache por 1 minuto
+    retry: 1
   });
 
   // Mutation para criar turma
@@ -436,9 +442,39 @@ export default function Classes() {
             </TableHeader>
             <TableBody>
               {loadingClasses ? (
+                <>
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <TableRow key={index}>
+                      <TableCell colSpan={7} className="py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-muted rounded-full animate-pulse"></div>
+                          <div className="flex-1 space-y-2">
+                            <div className="h-4 bg-muted rounded animate-pulse w-1/4"></div>
+                            <div className="h-3 bg-muted/60 rounded animate-pulse w-1/6"></div>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </>
+              ) : classesError ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    <div className="text-red-500">Erro ao carregar turmas. Tente novamente.</div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-2"
+                      onClick={() => refetch()}
+                    >
+                      Tentar novamente
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ) : !classes || classes.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    Nenhuma turma cadastrada
                   </TableCell>
                 </TableRow>
               ) : filteredClasses.length === 0 ? (

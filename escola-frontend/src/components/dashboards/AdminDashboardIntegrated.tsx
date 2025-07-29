@@ -19,24 +19,17 @@ import {
   Clock,
   AlertCircle,
   RefreshCw,
-  Receipt,
   GraduationCap,
-  Mail,
   Calendar,
-  DollarSign,
   ScrollText,
   TrendingUp,
   TrendingDown
 } from 'lucide-react';
 
-// APIs temporariamente removidas para evitar erros
-// import { analyticsAPI, attendanceAPI, financialAPI } from '@/lib/api';
-// import { formatPercentage } from '@/types/analytics';
-
-// Função auxiliar para formatar porcentagem
-const formatPercentage = (value: number): string => {
-  return `${value.toFixed(1)}%`;
-};
+// APIs integradas com backend real
+import { analyticsAPI } from '@/lib/api';
+import { formatPercentage } from '@/types/analytics';
+import type { OverviewResponse, AttendanceAnalyticsResponse, FinanceAnalyticsResponse } from '@/types/analytics';
 
 interface QuickAction {
   id: string;
@@ -47,53 +40,93 @@ interface QuickAction {
   color: string;
 }
 
-interface RecentActivity {
-  id: string;
-  type: 'document' | 'user' | 'payment' | 'event' | 'message' | 'enrollment';
-  title: string;
-  description: string;
-  timestamp: Date;
-  status: 'success' | 'pending' | 'warning' | 'error';
-}
 
 export function AdminDashboardIntegrated() {
   const navigate = useNavigate();
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
 
-  // Dados mockados temporariamente
-  const overviewData = {
-    totalStudents: 847,
-    activeStudents: 812,
-    totalTeachers: 45,
-    totalClasses: 24,
-    attendanceRate: 96.2,
-    paymentRate: 87.5
+  // Estados para dados reais do backend
+  const [overviewData, setOverviewData] = useState<OverviewResponse | null>(null);
+  const [attendanceData, setAttendanceData] = useState<AttendanceAnalyticsResponse | null>(null);
+  const [financeData, setFinanceData] = useState<FinanceAnalyticsResponse | null>(null);
+  
+  // Estados de loading
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [attendanceLoading, setAttendanceLoading] = useState(true);
+  const [financeLoading, setFinanceLoading] = useState(true);
+  
+  // Estados de erro
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [attendanceError, setAttendanceError] = useState<string | null>(null);
+  const [financeError, setFinanceError] = useState<string | null>(null);
+
+  // Função para buscar dados do overview
+  const fetchOverviewData = async () => {
+    try {
+      setOverviewLoading(true);
+      setOverviewError(null);
+      const data = await analyticsAPI.getOverview();
+      setOverviewData(data);
+    } catch (error) {
+      console.error('Erro ao carregar dados do overview:', error);
+      setOverviewError('Erro ao carregar dados gerais');
+    } finally {
+      setOverviewLoading(false);
+    }
   };
 
-  const attendanceData = {
-    todayAbsences: 23,
-    criticalAttendanceCount: 5
+  // Função para buscar dados de presenças
+  const fetchAttendanceData = async () => {
+    try {
+      setAttendanceLoading(true);
+      setAttendanceError(null);
+      const data = await analyticsAPI.getAttendanceAnalytics();
+      setAttendanceData(data);
+    } catch (error) {
+      console.error('Erro ao carregar dados de presenças:', error);
+      setAttendanceError('Erro ao carregar dados de presenças');
+    } finally {
+      setAttendanceLoading(false);
+    }
   };
 
-  const financeData = {
-    pendingInvoices: 45,
-    totalRevenue: 1250000
+  // Função para buscar dados financeiros
+  const fetchFinanceData = async () => {
+    try {
+      setFinanceLoading(true);
+      setFinanceError(null);
+      const data = await analyticsAPI.getFinanceAnalytics();
+      setFinanceData(data);
+    } catch (error) {
+      console.error('Erro ao carregar dados financeiros:', error);
+      setFinanceError('Erro ao carregar dados financeiros');
+    } finally {
+      setFinanceLoading(false);
+    }
   };
 
-  const overviewLoading = false;
-  const attendanceLoading = false;
-  const financeLoading = false;
-  const overviewError = null;
-  const refetchOverview = () => {};
+  // Função para recarregar todos os dados
+  const refetchAll = async () => {
+    await Promise.all([
+      fetchOverviewData(),
+      fetchAttendanceData(),
+      fetchFinanceData()
+    ]);
+  };
 
+
+  // Carregar dados iniciais
+  useEffect(() => {
+    refetchAll();
+  }, []);
 
   // Auto refresh
   useEffect(() => {
     if (autoRefresh) {
       const interval = setInterval(() => {
-        // Aqui seria feito o refresh dos dados
         console.log('Refreshing dashboard data...');
+        refetchAll();
       }, 5 * 60 * 1000); // 5 minutos
 
       setRefreshInterval(interval);
@@ -140,39 +173,6 @@ export function AdminDashboardIntegrated() {
     },
   ];
 
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'document': return <FileText className="w-4 h-4" />;
-      case 'user': return <UserPlus className="w-4 h-4" />;
-      case 'payment': return <DollarSign className="w-4 h-4" />;
-      case 'event': return <Calendar className="w-4 h-4" />;
-      case 'message': return <MessageSquare className="w-4 h-4" />;
-      case 'enrollment': return <UserCheck className="w-4 h-4" />;
-      default: return <Activity className="w-4 h-4" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'success': return 'text-green-600';
-      case 'warning': return 'text-amber-600';
-      case 'error': return 'text-red-600';
-      case 'pending': return 'text-blue-600';
-      default: return 'text-gray-600';
-    }
-  };
-
-  const formatTimeAgo = (date: Date) => {
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-    
-    if (seconds < 60) return 'Agora mesmo';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `Há ${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `Há ${hours}h`;
-    const days = Math.floor(hours / 24);
-    return `Há ${days}d`;
-  };
 
   const KPICard = ({ title, value, icon: Icon, trend, change, loading = false }: {
     title: string;
@@ -184,12 +184,12 @@ export function AdminDashboardIntegrated() {
   }) => {
     if (loading) {
       return (
-        <Card>
+        <Card className="min-h-[110px] hover:shadow-md transition-all duration-200 border-muted">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{title}</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
             <Icon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex items-center justify-between flex-col">
             <Skeleton className="h-8 w-24 mb-2" />
             <Skeleton className="h-4 w-32" />
           </CardContent>
@@ -198,12 +198,12 @@ export function AdminDashboardIntegrated() {
     }
 
     return (
-      <Card className="hover:shadow-lg transition-shadow">
+      <Card className="min-h-[110px] hover:shadow-md transition-all duration-200 border-muted bg-white/60">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
           <Icon className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex items-center justify-between flex-col">
           <div className="text-2xl font-bold">{value}</div>
           {change && trend && (
             <p className="text-xs text-muted-foreground flex items-center mt-1">
@@ -221,14 +221,15 @@ export function AdminDashboardIntegrated() {
   };
 
   const isLoading = overviewLoading || attendanceLoading || financeLoading;
+  const hasErrors = overviewError || attendanceError || financeError;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard Administrativo</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-bold">Dashboard Administrativo</h1>
+          <p className="text-[14px] text-muted-foreground">
             Bem-vindo de volta! Aqui está o resumo do dia da sua escola.
           </p>
         </div>
@@ -247,203 +248,139 @@ export function AdminDashboardIntegrated() {
       </div>
 
       {/* Error Alert */}
-      {overviewError && (
+      {hasErrors && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Erro ao carregar dados. Por favor, tente novamente.
+            {overviewError && <div>• {overviewError}</div>}
+            {attendanceError && <div>• {attendanceError}</div>}
+            {financeError && <div>• {financeError}</div>}
             <Button 
               variant="outline" 
               size="sm" 
-              className="ml-2"
-              onClick={() => refetchOverview()}
+              className="ml-2 mt-2"
+              onClick={() => refetchAll()}
+              disabled={isLoading}
             >
-              Tentar novamente
+              {isLoading ? 'Carregando...' : 'Tentar novamente'}
             </Button>
           </AlertDescription>
         </Alert>
       )}
 
       {/* KPIs Grid - Indicadores Essenciais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <KPICard
           title="Total de Alunos"
-          value={overviewData?.totalStudents || 847}
+          value={overviewData?.totalStudents || 0}
           icon={GraduationCap}
           trend="up"
           change="+12 novos este mês"
-          loading={isLoading}
+          loading={overviewLoading}
         />
         <KPICard
           title="Alunos Ativos"
-          value={overviewData?.activeStudents || 812}
+          value={overviewData?.totalStudents || 0}
           icon={UserCheck}
           trend="up"
-          change="96% do total"
-          loading={isLoading}
+          change={overviewData ? formatPercentage(overviewData.attendanceRate) + " do total" : "0% do total"}
+          loading={overviewLoading}
         />
         <KPICard
-          title="Faltas Hoje"
-          value={attendanceData?.todayAbsences || 23}
+          title="Taxa de Presenças"
+          value={attendanceData ? formatPercentage(attendanceData.overallAttendanceRate) : "0%"}
           icon={UserX}
-          trend="down"
-          change="3% dos alunos"
-          loading={isLoading}
+          trend="up"
+          change={attendanceData?.criticalAttendanceCount ? `${attendanceData.criticalAttendanceCount} em risco` : "0 em risco"}
+          loading={attendanceLoading}
         />
         <KPICard
           title="Faturas Pendentes"
-          value={financeData?.pendingInvoices || 45}
+          value={financeData?.pendingInvoices || 0}
           icon={ScrollText}
           trend="down"
-          change="- 8 esta semana"
-          loading={isLoading}
+          change={financeData ? `Taxa: ${formatPercentage(financeData.defaultRate)}` : "0% inadimplência"}
+          loading={financeLoading}
         />
       </div>
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Ações Rápidas</CardTitle>
-          <CardDescription>Acesse as funcionalidades mais utilizadas</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {quickActions.map((action) => (
-              <Button
-                key={action.id}
-                variant="outline"
-                className="h-auto flex-col py-4 hover:shadow-md transition-all"
-                onClick={action.action}
-              >
-                <div className={`${action.color} rounded-full p-3 mb-2`}>
-                  <action.icon className="w-5 h-5 text-white" />
+      <div className="space-y-4">
+        <div className="mb-3">
+          <h2 className="text-sm text-muted-foreground font-semibold uppercase tracking-wider mb-1">Ações Rápidas</h2>
+          <p className="text-[12px] text-muted-foreground">Acesse as funcionalidades mais utilizadas</p>
+        </div>
+        
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+          {quickActions.map((action) => (
+            <div
+              key={action.id}
+              className="group cursor-pointer p-4 rounded-xl hover:bg-muted/30 transition-all duration-200 hover:shadow-sm border border-muted bg-white/60"
+              onClick={action.action}
+            >
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className={`${action.color} rounded-full p-2.5 group-hover:scale-105 transition-transform`}>
+                  <action.icon className="w-4 h-4 text-white" />
                 </div>
-                <span className="font-medium text-sm">{action.title}</span>
-                <span className="text-xs text-muted-foreground text-center">{action.description}</span>
-              </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Alertas Administrativos */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-amber-500" />
-            ⚠ Atividade Recente
-          </CardTitle>
-          <CardDescription>Alertas e pendências importantes da escola</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-start space-x-4 p-3 border rounded-lg hover:bg-accent transition-colors">
-              <div className="p-2 rounded-full bg-orange-100">
-                <Receipt className="w-4 h-4 text-orange-600" />
-              </div>
-              <div className="flex-1 space-y-1">
-                <p className="text-sm font-medium">Fatura Pendente</p>
-                <p className="text-xs text-muted-foreground">12 faturas aguardando pagamento</p>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Há 1 dia
+                <div>
+                  <span className="font-medium text-[14px] block">{action.title}</span>
+                  <span className="text-[12px] text-muted-foreground">{action.description}</span>
+                </div>
               </div>
             </div>
+          ))}
+        </div>
+      </div>
 
-            <div className="flex items-start space-x-4 p-3 border rounded-lg hover:bg-accent transition-colors">
-              <div className="p-2 rounded-full bg-green-100">
-                <GraduationCap className="w-4 h-4 text-green-600" />
-              </div>
-              <div className="flex-1 space-y-1">
-                <p className="text-sm font-medium">Matrícula Nova</p>
-                <p className="text-xs text-muted-foreground">João Silva foi matriculado na 10ª Classe</p>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Há 2h
-              </div>
-            </div>
 
-            <div className="flex items-start space-x-4 p-3 border rounded-lg hover:bg-accent transition-colors">
-              <div className="p-2 rounded-full bg-blue-100">
-                <Mail className="w-4 h-4 text-blue-600" />
-              </div>
-              <div className="flex-1 space-y-1">
-                <p className="text-sm font-medium">Novo Comunicado</p>
-                <p className="text-xs text-muted-foreground">Comunicado geral enviado para a turma 7A</p>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Há 12h
-              </div>
-            </div>
-
-            <div className="flex items-start space-x-4 p-3 border rounded-lg hover:bg-accent transition-colors">
-              <div className="p-2 rounded-full bg-purple-100">
-                <Calendar className="w-4 h-4 text-purple-600" />
-              </div>
-              <div className="flex-1 space-y-1">
-                <p className="text-sm font-medium">Evento Próximo</p>
-                <p className="text-xs text-muted-foreground">Reunião de pais agendada para sexta-feira</p>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Em 3 dias
-              </div>
-            </div>
-
-            <div className="flex items-start space-x-4 p-3 border rounded-lg hover:bg-accent transition-colors">
-              <div className="p-2 rounded-full bg-amber-100">
-                <Activity className="w-4 h-4 text-amber-600" />
-              </div>
-              <div className="flex-1 space-y-1">
-                <p className="text-sm font-medium">Backup Sistema</p>
-                <p className="text-xs text-muted-foreground">Último backup realizado com sucesso</p>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Ontem 23:00
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Atalhos com Cores - Cards Horizontais */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/events?filter=reunioes')}>
+      {/* Cards Horizontais - Informações Rápidas */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card 
+          className="rounded-xl shadow-sm bg-white/60 hover:shadow-md transition-all duration-200 cursor-pointer border-muted" 
+          onClick={() => navigate('/events?filter=reunioes')}
+        >
           <CardContent className="p-4">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 rounded-full bg-blue-100">
-                <Calendar className="w-6 h-6 text-blue-600" />
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-blue-100 flex-shrink-0">
+                <Calendar className="w-5 h-5 text-blue-600" />
               </div>
-              <div>
-                <p className="font-medium">Próxima reunião de pais</p>
-                <p className="text-sm text-muted-foreground">Sexta-feira, 26 de Julho</p>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-[14px] text-gray-900">Próxima reunião de pais</p>
+                <p className="text-[12px] text-muted-foreground truncate">Sexta-feira, 26 de Julho</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/grades?filter=tests')}>
+        <Card 
+          className="rounded-xl shadow-sm bg-white/60 hover:shadow-md transition-all duration-200 cursor-pointer border-muted" 
+          onClick={() => navigate('/grades?filter=tests')}
+        >
           <CardContent className="p-4">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 rounded-full bg-green-100">
-                <FileText className="w-6 h-6 text-green-600" />
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-green-100 flex-shrink-0">
+                <FileText className="w-5 h-5 text-green-600" />
               </div>
-              <div>
-                <p className="font-medium">Próximo teste geral</p>
-                <p className="text-sm text-muted-foreground">2ª feira, 29 de Julho</p>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-[14px] text-gray-900">Próximo teste geral</p>
+                <p className="text-[12px] text-muted-foreground truncate">2ª feira, 29 de Julho</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/settings?tab=backup')}>
+        <Card 
+          className="rounded-xl shadow-sm bg-white/60 hover:shadow-md transition-all duration-200 cursor-pointer border-muted" 
+          onClick={() => navigate('/settings?tab=backup')}
+        >
           <CardContent className="p-4">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 rounded-full bg-purple-100">
-                <Activity className="w-6 h-6 text-purple-600" />
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-purple-100 flex-shrink-0">
+                <Activity className="w-5 h-5 text-purple-600" />
               </div>
-              <div>
-                <p className="font-medium">Último backup</p>
-                <p className="text-sm text-muted-foreground">Ontem, 23:00 - Sucesso</p>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-[14px] text-gray-900">Último backup</p>
+                <p className="text-[12px] text-muted-foreground truncate">Ontem, 23:00 - Sucesso</p>
               </div>
             </div>
           </CardContent>

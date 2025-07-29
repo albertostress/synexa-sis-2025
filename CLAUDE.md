@@ -160,12 +160,47 @@ O backend é altamente modular, com cada funcionalidade principal encapsulada no
 - Zero erros de compilação/runtime
 - Todos os testes de integração passando
 
+## 🧼 LIMPEZA DE DADOS MOCK - SISTEMA PRONTO PARA PRODUÇÃO
+
+**Data**: [2025-07-29 20:55:00]
+
+**Ação Realizada**: Limpeza completa de todos os dados mock/teste do sistema
+
+**Dados Removidos**:
+- ✅ **22 usuários não-admin** removidos (professores, secretários, etc.)
+- ✅ **Todos os estudantes** e dados relacionados (notas, frequências, matrículas)
+- ✅ **Professores** e suas relações com disciplinas/turmas
+- ✅ **Turmas e disciplinas** configuradas para teste
+- ✅ **Mensagens e comunicações** de teste
+- ✅ **Faturas e documentos** mock
+- ✅ **Eventos, transporte, biblioteca** - todos os módulos secundários
+- ✅ **Uploads e arquivos** de teste
+
+**Preservado**:
+- ✅ **1 usuário ADMIN** ativo para gestão do sistema
+- ✅ **Estrutura das tabelas** intacta (sem DROP)
+- ✅ **Migrations e schemas** preservados
+- ✅ **Configurações do sistema** mantidas
+
+**Verificação Final**:
+- 👥 Usuários restantes: **1** (apenas ADMIN)
+- 🎓 Estudantes restantes: **0**
+- 👨‍🏫 Professores restantes: **0**
+- 🏫 Turmas restantes: **0**
+- 💬 Mensagens restantes: **0**
+
+**Sistema Estado**: ✅ **PRONTO PARA DADOS REAIS**
+- Login ADMIN funcional
+- Todos os módulos vazios mas operacionais
+- Base de dados limpa e otimizada
+- Pronto para entrada de dados reais de produção
+
 **Próximos Passos Recomendados:**
-1. 🔌 **Conectar com backend real** (substituir dados mock)
-2. 📊 **Implementar relatórios PDF** com template AGT
-3. 📬 **Configurar sistema de email** para lembretes
-4. 🔄 **Adicionar sincronização automática** de status
-5. 📱 **Otimizar para mobile** (PWA ready)
+1. 🎓 **Cadastrar dados reais** de estudantes, professores e turmas
+2. 📊 **Configurar relatórios PDF** com template AGT oficial
+3. 📬 **Configurar sistema de email** para notificações
+4. 🔄 **Implementar backup automático** de dados de produção
+5. 📱 **Deploy final no Dokploy** com dados limpos
 
 ### 🚀 FASE 22 - GESTÃO DE UTILIZADORES ADMINISTRATIVOS
 
@@ -302,3 +337,148 @@ const filteredUsers = users.filter(user =>
 ### Memórias de Implementação
 
 - Nova memória sobre implementação de sistema de gestão de utilizadores
+
+### 📝 Remoção do bloco "Atividade Recente" do Dashboard
+**Data**: [2025-07-29 21:15:00]
+
+**Ação Realizada**: Remoção completa do bloco "Atividade Recente" do Dashboard Administrativo
+
+**Detalhes**:
+- ✅ **Bloco removido**: Seção com notificações de faturas, matrículas e comunicados
+- ✅ **Arquivo modificado**: `escola-frontend/src/components/dashboards/AdminDashboardIntegrated.tsx`
+- ✅ **Linhas removidas**: 330-406 (Card completo de Atividade Recente)
+- ✅ **Layout preservado**: Grid de KPIs e Ações Rápidas permanece intacto
+
+**Resultado**:
+- Dashboard mais limpo e direto
+- Foco nas informações essenciais (KPIs e Ações Rápidas)
+- Preparado para ambiente de produção real
+
+### 📝 Refatoração Visual do Dashboard Administrativo
+**Data**: [2025-07-29 21:30:00]
+
+**Ação Realizada**: Modernização completa do design e layout do Dashboard Administrativo
+
+**Melhorias Implementadas**:
+
+✅ **Layout e Alinhamento Geral**
+- Cards principais com espaçamento uniforme (`gap-6`) e `grid-cols-4` em desktop
+- Altura mínima padronizada (`min-h-[110px]`) para todos os KPI cards
+- Centralização vertical dos valores com `flex items-center justify-between flex-col`
+- Background semi-transparente (`bg-white/60`) para melhor profundidade visual
+
+✅ **Bloco "Ações Rápidas" Redesenhado**
+- Título estilizado com `text-sm text-muted-foreground font-semibold uppercase tracking-wider`
+- Ícones reduzidos para `w-4 h-4` com melhor proporção
+- Cards clicáveis com `hover:bg-muted/30 transition` e efeito de escala no ícone
+- Layout `grid-cols-4` com espaçamento igual ao dashboard principal
+- Tipografia otimizada: `text-[14px]` para títulos e `text-[12px]` para descrições
+
+✅ **Cards Horizontais (Reunião, Teste Geral, Backup)**
+- Design `rounded-xl shadow-sm` com bordas suaves
+- Layout `grid-cols-3` com `gap-4` uniforme
+- Ícones posicionados à esquerda com `flex items-center gap-3`
+- Background consistente `bg-white/60` e bordas `border-muted`
+- Ícones redimensionados para `w-5 h-5` para melhor harmonia visual
+
+✅ **Tipografia e Espaçamento Uniformizados**
+- Header principal reduzido para `text-2xl` (mais equilibrado)
+- Subtítulos padronizados em `text-[14px]`
+- Descrições em `text-[12px]` para hierarquia clara
+- Espaçamento entre seções otimizado com `space-y-6`
+- Transições suaves com `duration-200` em todas as interações
+
+**Resultado**:
+- Dashboard alinhado com espaçamento e tipografia uniformes
+- Cards organizados com hierarquia visual clara
+- Ações rápidas redesenhadas com layout responsivo e moderno
+- Cartões inferiores com visual clean e icônico
+- Interface profissional preparada para produção
+- Responsividade aprimorada para tablet/mobile
+
+### 📝 Correção do Dashboard: Integração com Backend Real
+**Data**: [2025-07-29 21:45:00]
+
+**Ação Realizada**: Substituição completa de dados mockados por integração real com backend
+
+**Integração Implementada**:
+
+✅ **Dados Reais do Backend**
+- Dashboard agora consome dados reais da API `/analytics/overview`, `/analytics/attendance` e `/analytics/finance`
+- Removidos completamente todos os dados mockados e hardcoded
+- Implementação de estados de loading individual para cada seção
+
+✅ **Estados de Carregamento e Erro**
+- Loading states individuais para cada seção (`overviewLoading`, `attendanceLoading`, `financeLoading`)
+- Skeleton components exibidos durante carregamento
+- Tratamento de erros específicos com mensagens em português
+- Botão "Tentar novamente" funcional com reload de dados
+
+✅ **KPI Cards com Dados Reais**
+- **Total de Alunos**: `overviewData.totalStudents` do endpoint real
+- **Alunos Ativos**: Baseado em `overviewData.totalStudents` com taxa de frequência
+- **Taxa de Presenças**: `attendanceData.overallAttendanceRate` formatado como percentual
+- **Faturas Pendentes**: `financeData.pendingInvoices` com taxa de inadimplência
+
+✅ **Auto-refresh Funcional**
+- Refresh automático a cada 5 minutos consumindo dados reais
+- Função `refetchAll()` atualiza todos os dados simultaneamente
+- Estado visual do botão de refresh com animação
+
+✅ **Autenticação JWT Integrada**
+- Todas as chamadas protegidas por token JWT do usuário logado
+- Respeita roles e permissões do backend (`ADMIN`, `DIRETOR`, `SECRETARIA`)
+- Tratamento de erros 401/403 com redirecionamento
+
+**Endpoints Consumidos**:
+- `GET /analytics/overview` - Dados gerais (alunos, professores, turmas)
+- `GET /analytics/attendance` - Dados de frequência e presenças
+- `GET /analytics/finance` - Dados financeiros e faturas
+
+**Resultado**:
+- Dashboard reflete dados reais do ambiente de produção
+- Sistema sincronizado com backend PostgreSQL via Prisma
+- Performance otimizada com loading states individuais
+- Experiência de usuário aprimorada com tratamento de erros
+- Zero dependência de dados estáticos ou mockados
+
+### 📝 Correção de carregamento em Matrículas e Turmas
+**Data**: [2025-07-29 22:00:00]
+
+**Problema Identificado**: Tela branca nos módulos "Matrículas" (`Enrollments.tsx`) e "Turmas" (`Classes.tsx`) devido ao uso de callbacks depreciados do React Query v4+
+
+**Correções Implementadas**:
+
+✅ **Modernização do React Query**
+- Removidos callbacks `onSuccess` e `onError` depreciados
+- Implementado tratamento de erro moderno com destructuring `error`
+- Adicionadas configurações de cache (`staleTime`) e retry otimizadas
+- Callbacks substituídos por tratamento de erro no componente
+
+✅ **Estados de Loading Aprimorados**
+- Skeleton components com múltiplas linhas animadas em vez de spinner único
+- Loading states diferenciados para dados principais e seleções em modais
+- Verificação de arrays vazios vs. undefined para evitar render prematur
+
+✅ **Tratamento de Erro Robusto**
+- Estados de erro específicos com mensagens em português
+- Botão "Tentar novamente" funcional para reload de dados
+- Diferentes mensagens para "nenhum dado cadastrado" vs. "nenhum resultado encontrado"
+- Tratamento visual de erros de rede/autenticação
+
+✅ **Otimizações de Performance**
+- Cache inteligente de 30 segundos para dados principais
+- Cache de 1 minuto para dados de seleção (estudantes/professores)
+- Queries habilitadas condicionalmente (`enabled: isDialogOpen`)
+- Retry limitado a 1 tentativa para evitar loops
+
+**Arquivos Corrigidos**:
+- `escola-frontend/src/pages/Classes.tsx` - Módulo de Turmas
+- `escola-frontend/src/pages/Enrollments.tsx` - Módulo de Matrículas
+
+**Resultado**:
+- Corrigido erro de tela branca por falta de `isLoading`/`undefined`
+- Agora os dados carregam com fallback visual (Skeleton)
+- Token JWT é garantido antes do fetch
+- Estados de loading e erro tratados adequadamente
+- Módulos carregam corretamente na primeira tentativa, mesmo com conexões lentas
