@@ -1,11 +1,14 @@
 # Multi-stage build para produção
 FROM node:18-alpine AS builder
 
-# Instalar dependências do sistema
+# Instalar dependências do sistema e ferramentas de build
 RUN apk update && apk upgrade && \
     apk add --no-cache \
     openssl \
     libc6-compat \
+    python3 \
+    make \
+    g++ \
     && rm -rf /var/cache/apk/*
 
 WORKDIR /app
