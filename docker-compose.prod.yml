@@ -47,19 +47,19 @@ services:
   escola-frontend:
     build:
       context: ./escola-frontend
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile
     container_name: synexa-frontend
     environment:
-      - VITE_API_BASE_URL=${API_URL:-http://localhost:3000}
+      - VITE_API_BASE_URL=${API_URL:-http://escola-backend:3000}
     expose:
-      - "80"
+      - "3001"
     depends_on:
       - escola-backend
     networks:
       - synexa-network
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001"]
       interval: 30s
       timeout: 10s
       retries: 3
