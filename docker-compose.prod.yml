@@ -30,8 +30,8 @@ services:
       - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
       - CHROMIUM_PATH=/usr/bin/chromium-browser
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     depends_on:
       escola-db:
         condition: service_healthy
@@ -51,8 +51,8 @@ services:
     container_name: synexa-frontend
     environment:
       - VITE_API_BASE_URL=${API_URL:-http://localhost:3000}
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     depends_on:
       - escola-backend
     networks:
