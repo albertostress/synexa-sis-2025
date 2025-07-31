@@ -16,7 +16,7 @@ model Student {
   lastName        String
   gender          Gender
   birthDate       DateTime
-  biNumber        String         @unique
+  biNumber        String?        @unique
   studentNumber   String         @unique
   academicYear    String
   classId         String

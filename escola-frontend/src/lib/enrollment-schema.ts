@@ -22,12 +22,7 @@ const guardianSchema = z.object({
   address: z
     .string()
     .min(5, 'Endereço deve ter pelo menos 5 caracteres')
-    .max(200, 'Endereço muito longo'),
-  bi: z
-    .string()
-    .min(14, 'BI deve ter 14 caracteres')
-    .max(14, 'BI deve ter 14 caracteres')
-    .regex(/^[0-9]{9}[A-Z]{2}[0-9]{3}$/, 'Formato de BI inválido (ex: 123456789LA034)')
+    .max(200, 'Endereço muito longo')
 });
 
 // Schema para validação do estudante
@@ -57,9 +52,9 @@ const studentSchema = z.object({
     }, 'Idade deve estar entre 3 e 25 anos'),
   biNumber: z
     .string()
-    .min(14, 'BI deve ter 14 caracteres')
-    .max(14, 'BI deve ter 14 caracteres')
-    .regex(/^[0-9]{9}[A-Z]{2}[0-9]{3}$/, 'Formato de BI inválido (ex: 123456789LA034)'),
+    .optional()
+    .refine((val) => !val || val.length === 14, 'BI deve ter 14 caracteres')
+    .refine((val) => !val || /^[0-9]{9}[A-Z]{2}[0-9]{3}$/.test(val), 'Formato de BI inválido (ex: 123456789LA034)'),
   province: z
     .enum([...PROVINCES] as [string, ...string[]], {
       errorMap: () => ({ message: 'Selecione uma província válida' })
@@ -68,10 +63,10 @@ const studentSchema = z.object({
     .string()
     .min(2, 'Município deve ter pelo menos 2 caracteres')
     .max(50, 'Município muito longo'),
-  tags: z
-    .array(z.string())
-    .optional()
-    .default([]),
+  observacao: z
+    .string()
+    .max(500, 'Observação muito longa')
+    .optional(),
   guardian: guardianSchema.optional()
 });
 
@@ -113,14 +108,13 @@ export const defaultEnrollmentValues: Partial<EnrollmentFormData> = {
     biNumber: '',
     province: undefined,
     municipality: '',
-    tags: [],
+    observacao: '',
     guardian: {
       name: '',
       phone: '',
       email: '',
       relationship: '',
-      address: '',
-      bi: ''
+      address: ''
     }
   },
   academicYear: new Date().getFullYear(),

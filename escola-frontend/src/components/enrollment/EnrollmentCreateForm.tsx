@@ -19,7 +19,7 @@ import { Separator } from '../ui/separator';
 import { useToast } from '../../hooks/use-toast';
 
 import { useEnrollments } from '../../hooks/useEnrollments';
-import { studentsAPI } from '../../lib/api';
+import { studentsAPI, classesAPI } from '../../lib/api';
 import {
   enrollmentSchema,
   EnrollmentFormData,
@@ -49,7 +49,13 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
   const [currentTab, setCurrentTab] = useState('student');
   const [studentExists, setStudentExists] = useState<boolean | null>(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [tagInput, setTagInput] = useState('');
+  const [classAvailability, setClassAvailability] = useState<{
+    capacity: number;
+    enrolled: number;
+    available: number;
+    isFull: boolean;
+  } | null>(null);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   const { toast } = useToast();
   const { createEnrollment, fetchClasses, classes, isLoading } = useEnrollments();
@@ -115,7 +121,6 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
       // Resetar formulário e fechar
       reset();
       setCurrentTab('student');
-      setTagInput('');
       setStudentExists(null);
       
       if (onSuccess) onSuccess();
@@ -130,26 +135,7 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
     }
   };
 
-  // Handler para adicionar tags
-  const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      const trimmedTag = tagInput.trim();
-      if (trimmedTag) {
-        const currentTags = watch('student.tags') || [];
-        if (!currentTags.includes(trimmedTag)) {
-          setValue('student.tags', [...currentTags, trimmedTag]);
-        }
-        setTagInput('');
-      }
-    }
-  };
 
-  // Handler para remover tag
-  const handleRemoveTag = (tagToRemove: string) => {
-    const currentTags = watch('student.tags') || [];
-    setValue('student.tags', currentTags.filter(tag => tag !== tagToRemove));
-  };
 
   // Handler para formatação de campos
   const handleBIChange = (value: string) => {
@@ -320,7 +306,7 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
                       name="student.biNumber"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Bilhete de Identidade *</FormLabel>
+                          <FormLabel>Bilhete de Identidade (opcional)</FormLabel>
                           <FormControl>
                             <div className="relative">
                               <Input 
@@ -402,28 +388,25 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
 
                 </div>
 
-                {/* Tags */}
-                <div className="space-y-2">
-                  <FormLabel>Tags (opcional)</FormLabel>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {(watch('student.tags') || []).map((tag, index) => (
-                      <Badge 
-                        key={index} 
-                        variant="secondary" 
-                        className="cursor-pointer hover:bg-red-100 hover:text-red-700"
-                        onClick={() => handleRemoveTag(tag)}
-                      >
-                        {tag} ×
-                      </Badge>
-                    ))}
-                  </div>
-                  <Input
-                    placeholder="Adicionar tag (pressione Enter ou vírgula)"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={handleAddTag}
-                  />
-                </div>
+                {/* Observação */}
+                <FormField
+                  control={form.control}
+                  name="student.observacao"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Observação (opcional)</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Adicione observações sobre o estudante..."
+                          className="resize-none"
+                          rows={3}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <div className="flex justify-end">
                   <Button 
@@ -518,25 +501,6 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="student.guardian.bi"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>BI do Encarregado</FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder="Ex: 987654321LA045"
-                            {...field}
-                            onChange={(e) => setValue('student.guardian.bi', formatBI(e.target.value))}
-                            maxLength={14}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
                 </div>
 
                 <FormField
@@ -609,7 +573,28 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Turma *</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select 
+                          onValueChange={async (value) => {
+                            field.onChange(value);
+                            // Verificar disponibilidade da turma
+                            if (value) {
+                              setCheckingAvailability(true);
+                              try {
+                                const availability = await classesAPI.checkAvailability(value);
+                                setClassAvailability(availability);
+                              } catch (error) {
+                                console.error('Erro ao verificar disponibilidade:', error);
+                                toast({
+                                  title: 'Erro',
+                                  description: 'Não foi possível verificar a disponibilidade da turma',
+                                  variant: 'destructive'
+                                });
+                              } finally {
+                                setCheckingAvailability(false);
+                              }
+                            }
+                          }} 
+                          defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione a turma" />
@@ -633,11 +618,25 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
                 </div>
 
                 {selectedClass && (
-                  <Alert>
+                  <Alert className={classAvailability?.isFull ? 'border-red-500' : ''}>
                     <AlertDescription>
                       <strong>Turma selecionada:</strong> {selectedClass.name}<br/>
                       <strong>Ano:</strong> {selectedClass.year}º<br/>
-                      <strong>Capacidade:</strong> {selectedClass.capacity} alunos
+                      <strong>Capacidade:</strong> {selectedClass.capacity} alunos<br/>
+                      {checkingAvailability ? (
+                        <span className="text-muted-foreground">Verificando disponibilidade...</span>
+                      ) : classAvailability && (
+                        <>
+                          <strong>Alunos matriculados:</strong> {classAvailability.enrolled}<br/>
+                          <strong>Vagas disponíveis:</strong> {classAvailability.available}
+                          {classAvailability.isFull && (
+                            <div className="mt-2 text-red-600 font-semibold">
+                              <AlertTriangle className="inline-block w-4 h-4 mr-1" />
+                              Esta turma está cheia! Não é possível fazer novas matrículas.
+                            </div>
+                          )}
+                        </>
+                      )}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -661,7 +660,7 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
                     )}
                     <Button 
                       type="submit" 
-                      disabled={isLoading}
+                      disabled={isLoading || classAvailability?.isFull}
                       className="bg-blue-600 hover:bg-blue-700"
                       onClick={() => {
                         console.log('💆 Submit button clicked!');

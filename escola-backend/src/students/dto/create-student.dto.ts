@@ -54,16 +54,17 @@ export class CreateStudentDto {
   birthDate: string;
 
   @ApiProperty({ 
-    description: 'Número do Bilhete de Identidade do aluno',
-    example: '003456789LA042' 
+    description: 'Número do Bilhete de Identidade do aluno (opcional)',
+    example: '003456789LA042',
+    required: false
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Número do BI é obrigatório' })
   @Length(8, 20, { message: 'Número do BI deve ter entre 8 e 20 caracteres' })
   @Matches(/^\d{6,9}[A-Z]{2}\d{3}$/, { 
     message: 'Formato inválido do BI (ex: 003456789LA042)' 
   })
-  biNumber: string;
+  biNumber?: string;
 
 
   @ApiProperty({ 

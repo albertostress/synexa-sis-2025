@@ -24,22 +24,27 @@ export class EnrollmentService {
    * ✨ Fluxo realista de secretaria escolar angolana
    */
   private async findOrCreateStudent(studentData: any, classId: string): Promise<{ studentId: string; wasCreated: boolean; message?: string }> {
-    const { firstName, lastName, gender, birthDate, biNumber, province, municipality, tags, guardian } = studentData;
+    const { firstName, lastName, gender, birthDate, biNumber, province, municipality, observacao, guardian } = studentData;
 
-    // Limpar e normalizar o BI (remover espaços, converter para maiúsculas)
-    const cleanBI = biNumber.trim().toUpperCase().replace(/\s+/g, '');
+    // 1. Verificar se existe estudante com mesmo BI (se fornecido)
+    let existingStudentByBI = null;
+    let cleanBI = null;
+    
+    if (biNumber && biNumber.trim()) {
+      // Limpar e normalizar o BI (remover espaços, converter para maiúsculas)
+      cleanBI = biNumber.trim().toUpperCase().replace(/\s+/g, '');
+      
+      existingStudentByBI = await this.prisma.student.findUnique({
+        where: { biNumber: cleanBI }
+      });
 
-    // 1. Verificar se existe estudante com mesmo BI
-    const existingStudentByBI = await this.prisma.student.findUnique({
-      where: { biNumber: cleanBI }
-    });
-
-    if (existingStudentByBI) {
-      return { 
-        studentId: existingStudentByBI.id, 
-        wasCreated: false,
-        message: `Estudante encontrado pelo BI ${cleanBI}. Usando registro existente.`
-      };
+      if (existingStudentByBI) {
+        return { 
+          studentId: existingStudentByBI.id, 
+          wasCreated: false,
+          message: `Estudante encontrado pelo BI ${cleanBI}. Usando registro existente.`
+        };
+      }
     }
 
     // 2. Verificar duplicação por nome + data de nascimento
@@ -70,11 +75,11 @@ export class EnrollmentService {
         lastName,
         gender,
         birthDate: new Date(birthDate),
-        biNumber: cleanBI,
+        biNumber: cleanBI || null,
         studentNumber,
         province,
         municipality,
-        tags: tags || [],
+        tags: observacao ? [observacao] : [],
         // Campos obrigatórios com valores padrão
         parentEmail: guardian?.email || 'nao.informado@email.com',
         parentPhone: guardian?.phone || '000000000',

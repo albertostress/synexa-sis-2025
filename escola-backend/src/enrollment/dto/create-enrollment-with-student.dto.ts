@@ -19,17 +19,13 @@ import {
   Matches
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { EnrollmentStatus } from '@prisma/client';
 
 enum Gender {
   MASCULINO = 'MASCULINO',
   FEMININO = 'FEMININO'
 }
 
-enum EnrollmentStatus {
-  ATIVA = 'ATIVA',
-  PENDENTE = 'PENDENTE', 
-  CANCELADA = 'CANCELADA'
-}
 
 class GuardianDto {
   @ApiProperty({
@@ -77,17 +73,6 @@ class GuardianDto {
   @IsString()
   address?: string;
 
-  @ApiProperty({
-    description: 'Número do BI do responsável',
-    example: '005678912LA041',
-    required: false
-  })
-  @IsOptional()
-  @IsString()
-  @Matches(/^\d{6,9}[A-Z]{2}\d{3}$/, { 
-    message: 'Formato inválido do BI do responsável (ex: 005678912LA041)' 
-  })
-  bi?: string;
 }
 
 class StudentDto {
@@ -131,18 +116,19 @@ class StudentDto {
   birthDate: string;
 
   @ApiProperty({
-    description: 'Número do Bilhete de Identidade (Angola)',
+    description: 'Número do Bilhete de Identidade (Angola) - Opcional',
     example: '003456789LA042',
     minLength: 8,
-    maxLength: 20
+    maxLength: 20,
+    required: false
   })
+  @IsOptional()
   @IsString({ message: 'Número do BI deve ser um texto' })
-  @IsNotEmpty({ message: 'Número do BI é obrigatório' })
   @Length(8, 20, { message: 'Número do BI deve ter entre 8 e 20 caracteres' })
   @Matches(/^\d{6,9}[A-Z]{2}\d{3}$/, { 
     message: 'Formato inválido do BI (ex: 003456789LA042)' 
   })
-  biNumber: string;
+  biNumber?: string;
 
   @ApiProperty({
     description: 'Província de origem',
@@ -161,15 +147,15 @@ class StudentDto {
   municipality: string;
 
   @ApiProperty({
-    description: 'Tags/etiquetas do aluno (opcional)',
-    example: ['bolsista', 'desportista'],
+    description: 'Observações sobre o estudante (opcional)',
+    example: 'Estudante com necessidades especiais',
     required: false,
-    type: [String]
+    maxLength: 500
   })
   @IsOptional()
-  @IsArray({ message: 'Tags devem ser uma lista' })
-  @IsString({ each: true, message: 'Cada tag deve ser um texto' })
-  tags?: string[];
+  @IsString({ message: 'Observação deve ser um texto' })
+  @Length(0, 500, { message: 'Observação deve ter no máximo 500 caracteres' })
+  observacao?: string;
 
   @ApiProperty({
     description: 'Dados do responsável/encarregado',
@@ -213,12 +199,12 @@ export class CreateEnrollmentWithStudentDto {
 
   @ApiProperty({
     description: 'Status inicial da matrícula',
-    example: 'ATIVA',
+    example: 'ACTIVE',
     enum: EnrollmentStatus,
-    default: 'ATIVA',
+    default: 'ACTIVE',
     required: false
   })
   @IsOptional()
-  @IsEnum(EnrollmentStatus, { message: 'Status deve ser ATIVA, PENDENTE ou CANCELADA' })
+  @IsEnum(EnrollmentStatus, { message: 'Status deve ser ACTIVE, PENDING, CANCELLED ou TRANSFERRED' })
   status?: EnrollmentStatus;
 }
