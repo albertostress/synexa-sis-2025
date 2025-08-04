@@ -842,6 +842,12 @@ export const schedulesAPI = {
 
 // Enrollment API functions
 export const enrollmentAPI = {
+  // Buscar anos letivos disponíveis
+  getAvailableYears: async (): Promise<string[]> => {
+    const response = await api.get('/enrollment/years');
+    return response.data;
+  },
+
   getAll: async (filters?: EnrollmentFilters): Promise<EnrollmentWithRelations[]> => {
     const params = new URLSearchParams();
     if (filters?.year) params.append('year', filters.year.toString());

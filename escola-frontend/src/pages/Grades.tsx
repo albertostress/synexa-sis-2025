@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { gradesAPI, studentsAPI, subjectsAPI, classesAPI, teachersAPI, reportsAPI } from '@/lib/api';
+import { gradesAPI, studentsAPI, subjectsAPI, classesAPI, teachersAPI, reportsAPI, enrollmentAPI } from '@/lib/api';
 import { 
   GradeWithRelations, 
   CreateGradeDto, 
@@ -33,8 +33,7 @@ import {
 } from '@/types/grade';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
-// Anos letivos disponíveis
-const AVAILABLE_YEARS = [2023, 2024, 2025];
+// Anos letivos agora são carregados dinamicamente da API
 
 // Tipos de avaliação Angola
 const GRADE_TYPES = [
@@ -48,7 +47,7 @@ export default function Grades() {
   const [editingGrade, setEditingGrade] = useState<GradeWithRelations | null>(null);
   
   // Estados dos filtros organizados conforme nova especificação
-  const [selectedYear, setSelectedYear] = useState<number>(2024);
+  const [selectedYear, setSelectedYear] = useState<number>(2025);
   const [selectedClassId, setSelectedClassId] = useState<string>('ALL');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('ALL');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('ALL');
@@ -85,6 +84,31 @@ export default function Grades() {
   }, [selectedYear, selectedClassId, selectedStudentId, selectedSubjectId, selectedType]);
 
   // ================== QUERIES PARA FILTROS ==================
+
+  // Carregar anos letivos disponíveis dinamicamente
+  const { data: availableYears = [], isLoading: loadingYears } = useQuery({
+    queryKey: ['enrollment-years'],
+    queryFn: () => enrollmentAPI.getAvailableYears(),
+    onError: (error: any) => {
+      console.error('Erro ao carregar anos letivos:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os anos letivos disponíveis',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Definir o ano mais recente como padrão quando os anos forem carregados
+  useEffect(() => {
+    if (availableYears.length > 0) {
+      // Extrair o primeiro ano da string "2025/2026" -> 2025
+      const mostRecentYear = parseInt(availableYears[0].split('/')[0]);
+      if (selectedYear !== mostRecentYear) {
+        setSelectedYear(mostRecentYear);
+      }
+    }
+  }, [availableYears]);
 
   // Carregar turmas para seleção
   const { data: classes = [], isLoading: loadingClasses } = useQuery({
@@ -501,11 +525,14 @@ export default function Grades() {
                         <SelectValue placeholder="Selecione o ano" />
                       </SelectTrigger>
                       <SelectContent>
-                        {AVAILABLE_YEARS.map(year => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {formatSchoolYear(year)}
-                          </SelectItem>
-                        ))}
+                        {availableYears.map(yearRange => {
+                          const year = parseInt(yearRange.split('/')[0]);
+                          return (
+                            <SelectItem key={year} value={year.toString()}>
+                              {yearRange}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -615,19 +642,41 @@ export default function Grades() {
                 <label className="text-sm font-medium flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
                   Ano Letivo
+                  {loadingYears && (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  )}
                 </label>
-                <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                <Select 
+                  value={selectedYear.toString()} 
+                  onValueChange={(value) => setSelectedYear(parseInt(value))}
+                  disabled={loadingYears || availableYears.length === 0}
+                >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder={
+                      loadingYears 
+                        ? "Carregando anos letivos..." 
+                        : availableYears.length === 0 
+                        ? "Nenhum ano letivo disponível"
+                        : "Selecione um ano letivo"
+                    } />
                   </SelectTrigger>
                   <SelectContent>
-                    {AVAILABLE_YEARS.map((year) => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
-                    ))}
+                    {availableYears.map(yearRange => {
+                      const year = parseInt(yearRange.split('/')[0]);
+                      return (
+                        <SelectItem key={year} value={year.toString()}>
+                          {yearRange}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
+                {!loadingYears && availableYears.length === 0 && (
+                  <p className="text-xs text-orange-600">Nenhum ano letivo encontrado no sistema</p>
+                )}
+                {!loadingYears && availableYears.length > 0 && (
+                  <p className="text-xs text-green-600">{availableYears.length} ano(s) letivo(s) disponível(eis)</p>
+                )}
               </div>
 
               {/* 2. Turma */}

@@ -222,6 +222,27 @@ export class EnrollmentController {
     return this.enrollmentService.findByStudent(studentId);
   }
 
+  @Get('years')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @ApiOperation({ 
+    summary: 'Listar todos os anos letivos disponíveis',
+    description: 'Retorna lista de anos letivos distintos existentes no sistema com base nas matrículas registradas'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Anos letivos retornados com sucesso',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'string',
+        example: '2025/2026'
+      }
+    }
+  })
+  async getAllEnrollmentYears(): Promise<string[]> {
+    return this.enrollmentService.getAllYears();
+  }
+
   @Get(':id')
   @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
   @ApiOperation({ 

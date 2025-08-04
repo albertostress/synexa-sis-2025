@@ -179,6 +179,52 @@ O backend é altamente modular, com cada funcionalidade principal encapsulada no
 - ✅ **Testes E2E**: Suite de testes Playwright implementada
 - ✅ **Validações BI**: Campo opcional com validações condicionais
 
+📅 [2025-08-04T01:45:00Z]
+🗓️ **Correção: Dropdown de Ano Letivo agora usa anos dinâmicos da matrícula**
+
+### Problema Resolvido
+- Campo "Ano Letivo" no formulário de boletins (`/reports`) só mostrava até 2024/2025
+- Estudantes com matrícula válida em 2025/2026 não conseguiam emitir boletins
+- Dropdown estava hardcoded com `Array.from({length: 5}, (_, i) => 2020 + i)`
+
+### Solução Implementada
+
+**🧠 Backend (NestJS):**
+- ✅ Criado endpoint `GET /enrollment/years` no `EnrollmentController`
+- ✅ Implementado método `getAllYears()` no `EnrollmentService`:
+  ```ts
+  async getAllYears(): Promise<string[]> {
+    const years = await this.prisma.enrollment.findMany({
+      select: { year: true },
+      distinct: ['year'],
+      orderBy: { year: 'desc' }
+    });
+    return years.map(y => `${y.year}/${y.year + 1}`);
+  }
+  ```
+- ✅ Endpoint protegido com roles `ADMIN`, `DIRETOR`, `SECRETARIA`
+- ✅ Retorna format "2025/2026" ordenado por ano descrescente
+
+**🎨 Frontend (React):**
+- ✅ Adicionada função `getAvailableYears()` em `enrollmentAPI`
+- ✅ Query `useQuery(['enrollment-years'])` para buscar anos dinamicamente
+- ✅ Dropdown atualizado para usar `availableYears` em vez de array hardcoded  
+- ✅ Estado `selectedYear` definido automaticamente para ano mais recente
+- ✅ Loading states e tratamento de erros implementado
+- ✅ Feedback visual para usuário (spinner, contadores, mensagens)
+
+### Benefícios
+- ✅ **Compatibilidade futura**: Suporte automático para 2025/2026, 2026/2027, etc.
+- ✅ **Dados reais**: Apenas anos com matrículas registradas aparecem
+- ✅ **UX melhorada**: Loading states e ano mais recente como padrão
+- ✅ **Manutenção reduzida**: Sem necessidade de atualizar código a cada ano
+
+### Teste
+```bash
+curl -H "Authorization: Bearer TOKEN" http://localhost:3000/enrollment/years
+# Resposta: ["2025/2026"]
+```
+
 ## 4. Memórias e Anotações
 
 - Adicionado suporte para matrícula de estudantes sem BI

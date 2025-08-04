@@ -13,9 +13,13 @@ done
 
 echo "✅ Banco de dados conectado!"
 
-# Executar migrations
-echo "🔄 Executando migrations..."
-npx prisma migrate deploy
+# Executar migrations/sync schema
+echo "🔄 Sincronizando schema..."
+if [ "$NODE_ENV" = "production" ]; then
+  npx prisma migrate deploy
+else
+  npx prisma db push --skip-generate || npx prisma migrate deploy
+fi
 
 # Verificar se Prisma Client foi gerado
 echo "🔧 Verificando Prisma Client..."

@@ -630,4 +630,23 @@ export class EnrollmentService {
 
     return enrollments;
   }
+
+  /**
+   * Buscar todos os anos letivos distintos existentes no sistema
+   * Usado para preencher dropdown de anos nos boletins
+   */
+  async getAllYears(): Promise<string[]> {
+    const years = await this.prisma.enrollment.findMany({
+      select: { 
+        year: true 
+      },
+      distinct: ['year'],
+      orderBy: { 
+        year: 'desc' 
+      }
+    });
+
+    // Converter anos para formato de ano letivo (ex: 2025 -> "2025/2026")
+    return years.map(y => `${y.year}/${y.year + 1}`);
+  }
 }
