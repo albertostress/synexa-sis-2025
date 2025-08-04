@@ -1,0 +1,39 @@
+# Dockerfile otimizado para desenvolvimento (mais rápido)
+FROM node:18-slim
+
+# Instalar dependências mínimas do sistema
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar navegadores do Playwright via npx
+WORKDIR /app
+
+# Copiar APENAS package files (melhor cache)
+COPY package.json ./
+
+# Cache de dependências - só rebuilda se package.json mudar
+RUN npm install --legacy-peer-deps && npm cache clean --force
+
+# Instalar Playwright em uma única camada (mais eficiente)
+RUN npx playwright install chromium && \
+    npx playwright install-deps chromium
+
+# Copiar schema Prisma primeiro (para cache)
+COPY prisma ./prisma/
+RUN npx prisma generate
+
+# Copiar código fonte por último (mudanças não afetam camadas anteriores)
+COPY . .
+
+# Configurar variáveis de ambiente
+ENV NODE_ENV=development \
+    PORT=3000
+
+# Expor porta
+EXPOSE 3000
+
+# Comando de inicialização
+CMD ["npm", "run", "start:dev"]

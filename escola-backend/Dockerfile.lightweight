@@ -1,0 +1,41 @@
+# Dockerfile super leve - sem Chromium
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copiar apenas package.json
+COPY package.json ./
+
+# Instalar APENAS dependências de produção
+RUN npm install --only=production --no-audit --no-fund
+
+# Build stage
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Instalar apenas o mínimo necessário
+RUN apk add --no-cache \
+    openssl \
+    libc6-compat
+
+# Copiar node_modules de produção do builder
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copiar código fonte
+COPY . .
+
+# Gerar Prisma Client
+RUN npx prisma generate
+
+# Limpar cache desnecessário
+RUN npm cache clean --force && \
+    rm -rf /tmp/* /var/cache/apk/*
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+EXPOSE 3000
+
+# Usar node direto em vez de npm (mais leve)
+CMD ["node", "dist/main.js"]

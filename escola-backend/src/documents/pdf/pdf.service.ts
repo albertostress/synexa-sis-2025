@@ -1,50 +1,33 @@
 /**
- * PDF Service - Geração de PDFs usando Playwright e Handlebars
+ * PDF Service - Geração de PDFs usando serviço remoto
  * Referência: context7 mcp - NestJS Services Pattern
  */
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { chromium, Browser, Page } from 'playwright';
 import * as Handlebars from 'handlebars';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { PdfCacheService } from './pdf-cache.service';
+import axios from 'axios';
 
 @Injectable()
 export class PdfService {
   private readonly logger = new Logger(PdfService.name);
-  private browser: Browser | null = null;
+  private readonly playwrightServiceUrl: string;
 
-  constructor(private readonly cacheService: PdfCacheService) {}
+  constructor(private readonly cacheService: PdfCacheService) {
+    this.playwrightServiceUrl = process.env.PLAYWRIGHT_SERVICE_URL || 'http://playwright-service:3333';
+  }
 
   async onModuleInit(): Promise<void> {
-    try {
-      // Registrar helpers do Handlebars
-      this.registerHandlebarsHelpers();
+    // Registrar helpers do Handlebars
+    this.registerHandlebarsHelpers();
 
-      this.browser = await chromium.launch({
-        headless: true,
-        executablePath: '/usr/bin/chromium-browser', // Usar Chromium do Alpine
-        args: [
-          '--no-sandbox', 
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-extensions',
-          '--disable-gpu',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          '--disable-web-security',
-          '--allow-running-insecure-content',
-          '--hide-scrollbars',
-          '--disable-features=TranslateUI',
-          '--disable-ipc-flooding-protection',
-        ],
-      });
-      this.logger.log('Playwright Chromium iniciado com sucesso');
+    // Verificar conexão com serviço Playwright
+    try {
+      const response = await axios.get(`${this.playwrightServiceUrl}/health`);
+      this.logger.log(`Conectado ao serviço Playwright: ${response.data.status}`);
     } catch (error) {
-      this.logger.error('Erro ao inicializar Playwright Chromium:', error);
-      this.logger.warn('PdfService funcionará em modo simulado (sem geração real de PDF)');
-      // Não fazer throw para não quebrar a aplicação durante desenvolvimento
+      this.logger.warn('Serviço Playwright não disponível, funcionando em modo simulado');
     }
   }
 
@@ -68,10 +51,7 @@ export class PdfService {
   }
 
   async onModuleDestroy(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.logger.log('Playwright Chromium finalizado');
-    }
+    // Nada a fazer, o serviço Playwright é gerenciado externamente
   }
 
   async generatePdf(templateName: string, data: Record<string, any>): Promise<Buffer> {
@@ -82,16 +62,6 @@ export class PdfService {
       this.logger.debug(`PDF recuperado do cache: ${templateName}`);
       return cachedPdf;
     }
-
-    if (!this.browser) {
-      this.logger.warn(`Modo simulado: gerando PDF mock para template '${templateName}'`);
-      const mockPdf = await this.generateMockPdf(templateName, data);
-      // Armazenar mock no cache também
-      this.cacheService.set('pdf', cacheKey, mockPdf);
-      return mockPdf;
-    }
-
-    let page: Page | null = null;
 
     try {
       // Carregar template Handlebars
@@ -108,31 +78,29 @@ export class PdfService {
       const template = Handlebars.compile(templateContent);
       const html = template(data);
 
-      // Criar nova página no browser
-      page = await this.browser.newPage();
-
-      // Configurar viewport para PDF
-      await page.setViewportSize({ width: 1024, height: 1448 }); // A4 proporção
-
-      // Carregar HTML na página
-      await page.setContent(html, {
-        waitUntil: 'networkidle',
-        timeout: 30000,
-      });
-
-      // Gerar PDF
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '1cm',
-          right: '1cm',
-          bottom: '1cm',
-          left: '1cm',
+      // Enviar para o serviço Playwright
+      const response = await axios.post(
+        `${this.playwrightServiceUrl}/generate-pdf`,
+        {
+          html,
+          options: {
+            format: 'A4',
+            printBackground: true,
+            margin: {
+              top: '1cm',
+              right: '1cm',
+              bottom: '1cm',
+              left: '1cm',
+            },
+          },
         },
-      });
+        {
+          responseType: 'arraybuffer',
+          timeout: 30000,
+        },
+      );
 
-      const resultBuffer = Buffer.from(pdfBuffer);
+      const resultBuffer = Buffer.from(response.data);
       
       // Armazenar no cache
       this.cacheService.set('pdf', cacheKey, resultBuffer);
@@ -141,12 +109,14 @@ export class PdfService {
       return resultBuffer;
 
     } catch (error) {
+      if (axios.isAxiosError(error) && error.code === 'ECONNREFUSED') {
+        this.logger.warn(`Serviço Playwright indisponível, gerando PDF mock para template '${templateName}'`);
+        const mockPdf = await this.generateMockPdf(templateName, data);
+        this.cacheService.set('pdf', cacheKey, mockPdf);
+        return mockPdf;
+      }
       this.logger.error(`Erro ao gerar PDF para template '${templateName}':`, error);
       throw error;
-    } finally {
-      if (page) {
-        await page.close();
-      }
     }
   }
 
@@ -181,45 +151,34 @@ export class PdfService {
       return cachedPdf;
     }
 
-    if (!this.browser) {
-      this.logger.warn(`Modo simulado: gerando PDF mock para fatura`);
-      const mockPdf = await this.generateMockPdf('invoice', data);
-      this.cacheService.set('pdf', cacheKey, mockPdf);
-      return mockPdf;
-    }
-
-    let page: Page | null = null;
-
     try {
       // Compilar template com dados
       const template = Handlebars.compile(templateContent);
       const html = template(data);
 
-      // Criar nova página no browser
-      page = await this.browser.newPage();
-
-      // Configurar viewport para PDF
-      await page.setViewportSize({ width: 1024, height: 1448 }); // A4 proporção
-
-      // Carregar HTML na página
-      await page.setContent(html, {
-        waitUntil: 'networkidle',
-        timeout: 30000,
-      });
-
-      // Gerar PDF
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '1.5cm',
-          right: '1.5cm',
-          bottom: '1.5cm',
-          left: '1.5cm',
+      // Enviar para o serviço Playwright
+      const response = await axios.post(
+        `${this.playwrightServiceUrl}/generate-pdf`,
+        {
+          html,
+          options: {
+            format: 'A4',
+            printBackground: true,
+            margin: {
+              top: '1.5cm',
+              right: '1.5cm',
+              bottom: '1.5cm',
+              left: '1.5cm',
+            },
+          },
         },
-      });
+        {
+          responseType: 'arraybuffer',
+          timeout: 30000,
+        },
+      );
 
-      const resultBuffer = Buffer.from(pdfBuffer);
+      const resultBuffer = Buffer.from(response.data);
       
       // Armazenar no cache
       this.cacheService.set('pdf', cacheKey, resultBuffer);
@@ -228,12 +187,14 @@ export class PdfService {
       return resultBuffer;
 
     } catch (error) {
+      if (axios.isAxiosError(error) && error.code === 'ECONNREFUSED') {
+        this.logger.warn(`Serviço Playwright indisponível, gerando PDF mock para fatura`);
+        const mockPdf = await this.generateMockPdf('invoice', data);
+        this.cacheService.set('pdf', cacheKey, mockPdf);
+        return mockPdf;
+      }
       this.logger.error(`Erro ao gerar PDF de fatura:`, error);
       throw error;
-    } finally {
-      if (page) {
-        await page.close();
-      }
     }
   }
 
@@ -327,49 +288,32 @@ startxref
       }
     }
 
-    if (!this.browser) {
-      this.logger.warn(`Modo simulado: gerando PDF mock para HTML`);
-      const mockPdf = await this.generateMockPdf('html-template', { html: html.substring(0, 100) });
-      // Armazenar mock no cache se fornecido
-      if (cacheKey) {
-        this.cacheService.set('pdf', cacheKey, mockPdf);
-      }
-      return mockPdf;
-    }
-
-    let page: Page | null = null;
-
     try {
-      // Criar nova página no browser
-      page = await this.browser.newPage();
-
-      // Configurar viewport para PDF
-      await page.setViewportSize({ width: 1024, height: 1448 }); // A4 proporção
-
-      // Carregar HTML na página
-      await page.setContent(html, {
-        waitUntil: 'networkidle',
-        timeout: 30000,
-      });
-
-      // Aguardar carregamento de recursos (fontes, imagens)
-      await page.waitForTimeout(1000);
-
-      // Gerar PDF
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        landscape: true,
-        printBackground: true,
-        margin: {
-          top: '15mm',
-          right: '20mm',
-          bottom: '15mm',
-          left: '20mm',
+      // Enviar para o serviço Playwright
+      const response = await axios.post(
+        `${this.playwrightServiceUrl}/generate-pdf`,
+        {
+          html,
+          options: {
+            format: 'A4',
+            landscape: true,
+            printBackground: true,
+            margin: {
+              top: '15mm',
+              right: '20mm',
+              bottom: '15mm',
+              left: '20mm',
+            },
+            preferCSSPageSize: true,
+          },
         },
-        preferCSSPageSize: true,
-      });
+        {
+          responseType: 'arraybuffer',
+          timeout: 30000,
+        },
+      );
 
-      const resultBuffer = Buffer.from(pdfBuffer);
+      const resultBuffer = Buffer.from(response.data);
       
       // Armazenar no cache se fornecido
       if (cacheKey) {
@@ -380,12 +324,16 @@ startxref
       return resultBuffer;
 
     } catch (error) {
+      if (axios.isAxiosError(error) && error.code === 'ECONNREFUSED') {
+        this.logger.warn(`Serviço Playwright indisponível, gerando PDF mock para HTML`);
+        const mockPdf = await this.generateMockPdf('html-template', { html: html.substring(0, 100) });
+        if (cacheKey) {
+          this.cacheService.set('pdf', cacheKey, mockPdf);
+        }
+        return mockPdf;
+      }
       this.logger.error(`Erro ao gerar PDF a partir de HTML:`, error);
       throw error;
-    } finally {
-      if (page) {
-        await page.close();
-      }
     }
   }
 
@@ -394,14 +342,22 @@ startxref
    */
   async healthCheck(): Promise<{ 
     status: string; 
-    browser: boolean; 
+    playwrightService: boolean; 
     mode: string;
     cache: any;
   }> {
+    let playwrightAvailable = false;
+    try {
+      const response = await axios.get(`${this.playwrightServiceUrl}/health`, { timeout: 5000 });
+      playwrightAvailable = response.data.status === 'ok';
+    } catch (error) {
+      // Serviço não disponível
+    }
+
     return {
       status: 'ok',
-      browser: this.browser !== null,
-      mode: this.browser ? 'production' : 'mock',
+      playwrightService: playwrightAvailable,
+      mode: playwrightAvailable ? 'production' : 'mock',
       cache: this.cacheService.getStats(),
     };
   }

@@ -1,0 +1,47 @@
+{
+  "name": "synexa-sis-2025",
+  "description": "Sistema de Informação do Estudante - Gestão Escolar Angolano",
+  "type": "compose",
+  "version": "1.0.0",
+  "compose": {
+    "file": "docker-compose.prod.yml",
+    "suffix": "prod"
+  },
+  "domains": [
+    {
+      "host": "synexa-sis.your-domain.com",
+      "path": "/",
+      "port": 80,
+      "https": true,
+      "certificate": "letsencrypt"
+    }
+  ],
+  "environment": {
+    "POSTGRES_USER": "postgres",
+    "POSTGRES_PASSWORD": "${POSTGRES_PASSWORD}",
+    "POSTGRES_DB": "escola",
+    "JWT_SECRET": "${JWT_SECRET}",
+    "API_URL": "https://synexa-sis.your-domain.com"
+  },
+  "volumes": [
+    {
+      "name": "pgdata",
+      "mountPath": "/var/lib/postgresql/data"
+    }
+  ],
+  "healthCheck": {
+    "enabled": true,
+    "endpoint": "/health",
+    "interval": 30
+  },
+  "scaling": {
+    "min": 1,
+    "max": 3,
+    "target_cpu": 70
+  },
+  "backup": {
+    "enabled": true,
+    "schedule": "0 2 * * *",
+    "retention": 7
+  }
+}

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend API Debug</title>
+</head>
+<body>
+    <h1>Frontend API Debug</h1>
+    <div id="results"></div>
+    
+    <script>
+        const resultsDiv = document.getElementById('results');
+        
+        function log(message) {
+            console.log(message);
+            resultsDiv.innerHTML += '<p>' + JSON.stringify(message) + '</p>';
+        }
+        
+        // Test environment variables
+        log('Testing environment variables...');
+        log('VITE_API_URL: ' + (import.meta?.env?.VITE_API_URL || 'undefined'));
+        log('VITE_API_BASE_URL: ' + (import.meta?.env?.VITE_API_BASE_URL || 'undefined'));
+        
+        // Test different API base URLs
+        const apiUrls = [
+            'http://localhost:3000',
+            'http://escola-backend:3000',
+            'http://127.0.0.1:3000'
+        ];
+        
+        async function testApiEndpoint(baseUrl) {
+            log(`Testing ${baseUrl}/settings...`);
+            
+            try {
+                // Test without auth
+                const response = await fetch(`${baseUrl}/settings`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                log(`${baseUrl} - Status: ${response.status}, StatusText: ${response.statusText}`);
+                
+                if (response.status === 401) {
+                    log(`${baseUrl} - Got expected 401 Unauthorized`);
+                } else if (response.status === 404) {
+                    log(`${baseUrl} - Got unexpected 404 Not Found`);
+                } else {
+                    const data = await response.text();
+                    log(`${baseUrl} - Response: ${data}`);
+                }
+                
+            } catch (error) {
+                log(`${baseUrl} - Error: ${error.message}`);
+            }
+        }
+        
+        // Test all URLs
+        apiUrls.forEach(testApiEndpoint);
+    </script>
+</body>
+</html>

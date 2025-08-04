@@ -1,0 +1,73 @@
+services:
+  escola-db:
+    image: postgres:15-alpine
+    container_name: synexa-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-escola}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - synexa-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  escola-backend:
+    build: 
+      context: ./escola-backend
+      dockerfile: Dockerfile.prod
+    container_name: synexa-backend
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@escola-db:5432/${POSTGRES_DB:-escola}
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - PORT=3000
+      - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+      - CHROMIUM_PATH=/usr/bin/chromium-browser
+    expose:
+      - "3000"
+    depends_on:
+      escola-db:
+        condition: service_healthy
+    networks:
+      - synexa-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  escola-frontend:
+    build:
+      context: ./escola-frontend
+      dockerfile: Dockerfile
+    container_name: synexa-frontend
+    environment:
+      - VITE_API_BASE_URL=${API_URL:-http://escola-backend:3000}
+    expose:
+      - "3001"
+    depends_on:
+      - escola-backend
+    networks:
+      - synexa-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  synexa-network:
+    driver: bridge

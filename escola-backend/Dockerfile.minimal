@@ -1,0 +1,33 @@
+# Dockerfile minimal - desenvolvimento rápido sem Chromium/Playwright
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Instalar apenas essenciais
+RUN apk add --no-cache \
+    openssl \
+    libc6-compat
+
+# Copiar package.json
+COPY package.json ./
+
+# Instalar dependências SEM Playwright/Puppeteer
+RUN npm install --legacy-peer-deps && \
+    npm cache clean --force
+
+# Copiar prisma schema
+COPY prisma ./prisma/
+
+# Gerar Prisma Client
+RUN npx prisma generate
+
+# Copiar código fonte
+COPY . .
+
+ENV NODE_ENV=development
+ENV DISABLE_PDF_GENERATION=true
+ENV PORT=3000
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start:dev"]

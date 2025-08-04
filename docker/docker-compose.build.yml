@@ -1,0 +1,21 @@
+# Docker Compose para builds otimizados com cache
+# Use: docker-compose -f docker-compose.yml -f docker-compose.build.yml build
+
+services:
+  escola-backend:
+    build:
+      cache_from:
+        - synexa-sis-2025-escola-backend:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    environment:
+      DOCKER_BUILDKIT: 1
+
+  escola-frontend:
+    build:
+      cache_from:
+        - synexa-sis-2025-escola-frontend:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    environment:
+      DOCKER_BUILDKIT: 1

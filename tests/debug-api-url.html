@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug API URL</title>
+</head>
+<body>
+    <h1>🔧 Debug API URL</h1>
+    <div id="result">Loading...</div>
+    
+    <script>
+        // Test what URL the frontend would use
+        fetch('https://communicate-newest-mba-stops.trycloudflare.com/')
+        .then(response => response.text())
+        .then(html => {
+            // Extract API URL from the frontend JavaScript
+            const match = html.match(/VITE_API_URL[=:]["'`]([^"'`]+)["'`]/);
+            if (match) {
+                document.getElementById('result').innerHTML = `
+                    <p><strong>API URL encontrada:</strong> ${match[1]}</p>
+                `;
+            } else {
+                document.getElementById('result').innerHTML = `
+                    <p>❌ Não foi possível encontrar VITE_API_URL no HTML</p>
+                    <p>Vamos testar diretamente:</p>
+                    <button onclick="testLogin()">Testar Login</button>
+                    <div id="test-result"></div>
+                `;
+            }
+        })
+        .catch(error => {
+            document.getElementById('result').innerHTML = `
+                <p>❌ Erro: ${error.message}</p>
+            `;
+        });
+
+        function testLogin() {
+            fetch('https://joyce-jackson-scope-brush.trycloudflare.com/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: 'admin@escola.com',
+                    password: '123456'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('test-result').innerHTML = `
+                    <p>✅ Login funcionou! Token: ${data.accessToken.substring(0, 20)}...</p>
+                `;
+            })
+            .catch(error => {
+                document.getElementById('test-result').innerHTML = `
+                    <p>❌ Erro no login: ${error.message}</p>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+FROM node:18-alpine
+
+# Instalar Chromium e dependências
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# Configurar variáveis do Playwright para usar Chromium do sistema
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+WORKDIR /app
+
+# Copiar package.json
+COPY package*.json ./
+
+# Instalar apenas playwright-core (sem browsers)
+RUN npm install express cors body-parser playwright-core
+
+# Copiar código
+COPY server.js ./
+
+# Expor porta
+EXPOSE 3333
+
+# Comando para iniciar
+CMD ["node", "server.js"]

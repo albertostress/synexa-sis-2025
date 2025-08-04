@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   escola-db:
     image: postgres:15-alpine
@@ -12,62 +14,54 @@ services:
       - pgdata:/var/lib/postgresql/data
     networks:
       - escola-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   escola-backend:
     build: 
       context: ./escola-backend
-      dockerfile: Dockerfile.minimal
+      dockerfile: Dockerfile
     container_name: escola-backend
     environment:
-      - NODE_ENV=development
       - DATABASE_URL=postgres://postgres:postgres@escola-db:5432/escola
-      - PLAYWRIGHT_SERVICE_URL=http://playwright-service:3333
+      - NODE_ENV=development
     ports:
       - "3000:3000"
     depends_on:
-      - escola-db
-      - playwright-service
+      escola-db:
+        condition: service_healthy
     volumes:
       - ./escola-backend:/app
       - /app/node_modules
       - /app/dist
     networks:
       - escola-network
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:dev"
     restart: unless-stopped
 
   escola-frontend:
     container_name: escola-frontend
     build:
       context: ./escola-frontend
+      dockerfile: Dockerfile
     ports:
-      - "3001:3001"
+      - '3001:3001'
+    volumes:
+      - ./escola-frontend:/app
+      - /app/node_modules
+      - /app/.vite
     environment:
-      - VITE_API_BASE_URL=${API_URL:-http://escola-backend:3000}
+      - VITE_API_BASE_URL=http://localhost:3000
+      - CHOKIDAR_USEPOLLING=true
     networks:
       - escola-network
-    # depends_on:
-    #   - escola-backend
+    depends_on:
+      - escola-backend
+    command: npm run dev -- --host 0.0.0.0 --port 3001
     restart: unless-stopped
-
-  playwright-service:
-    container_name: playwright-service
-    build:
-      context: ./playwright-service
-      dockerfile: Dockerfile.alpine
-    ports:
-      - "3333:3333"
-    environment:
-      - NODE_ENV=production
-    networks:
-      - escola-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3333/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    command: node server-alpine.js
 
 volumes:
   pgdata:
