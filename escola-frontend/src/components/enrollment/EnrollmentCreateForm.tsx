@@ -103,12 +103,22 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
     console.log('🚀 onSubmit chamado!');
     console.log('📋 Form data recebido:', data);
     
+    // Verificar se a turma está cheia
+    if (classAvailability?.isFull) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'A turma selecionada já atingiu a capacidade máxima',
+      });
+      return;
+    }
+    
     try {
       const enrollmentData: CreateEnrollmentWithStudentDto = {
         student: data.student,
         academicYear: data.academicYear,
         classId: data.classId,
-        status: data.status
+        status: data.status || 'ACTIVE'
       };
       
       console.log('📤 Payload para API:', JSON.stringify(enrollmentData, null, 2));
@@ -123,14 +133,34 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
       setCurrentTab('student');
       setStudentExists(null);
       
+      toast({
+        title: 'Sucesso!',
+        description: `Matrícula de ${result.student?.firstName || 'estudante'} criada com sucesso`,
+      });
+      
       if (onSuccess) onSuccess();
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erro ao criar matrícula:', error);
       console.error('❌ Error details:', {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status
+      });
+      
+      let errorMessage = 'Erro ao criar matrícula';
+      if (error.response?.data?.message) {
+        if (Array.isArray(error.response.data.message)) {
+          errorMessage = error.response.data.message.join(', ');
+        } else {
+          errorMessage = error.response.data.message;
+        }
+      }
+      
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: errorMessage,
       });
     }
   };
@@ -165,10 +195,21 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
       <CardContent>
         <Form {...form}>
           <form onSubmit={(e) => {
+            e.preventDefault();
             console.log('🎯 Form onSubmit event triggered');
             console.log('📝 Form state valid:', form.formState.isValid);
             console.log('🔍 Form errors:', form.formState.errors);
-            return form.handleSubmit(onSubmit)(e);
+            console.log('📊 Current values:', form.getValues());
+            
+            // Trigger form validation and submission
+            form.handleSubmit(onSubmit, (errors) => {
+              console.error('❌ Form validation errors:', errors);
+              toast({
+                variant: 'destructive',
+                title: 'Erro de Validação',
+                description: 'Por favor, verifique os campos obrigatórios',
+              });
+            })(e);
           }} className="space-y-6">
             
             <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
@@ -662,14 +703,15 @@ export const EnrollmentCreateForm: React.FC<EnrollmentCreateFormProps> = ({
                       type="submit" 
                       disabled={isLoading || classAvailability?.isFull}
                       className="bg-blue-600 hover:bg-blue-700"
-                      onClick={() => {
-                        console.log('💆 Submit button clicked!');
-                        console.log('🔍 Current form values:', form.getValues());
-                        console.log('📊 Form validation state:', form.formState.isValid);
-                        console.log('🚫 Form errors:', form.formState.errors);
-                      }}
                     >
-                      {isLoading ? 'Criando...' : 'Criar Matrícula'}
+                      {isLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                          Criando...
+                        </>
+                      ) : (
+                        'Criar Matrícula'
+                      )}
                     </Button>
                   </div>
                 </div>

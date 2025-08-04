@@ -70,7 +70,7 @@ const App = () => (
               <Route
                 path="/users"
                 element={
-                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ADMIN', 'DIRETOR']}>
                     <DashboardLayout>
                       <Users />
                     </DashboardLayout>
@@ -90,7 +90,7 @@ const App = () => (
               <Route
                 path="/teachers"
                 element={
-                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}>
+                  <ProtectedRoute allowedRoles={['ADMIN', 'DIRETOR']}>
                     <DashboardLayout>
                       <Teachers />
                     </DashboardLayout>
@@ -100,7 +100,7 @@ const App = () => (
               <Route
                 path="/subjects"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['ADMIN', 'DIRETOR', 'PROFESSOR']}>
                     <DashboardLayout>
                       <Subjects />
                     </DashboardLayout>
@@ -130,7 +130,7 @@ const App = () => (
               <Route
                 path="/grades"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['ADMIN', 'DIRETOR', 'PROFESSOR']}>
                     <DashboardLayout>
                       <Grades />
                     </DashboardLayout>
@@ -220,7 +220,7 @@ const App = () => (
               <Route
                 path="/analytics"
                 element={
-                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ADMIN', 'DIRETOR']}>
                     <DashboardLayout>
                       <Analytics />
                     </DashboardLayout>
@@ -230,7 +230,7 @@ const App = () => (
               <Route
                 path="/settings"
                 element={
-                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ADMIN', 'DIRETOR']}>
                     <DashboardLayout>
                       <SettingsIntegrated />
                     </DashboardLayout>

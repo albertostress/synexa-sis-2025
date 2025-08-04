@@ -16,7 +16,8 @@ import {
   ValidateNested,
   IsArray,
   Length,
-  Matches
+  Matches,
+  ValidateIf
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { EnrollmentStatus } from '@prisma/client';
@@ -122,7 +123,7 @@ class StudentDto {
     maxLength: 20,
     required: false
   })
-  @IsOptional()
+  @ValidateIf((obj) => obj.biNumber !== undefined && obj.biNumber !== '')
   @IsString({ message: 'Número do BI deve ser um texto' })
   @Length(8, 20, { message: 'Número do BI deve ter entre 8 e 20 caracteres' })
   @Matches(/^\d{6,9}[A-Z]{2}\d{3}$/, { 

@@ -368,4 +368,31 @@ export class ClassesService {
 
     return schoolClasses as SchoolClass[];
   }
+
+  async checkAvailability(id: string) {
+    const schoolClass = await this.prisma.schoolClass.findUnique({
+      where: { id },
+    });
+
+    if (!schoolClass) {
+      throw new NotFoundException(`Turma com ID ${id} não encontrada`);
+    }
+
+    // Contar matrículas ativas na turma
+    const activeEnrollments = await this.prisma.enrollment.count({
+      where: {
+        classId: id,
+        status: 'ACTIVE',
+      },
+    });
+
+    const available = schoolClass.capacity - activeEnrollments;
+    
+    return {
+      capacity: schoolClass.capacity,
+      enrolled: activeEnrollments,
+      available: available,
+      isFull: available <= 0,
+    };
+  }
 }

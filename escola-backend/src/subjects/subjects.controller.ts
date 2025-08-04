@@ -37,7 +37,7 @@ export class SubjectsController {
   constructor(private readonly subjectsService: SubjectsService) {}
 
   @Post()
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Criar nova disciplina' })
   @ApiResponse({
     status: 201,
@@ -57,7 +57,7 @@ export class SubjectsController {
   }
 
   @Get()
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
+  @Roles('ADMIN', 'DIRETOR', 'PROFESSOR')
   @ApiOperation({ summary: 'Listar todas as disciplinas' })
   @ApiResponse({
     status: 200,
@@ -90,7 +90,7 @@ export class SubjectsController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
+  @Roles('ADMIN', 'DIRETOR', 'PROFESSOR')
   @ApiOperation({ summary: 'Buscar disciplina por ID' })
   @ApiParam({ name: 'id', description: 'ID da disciplina' })
   @ApiResponse({
@@ -107,7 +107,7 @@ export class SubjectsController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Atualizar disciplina' })
   @ApiParam({ name: 'id', description: 'ID da disciplina' })
   @ApiResponse({

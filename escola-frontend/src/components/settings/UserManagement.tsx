@@ -95,11 +95,10 @@ import { pt } from 'date-fns/locale';
 const userSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   email: z.string().email('Email inválido'),
-  role: z.enum(['ADMIN', 'DIRETOR', 'SECRETARIA'], {
+  role: z.enum(['ADMIN', 'DIRETOR', 'SECRETARIA', 'PROFESSOR', 'ADMINISTRATIVO'], {
     required_error: 'Selecione um papel',
   }),
   password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
-  isActive: z.boolean().default(true),
 });
 
 const editUserSchema = userSchema.extend({
@@ -116,7 +115,6 @@ interface User {
   role: UserRole;
   createdAt: string;
   updatedAt?: string;
-  isActive: boolean;
   lastLogin?: string;
 }
 
@@ -129,6 +127,8 @@ const getRoleBadge = (role: UserRole) => {
     ADMIN: { label: 'Administrador', color: 'bg-red-100 text-red-800 border-red-200', icon: Shield },
     DIRETOR: { label: 'Diretor', color: 'bg-purple-100 text-purple-800 border-purple-200', icon: Users },
     SECRETARIA: { label: 'Secretária', color: 'bg-blue-100 text-blue-800 border-blue-200', icon: User },
+    PROFESSOR: { label: 'Professor', color: 'bg-green-100 text-green-800 border-green-200', icon: User },
+    ADMINISTRATIVO: { label: 'Administrativo', color: 'bg-orange-100 text-orange-800 border-orange-200', icon: User },
   };
   
   const config = roleConfig[role] || roleConfig.SECRETARIA;
@@ -166,7 +166,6 @@ export function UserManagement({ className }: UserManagementProps) {
       email: '',
       role: 'SECRETARIA',
       password: '',
-      isActive: true,
     },
   });
 
@@ -178,7 +177,6 @@ export function UserManagement({ className }: UserManagementProps) {
       email: '',
       role: 'SECRETARIA',
       password: '',
-      isActive: true,
     },
   });
 
@@ -206,9 +204,22 @@ export function UserManagement({ className }: UserManagementProps) {
       createForm.reset();
     },
     onError: (error: any) => {
+      console.error('API Error:', error.response?.data);
+      
+      // Melhor tratamento de erro
+      let errorMessage = 'Erro interno do servidor';
+      
+      if (error.response?.data?.message) {
+        if (Array.isArray(error.response.data.message)) {
+          errorMessage = error.response.data.message.join(', ');
+        } else {
+          errorMessage = error.response.data.message;
+        }
+      }
+      
       toast({
         title: 'Erro ao criar utilizador',
-        description: error.response?.data?.message || 'Erro interno do servidor',
+        description: errorMessage,
         variant: 'destructive',
       });
     },
@@ -264,10 +275,8 @@ export function UserManagement({ className }: UserManagementProps) {
     // Role filter
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
 
-    // Status filter
-    const matchesStatus = statusFilter === 'all' || 
-      (statusFilter === 'active' && user.isActive) ||
-      (statusFilter === 'inactive' && !user.isActive);
+    // Status filter (todos ativos por enquanto)
+    const matchesStatus = statusFilter === 'all' || statusFilter === 'active';
 
     // Date filter
     let matchesDate = true;
@@ -306,6 +315,8 @@ export function UserManagement({ className }: UserManagementProps) {
 
   // ============= HANDLERS =============
   const handleCreateUser = (data: UserFormData) => {
+    // Log para debug
+    console.log('Creating user with data:', data);
     createUserMutation.mutate(data);
   };
 
@@ -331,7 +342,6 @@ export function UserManagement({ className }: UserManagementProps) {
       email: user.email,
       role: user.role,
       password: '',
-      isActive: user.isActive,
     });
     setIsEditDialogOpen(true);
   };
@@ -359,24 +369,7 @@ export function UserManagement({ className }: UserManagementProps) {
     }
   };
 
-  const handleToggleActive = async (user: User) => {
-    try {
-      await usersAPI.update(user.id, { isActive: !user.isActive });
-      
-      toast({
-        title: user.isActive ? 'Utilizador desativado' : 'Utilizador ativado',
-        description: `O utilizador foi ${user.isActive ? 'desativado' : 'ativado'} com sucesso.`,
-      });
-      
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-    } catch (error: any) {
-      toast({
-        title: 'Erro ao alterar estado',
-        description: error.response?.data?.message || 'Erro interno do servidor',
-        variant: 'destructive',
-      });
-    }
-  };
+  // Removido handleToggleActive temporariamente
 
   const handleSendCredentials = async (user: User) => {
     try {
@@ -453,7 +446,7 @@ export function UserManagement({ className }: UserManagementProps) {
                 Gestão de Utilizadores
               </CardTitle>
               <CardDescription>
-                Gerir utilizadores administrativos do sistema (Admin, Diretor, Secretaria)
+Gerir utilizadores do sistema (Admin, Diretor, Secretaria, Professor, Administrativo)
               </CardDescription>
             </div>
             <div className="sticky top-0 z-10">
@@ -516,6 +509,8 @@ export function UserManagement({ className }: UserManagementProps) {
                                 <SelectItem value="ADMIN">👑 Administrador</SelectItem>
                                 <SelectItem value="DIRETOR">📋 Diretor</SelectItem>
                                 <SelectItem value="SECRETARIA">📝 Secretária</SelectItem>
+                                <SelectItem value="PROFESSOR">🎓 Professor</SelectItem>
+                                <SelectItem value="ADMINISTRATIVO">💼 Administrativo</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormControl>
@@ -549,27 +544,6 @@ export function UserManagement({ className }: UserManagementProps) {
                             </div>
                           </FormControl>
                           <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="isActive"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Utilizador Ativo</FormLabel>
-                            <div className="text-sm text-muted-foreground">
-                              O utilizador pode fazer login no sistema
-                            </div>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
                         </FormItem>
                       )}
                     />
@@ -636,6 +610,8 @@ export function UserManagement({ className }: UserManagementProps) {
                   <SelectItem value="ADMIN">👑 Administrador</SelectItem>
                   <SelectItem value="DIRETOR">📋 Diretor</SelectItem>
                   <SelectItem value="SECRETARIA">📝 Secretária</SelectItem>
+                  <SelectItem value="PROFESSOR">🎓 Professor</SelectItem>
+                  <SelectItem value="ADMINISTRATIVO">💼 Administrativo</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -736,23 +712,13 @@ export function UserManagement({ className }: UserManagementProps) {
                         {getRoleBadge(user.role)}
                       </TableCell>
                       <TableCell>
-                        {user.isActive ? (
-                          <Badge 
-                            className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200"
-                            variant="outline"
-                          >
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Ativo
-                          </Badge>
-                        ) : (
-                          <Badge 
-                            className="bg-red-100 text-red-800 border-red-200 hover:bg-red-200"
-                            variant="outline"
-                          >
-                            <XCircle className="w-3 h-3 mr-1" />
-                            Inativo
-                          </Badge>
-                        )}
+                        <Badge 
+                          className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200"
+                          variant="outline"
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Ativo
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {format(new Date(user.createdAt), 'dd/MM/yyyy', { locale: pt })}
@@ -781,16 +747,6 @@ export function UserManagement({ className }: UserManagementProps) {
                             <DropdownMenuItem onClick={() => handleSendCredentials(user)}>
                               <Mail className="mr-2 h-4 w-4" />
                               Enviar credenciais
-                            </DropdownMenuItem>
-                            
-                            <DropdownMenuSeparator />
-                            
-                            <DropdownMenuItem 
-                              onClick={() => handleToggleActive(user)}
-                              className={user.isActive ? 'text-red-600' : 'text-green-600'}
-                            >
-                              <UserX className="mr-2 h-4 w-4" />
-                              {user.isActive ? 'Desativar acesso' : 'Ativar acesso'}
                             </DropdownMenuItem>
                             
                             {currentUser?.role === 'ADMIN' && user.id !== currentUser.id && (
@@ -894,6 +850,8 @@ export function UserManagement({ className }: UserManagementProps) {
                           <SelectItem value="ADMIN">👑 Administrador</SelectItem>
                           <SelectItem value="DIRETOR">📋 Diretor</SelectItem>
                           <SelectItem value="SECRETARIA">📝 Secretária</SelectItem>
+                          <SelectItem value="PROFESSOR">🎓 Professor</SelectItem>
+                          <SelectItem value="ADMINISTRATIVO">💼 Administrativo</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormControl>
@@ -927,27 +885,6 @@ export function UserManagement({ className }: UserManagementProps) {
                       </div>
                     </FormControl>
                     <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={editForm.control}
-                name="isActive"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Utilizador Ativo</FormLabel>
-                      <div className="text-sm text-muted-foreground">
-                        O utilizador pode fazer login no sistema
-                      </div>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
                   </FormItem>
                 )}
               />

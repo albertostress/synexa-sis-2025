@@ -23,14 +23,20 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { User } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('users')
 @Controller('users')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth()
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Criar novo usuário' })
   @ApiResponse({
     status: 201,
@@ -53,6 +59,7 @@ export class UsersController {
   }
 
   @Get()
+  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Listar todos os usuários' })
   @ApiResponse({
     status: 200,
@@ -63,6 +70,7 @@ export class UsersController {
   }
 
   @Get(':id')
+  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Buscar usuário por ID' })
   @ApiResponse({
     status: 200,
@@ -74,6 +82,7 @@ export class UsersController {
   }
 
   @Put(':id')
+  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Atualizar usuário' })
   @ApiResponse({
     status: 200,
@@ -90,6 +99,7 @@ export class UsersController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Remover usuário' })
   @ApiResponse({
     status: 200,

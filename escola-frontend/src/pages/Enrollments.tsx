@@ -285,7 +285,7 @@ export default function Enrollments() {
               className="bg-green-600 hover:bg-green-700"
             >
               <UserPlus className="w-4 h-4 mr-2" />
-              + Novo Estudante
+              + Nova Matrícula
             </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>

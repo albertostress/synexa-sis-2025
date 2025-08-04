@@ -7,7 +7,7 @@ import { EnrollmentWithRelations, CreateEnrollmentDto, UpdateEnrollmentDto, Enro
 import { GradeWithRelations, CreateGradeDto, UpdateGradeDto, GradeFilters } from '../types/grade';
 import { ReportCard, StudentInfo, GetReportCardDto, ReportFilters } from '../types/report';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // Create axios instance
 export const api = axios.create({
@@ -184,6 +184,16 @@ export const classesAPI = {
   
   delete: async (id: string): Promise<void> => {
     await api.delete(`/classes/${id}`);
+  },
+  
+  checkAvailability: async (id: string): Promise<{
+    capacity: number;
+    enrolled: number;
+    available: number;
+    isFull: boolean;
+  }> => {
+    const response = await api.get(`/classes/${id}/availability`);
+    return response.data;
   },
   
   // Legacy function for backwards compatibility

@@ -151,7 +151,6 @@ export interface Guardian {
   email: string;
   relationship: string;
   address: string;
-  bi: string;
 }
 
 // Interface para criar novo estudante inline
@@ -160,10 +159,10 @@ export interface CreateStudentData {
   lastName: string;
   gender: 'MASCULINO' | 'FEMININO';
   birthDate: string;
-  biNumber: string;
+  biNumber?: string;
   province: string;
   municipality: string;
-  tags?: string[];
+  observacao?: string;
   guardian?: Guardian;
 }
 

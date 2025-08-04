@@ -56,13 +56,13 @@ const navigationItems: NavigationItem[] = [
     title: 'Professores',
     url: '/teachers',
     icon: UserCheck,
-    roles: ['ADMIN', 'SECRETARIA'],
+    roles: ['ADMIN', 'DIRETOR'],
   },
   {
     title: 'Disciplinas',
     url: '/subjects',
     icon: BookOpen,
-    roles: ['ADMIN', 'SECRETARIA', 'PROFESSOR'],
+    roles: ['ADMIN', 'DIRETOR', 'PROFESSOR'],
   },
   {
     title: 'Turmas',
@@ -80,7 +80,7 @@ const navigationItems: NavigationItem[] = [
     title: 'Notas',
     url: '/grades',
     icon: FileText,
-    roles: ['ADMIN', 'SECRETARIA', 'PROFESSOR'],
+    roles: ['ADMIN', 'DIRETOR', 'PROFESSOR'],
   },
   {
     title: 'Boletins',
@@ -128,13 +128,19 @@ const navigationItems: NavigationItem[] = [
     title: 'Relatórios',
     url: '/analytics',
     icon: BarChart3,
-    roles: ['ADMIN'],
+    roles: ['ADMIN', 'DIRETOR'],
+  },
+  {
+    title: 'Utilizadores',
+    url: '/users',
+    icon: Users,
+    roles: ['ADMIN', 'DIRETOR'],
   },
   {
     title: 'Configurações',
     url: '/settings',
     icon: Settings,
-    roles: ['ADMIN'],
+    roles: ['ADMIN', 'DIRETOR'],
   },
 ];
 

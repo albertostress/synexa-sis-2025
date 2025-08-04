@@ -11,7 +11,8 @@ import {
   MaxLength,
   IsUUID,
   IsArray,
-  Length
+  Length,
+  ValidateIf
 } from 'class-validator';
 import { Gender, StudentStatus } from '@prisma/client';
 
@@ -54,15 +55,15 @@ export class CreateStudentDto {
   birthDate: string;
 
   @ApiProperty({ 
-    description: 'Número do Bilhete de Identidade do aluno (opcional)',
+    description: 'Número do Bilhete de Identidade do aluno (totalmente opcional)',
     example: '003456789LA042',
     required: false
   })
-  @IsOptional()
+  @ValidateIf((obj) => obj.biNumber !== undefined && obj.biNumber !== '')
   @IsString()
   @Length(8, 20, { message: 'Número do BI deve ter entre 8 e 20 caracteres' })
-  @Matches(/^\d{6,9}[A-Z]{2}\d{3}$/, { 
-    message: 'Formato inválido do BI (ex: 003456789LA042)' 
+  @Matches(/^([0-9]{9}[A-Z]{2}[0-9]{3})$/i, {
+    message: 'Formato inválido do BI (ex: 003456789LA042)',
   })
   biNumber?: string;
 

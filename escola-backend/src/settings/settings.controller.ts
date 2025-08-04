@@ -51,7 +51,7 @@ export class SettingsController {
   }
 
   @Get()
-  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA')
+  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Listar configurações globais' })
   @ApiResponse({
     status: 200,
@@ -65,7 +65,7 @@ export class SettingsController {
   }
 
   @Get('key/:key')
-  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA')
+  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Buscar configuração por chave' })
   @ApiResponse({
     status: 200,
@@ -80,7 +80,7 @@ export class SettingsController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA')
+  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Buscar configuração por ID' })
   @ApiResponse({
     status: 200,

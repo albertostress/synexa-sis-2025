@@ -247,7 +247,7 @@ export function mapStudentFormToDtoStrict(formData: any): CreateStudentDto {
       email: formData.guardianEmail || formData.parentEmail || '',
       relationship: formData.guardianRelationship || '',
       address: formData.guardianAddress || '',
-      bi: formData.guardianId || formData.guardianBi || ''
+      bi: formData.guardianId || ''
     }
   };
 
@@ -265,7 +265,7 @@ export function getUnusedFormFields(formData: any): string[] {
   
   const guardianFields = [
     'guardianName', 'guardianPhone', 'guardianEmail',
-    'guardianRelationship', 'guardianAddress', 'guardianId', 'guardianBi'
+    'guardianRelationship', 'guardianAddress', 'guardianId'
   ];
 
   return Object.keys(formData).filter(key => 
@@ -290,7 +290,6 @@ export function getUnusedFormFields(formData: any): string[] {
  *   guardianPhone: "+244927180794",
  *   guardianEmail: "email@exemplo.com",
  *   guardianAddress: "Rua ABC",
- *   guardianBi: "39939393932",
  *   // Campos que serão removidos:
  *   studentPhoto: File,
  *   biDocument: File,

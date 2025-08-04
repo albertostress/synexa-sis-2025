@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Edit, Trash2, GraduationCap, Users, Calendar, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -53,14 +53,16 @@ export default function Classes() {
   });
 
   // Tratamento de erro do lado do React
-  if (classesError) {
-    console.error('❌ Erro ao carregar turmas:', classesError);
-    toast({
-      title: 'Erro',
-      description: 'Não foi possível carregar as turmas',
-      variant: 'destructive'
-    });
-  }
+  useEffect(() => {
+    if (classesError) {
+      console.error('❌ Erro ao carregar turmas:', classesError);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar as turmas',
+        variant: 'destructive'
+      });
+    }
+  }, [classesError, toast]);
 
   // Carregar estudantes para seleção
   const { data: students = [], isLoading: loadingStudents } = useQuery({

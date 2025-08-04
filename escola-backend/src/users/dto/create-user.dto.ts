@@ -35,6 +35,6 @@ export class CreateUserDto {
     example: Role.PROFESSOR,
   })
   @IsNotEmpty({ message: 'Role é obrigatório' })
-  @IsEnum(Role, { message: 'Role deve ser: ADMIN, SECRETARIA, PROFESSOR ou DIRETOR' })
+  @IsEnum(Role, { message: 'Role deve ser: ADMIN, SECRETARIA, PROFESSOR, ADMINISTRATIVO ou DIRETOR' })
   role: Role;
 }

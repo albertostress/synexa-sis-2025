@@ -83,6 +83,30 @@ export class ClassesController {
     return this.classesService.findClassesByYear(year);
   }
 
+  @Get(':id/availability')
+  @ApiOperation({ summary: 'Verificar disponibilidade de vagas na turma' })
+  @ApiParam({ name: 'id', description: 'ID da turma' })
+  @ApiResponse({
+    status: 200,
+    description: 'Informações de disponibilidade da turma',
+    schema: {
+      type: 'object',
+      properties: {
+        capacity: { type: 'number', example: 30 },
+        enrolled: { type: 'number', example: 25 },
+        available: { type: 'number', example: 5 },
+        isFull: { type: 'boolean', example: false },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Turma não encontrada',
+  })
+  async checkAvailability(@Param('id', ParseUUIDPipe) id: string) {
+    return this.classesService.checkAvailability(id);
+  }
+
   @Get(':id')
   @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
   @ApiOperation({ summary: 'Buscar turma por ID' })
