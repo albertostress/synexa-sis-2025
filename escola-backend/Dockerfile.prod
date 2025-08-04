@@ -1,87 +1,71 @@
-# Multi-stage build para produção
+# Multi-stage build para produção otimizada
 FROM node:18-alpine AS builder
-
-# Instalar dependências do sistema e ferramentas de build
-RUN apk update && apk upgrade && \
-    apk add --no-cache \
-    openssl \
-    libc6-compat \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/cache/apk/*
 
 WORKDIR /app
 
-# Copiar package files
+# Copiar package.json para instalar dependências
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Instalar TODAS as dependências (incluindo devDependencies para build)
-RUN npm ci && npm cache clean --force
+# Instalar todas as dependências (incluindo dev para build)
+RUN npm install --legacy-peer-deps
 
-# Copiar código fonte
-COPY . .
-
-# Gerar Prisma client
+# Gerar Prisma Client
 RUN npx prisma generate
 
-# Build da aplicação
+# Copiar código fonte e build
+COPY src ./src/
+COPY tsconfig*.json ./
 RUN npm run build
 
-# Stage final
+# Stage de produção - imagem final leve
 FROM node:18-alpine AS production
 
-# Instalar dependências do sistema e Chromium para PDFs
-RUN apk update && apk upgrade && \
-    apk add --no-cache \
-    openssl \
-    libc6-compat \
-    chromium \
-    nss \
-    freetype \
-    freetype-dev \
-    harfbuzz \
-    ca-certificates \
-    ttf-freefont \
-    ttf-dejavu \
-    ttf-droid \
-    ttf-liberation \
-    font-noto \
-    curl \
-    && rm -rf /var/cache/apk/*
-
-# Criar usuário não-root
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
+# Instalar apenas openssl (necessário para Prisma)
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 
-# Copiar package files para reinstalar apenas dependências de produção
-COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
-COPY --from=builder --chown=nodejs:nodejs /app/prisma ./prisma
+# Copiar package.json e instalar apenas dependências de produção
+COPY package*.json ./
+RUN npm install --omit=dev --legacy-peer-deps && \
+    npm cache clean --force
 
-# Instalar apenas dependências de produção
-RUN npm ci --only=production && npm cache clean --force
+# Copiar Prisma schema e gerar client para produção
+COPY prisma ./prisma/
+RUN npx prisma generate && \
+    rm -rf node_modules/@prisma/engines/migration-engine* && \
+    rm -rf node_modules/@prisma/engines/introspection-engine* && \
+    rm -rf node_modules/@prisma/engines/prisma-fmt* && \
+    rm -rf node_modules/@types && \
+    rm -rf node_modules/typescript && \
+    rm -rf node_modules/@typescript-eslint && \
+    find node_modules -name "*.d.ts" -type f -delete && \
+    find node_modules -name "*.map" -type f -delete && \
+    find node_modules -name "*.test.js" -type f -delete && \
+    find node_modules -name "test" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find node_modules -name "tests" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find node_modules -name "__tests__" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find node_modules -name "docs" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find node_modules -name "*.md" -type f -delete && \
+    rm -rf /tmp/* /root/.npm /root/.cache /usr/share/man && \
+    npm cache clean --force
 
-# Gerar Prisma client no ambiente de produção
-RUN npx prisma generate
+# Copiar build da aplicação do stage anterior
+COPY --from=builder /app/dist ./dist
 
-# Copiar arquivos buildados
-COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+# Copiar entrypoint
+COPY entrypoint-prod.sh ./
+RUN chmod +x entrypoint-prod.sh
 
-# Configurar variáveis de ambiente
-ENV NODE_ENV=production \
-    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
-    CHROMIUM_PATH=/usr/bin/chromium-browser
+# Variáveis de ambiente
+ENV NODE_ENV=production
+ENV PORT=3000
 
-USER nodejs
+# Rodar como root para evitar problemas de permissão no desenvolvimento
+# Em produção, usar usuário não-root
 
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
-
-CMD ["node", "dist/main"]
+# Usar entrypoint customizado
+CMD ["./entrypoint-prod.sh"]

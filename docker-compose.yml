@@ -16,7 +16,7 @@ services:
   escola-backend:
     build: 
       context: ./escola-backend
-      dockerfile: Dockerfile.minimal
+      dockerfile: Dockerfile.prod
     container_name: escola-backend
     environment:
       - NODE_ENV=development
@@ -27,13 +27,8 @@ services:
     depends_on:
       - escola-db
       - playwright-service
-    volumes:
-      - ./escola-backend:/app
-      - /app/node_modules
-      - /app/dist
     networks:
       - escola-network
-    command: npm run start:dev
     restart: unless-stopped
 
   escola-frontend:

@@ -151,7 +151,7 @@ export class DocumentsController {
   })
   async getPdfHealth(): Promise<{ 
     status: string; 
-    browser: boolean; 
+    playwrightService: boolean; 
     mode: string;
     cache: any;
   }> {
