@@ -3,12 +3,17 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copiar package files e instalar dependências
-COPY package*.json ./
-RUN npm ci && npm cache clean --force
+# Copiar APENAS package files primeiro (para cache efetivo)
+COPY package.json package-lock.json ./
 
-# Copiar código fonte e fazer build de produção
+# Instalar dependências (esta camada só rebuilda se package*.json mudar)
+RUN npm ci && \
+    npm cache clean --force
+
+# Copiar código fonte DEPOIS (mudanças no código não afetam npm install)
 COPY . .
+
+# Build de produção
 RUN npm run build
 
 # Stage de produção com Nginx

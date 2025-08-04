@@ -1,1 +1,0 @@
-Force refresh to clear cache and restart frontend properly - timestamp: 2025-07-22

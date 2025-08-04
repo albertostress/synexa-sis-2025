@@ -1,23 +1,15 @@
 # Dockerfile otimizado para desenvolvimento com hot reload
 FROM node:18-alpine
 
-# Instalar dependências do sistema e Chromium para geração de PDFs
-RUN apk update && apk upgrade && \
-    apk add --no-cache \
-    openssl \
-    libc6-compat \
+# Instalar dependências do sistema necessárias
+RUN apk update && apk add --no-cache \
     chromium \
     nss \
     freetype \
     freetype-dev \
     harfbuzz \
     ca-certificates \
-    ttf-freefont \
-    ttf-dejavu \
-    ttf-droid \
-    ttf-liberation \
-    font-noto \
-    && rm -rf /var/cache/apk/*
+    ttf-freefont
 
 # Definir diretório de trabalho
 WORKDIR /app
@@ -28,9 +20,9 @@ COPY package*.json ./
 # Instalar dependências (incluindo devDependencies para desenvolvimento)
 RUN npm install
 
-# Configurar variáveis de ambiente para Puppeteer
+# Configurar variáveis de ambiente para Playwright
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
     CHROMIUM_PATH=/usr/bin/chromium-browser \
     NODE_ENV=development
 
