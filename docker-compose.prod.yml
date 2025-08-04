@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # Banco de dados PostgreSQL
+  escola-db:
+    image: postgres:15-alpine
+    container_name: escola-db-prod
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: escola
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    networks:
+      - escola-network-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend da aplicação
+  escola-backend:
+    build:
+      context: ./escola-backend
+      dockerfile: Dockerfile.prod
+    container_name: escola-backend-prod
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgres://postgres:postgres@escola-db:5432/escola
+    ports:
+      - "3000:3000"
+    depends_on:
+      escola-db:
+        condition: service_healthy
+    networks:
+      - escola-network-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# Volumes persistentes
+volumes:
+  pgdata_prod:
+    driver: local
+
+# Rede isolada
+networks:
+  escola-network-prod:
+    driver: bridge
