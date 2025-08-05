@@ -12,16 +12,42 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { Subject, SubjectWithTeachers } from './entities/subject.entity';
+import { ClassLevel, SchoolCycle } from '@prisma/client';
 
 @Injectable()
 export class SubjectsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // 🎯 Helper para atribuir SchoolCycle automaticamente com base na classLevel
+  private getCycleFromClassLevel(classLevel: ClassLevel): SchoolCycle {
+    switch (classLevel) {
+      case ClassLevel.CLASSE_1:
+      case ClassLevel.CLASSE_2:
+      case ClassLevel.CLASSE_3:
+      case ClassLevel.CLASSE_4:
+        return SchoolCycle.PRIMARIO_1;
+      case ClassLevel.CLASSE_5:
+      case ClassLevel.CLASSE_6:
+        return SchoolCycle.PRIMARIO_2;
+      case ClassLevel.CLASSE_7:
+      case ClassLevel.CLASSE_8:
+      case ClassLevel.CLASSE_9:
+        return SchoolCycle.SECUNDARIO_1;
+      case ClassLevel.CLASSE_10:
+      case ClassLevel.CLASSE_11:
+      case ClassLevel.CLASSE_12:
+        return SchoolCycle.SECUNDARIO_2;
+      default:
+        throw new BadRequestException('Classe inválida');
+    }
+  }
 
   async create(createSubjectDto: CreateSubjectDto): Promise<SubjectWithTeachers> {
     const { 
       name, 
       description, 
       code, 
+      classLevel,
       year, 
       category, 
       credits, 
@@ -29,6 +55,9 @@ export class SubjectsService {
       isActive = true, 
       teacherIds 
     } = createSubjectDto;
+
+    // 🎯 Gerar cycle automaticamente com base no classLevel
+    const cycle = this.getCycleFromClassLevel(classLevel);
 
     // Verificar se já existe uma disciplina com esse nome ou código
     const existingSubject = await this.prisma.subject.findFirst({
@@ -68,6 +97,8 @@ export class SubjectsService {
         name,
         description: description || null,
         code,
+        classLevel,
+        cycle,
         year,
         category: prismaCategory as any,
         credits,

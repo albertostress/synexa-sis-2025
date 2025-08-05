@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SchoolYearProvider } from "@/contexts/SchoolYearContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -39,7 +40,8 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider defaultTheme="light" storageKey="synexa-theme">
       <AuthProvider>
-        <TooltipProvider>
+        <SchoolYearProvider>
+          <TooltipProvider>
           <Toaster />
           <Sonner />
           <BrowserRouter
@@ -60,7 +62,7 @@ const App = () => (
               <Route
                 path="/dashboard"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['ADMIN', 'DIRETOR']}>
                     <DashboardLayout>
                       <Dashboard />
                     </DashboardLayout>
@@ -100,7 +102,7 @@ const App = () => (
               <Route
                 path="/subjects"
                 element={
-                  <ProtectedRoute allowedRoles={['ADMIN', 'DIRETOR', 'PROFESSOR']}>
+                  <ProtectedRoute allowedRoles={['ADMIN', 'DIRETOR']}>
                     <DashboardLayout>
                       <Subjects />
                     </DashboardLayout>
@@ -110,7 +112,7 @@ const App = () => (
               <Route
                 path="/classes"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}>
                     <DashboardLayout>
                       <Classes />
                     </DashboardLayout>
@@ -140,7 +142,7 @@ const App = () => (
               <Route
                 path="/reports"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['ADMIN', 'SECRETARIA']}>
                     <DashboardLayout>
                       <Reports />
                     </DashboardLayout>
@@ -265,7 +267,8 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
-        </TooltipProvider>
+          </TooltipProvider>
+        </SchoolYearProvider>
       </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>

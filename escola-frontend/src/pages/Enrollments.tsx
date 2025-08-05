@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Edit, Trash2, UserPlus, Calendar, Users, GraduationCap, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { enrollmentAPI, studentsAPI, classesAPI } from '@/lib/api';
+import { useEnrollmentYears } from '@/hooks/useEnrollmentYears';
 import { 
   EnrollmentWithRelations, 
   CreateEnrollmentDto, 
@@ -35,6 +36,16 @@ export default function Enrollments() {
   const [selectedStatus, setSelectedStatus] = useState<EnrollmentStatus | ''>('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Carregar anos letivos disponíveis dinamicamente
+  const { yearsAsNumbers, mostRecentYear, loadingYears } = useEnrollmentYears();
+
+  // Definir o ano mais recente como padrão quando os anos forem carregados
+  useEffect(() => {
+    if (yearsAsNumbers.length > 0 && selectedYear !== mostRecentYear) {
+      setSelectedYear(mostRecentYear);
+    }
+  }, [yearsAsNumbers, mostRecentYear]);
 
   // Carregar matrículas do backend
   const { 
@@ -348,16 +359,20 @@ export default function Enrollments() {
                   </div>
                   <div>
                     <Label htmlFor="year">Ano Letivo</Label>
-                    <Select name="year" defaultValue={editingEnrollment?.year?.toString() || new Date().getFullYear().toString()}>
+                    <Select name="year" defaultValue={editingEnrollment?.year?.toString() || mostRecentYear.toString()}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione o ano" />
+                        <SelectValue placeholder={loadingYears ? "Carregando anos..." : "Selecione o ano"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.from({length: 11}, (_, i) => 2020 + i).map(year => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {formatSchoolYear(year)}
-                          </SelectItem>
-                        ))}
+                        {loadingYears ? (
+                          <div className="text-center p-2">Carregando anos letivos...</div>
+                        ) : (
+                          yearsAsNumbers.map(year => (
+                            <SelectItem key={year} value={year.toString()}>
+                              {formatSchoolYear(year)}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -432,16 +447,20 @@ export default function Enrollments() {
             <CardTitle className="flex items-center justify-between">
               <span>Lista de Matrículas</span>
               <div className="flex items-center gap-2">
-                <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))} disabled={loadingYears}>
                   <SelectTrigger className="w-32">
-                    <SelectValue />
+                    <SelectValue placeholder={loadingYears ? "..." : selectedYear.toString()} />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from({length: 11}, (_, i) => 2020 + i).map(year => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
-                    ))}
+                    {loadingYears ? (
+                      <div className="text-center p-2">Carregando...</div>
+                    ) : (
+                      yearsAsNumbers.map(year => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
                 <Select value={selectedStatus || 'ALL'} onValueChange={(value) => setSelectedStatus(value === 'ALL' ? '' : value as EnrollmentStatus)}>

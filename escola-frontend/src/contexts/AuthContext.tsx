@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 
-export type UserRole = 'ADMIN' | 'SECRETARIA' | 'PROFESSOR';
+export type UserRole = 'ADMIN' | 'SECRETARIA' | 'PROFESSOR' | 'DIRETOR' | 'ADMINISTRATIVO';
 
 export interface User {
   id: string;

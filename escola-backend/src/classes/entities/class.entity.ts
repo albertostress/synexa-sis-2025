@@ -3,7 +3,7 @@
  * Referência: context7 mcp - Entity Pattern
  */
 import { ApiProperty } from '@nestjs/swagger';
-import { SchoolClass as PrismaSchoolClass, Student, Teacher, User, Shift } from '@prisma/client';
+import { SchoolClass as PrismaSchoolClass, Student, Teacher, User, Shift, ClassLevel, SchoolCycle } from '@prisma/client';
 
 export class SchoolClass implements PrismaSchoolClass {
   @ApiProperty({
@@ -17,6 +17,20 @@ export class SchoolClass implements PrismaSchoolClass {
     example: '3° Ano A',
   })
   name: string;
+
+  @ApiProperty({
+    description: 'Nível de classe (1.ª à 12.ª classe)',
+    example: 'CLASSE_7',
+    enum: ClassLevel,
+  })
+  classLevel: ClassLevel;
+
+  @ApiProperty({
+    description: 'Ciclo escolar',
+    example: 'SECUNDARIO_1',
+    enum: SchoolCycle,
+  })
+  cycle: SchoolCycle;
 
   @ApiProperty({
     description: 'Ano letivo',

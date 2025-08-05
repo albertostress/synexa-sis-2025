@@ -44,7 +44,7 @@ const navigationItems: NavigationItem[] = [
     title: 'Dashboard',
     url: '/dashboard',
     icon: LayoutDashboard,
-    roles: ['ADMIN', 'SECRETARIA', 'PROFESSOR'],
+    roles: ['ADMIN', 'DIRETOR'],
   },
   {
     title: 'Alunos',
@@ -62,13 +62,13 @@ const navigationItems: NavigationItem[] = [
     title: 'Disciplinas',
     url: '/subjects',
     icon: BookOpen,
-    roles: ['ADMIN', 'DIRETOR', 'PROFESSOR'],
+    roles: ['ADMIN', 'DIRETOR'],
   },
   {
     title: 'Turmas',
     url: '/classes',
     icon: GraduationCap,
-    roles: ['ADMIN', 'SECRETARIA', 'PROFESSOR'],
+    roles: ['ADMIN', 'SECRETARIA'],
   },
   {
     title: 'Matrículas',
@@ -86,7 +86,7 @@ const navigationItems: NavigationItem[] = [
     title: 'Boletins',
     url: '/reports',
     icon: FileCheck,
-    roles: ['ADMIN', 'SECRETARIA', 'PROFESSOR'],
+    roles: ['ADMIN', 'SECRETARIA'],
   },
   {
     title: 'Documentos',

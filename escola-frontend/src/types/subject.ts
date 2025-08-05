@@ -1,4 +1,5 @@
 // Types para o módulo de Disciplinas (Subjects)
+import { ClassLevel, SchoolCycle } from './pedagogical';
 
 // Interface base para User (reutilizada)
 export interface User {
@@ -27,6 +28,8 @@ export interface Subject {
   name: string;
   description?: string;
   code: string;
+  classLevel: ClassLevel;   // 🎯 Novo campo obrigatório
+  cycle: SchoolCycle;       // 🎯 Derivado automaticamente
   year: string;
   category: "Obrigatória" | "Opcional";
   credits: number;
@@ -46,6 +49,7 @@ export interface CreateSubjectDto {
   name: string;
   description?: string;
   code: string;
+  classLevel: ClassLevel;   // 🎯 Novo campo obrigatório
   year: string;
   category: "Obrigatória" | "Opcional";
   credits: number;
@@ -60,6 +64,8 @@ export interface UpdateSubjectDto extends Partial<CreateSubjectDto> {}
 // Interface para filtros de busca
 export interface SubjectFilters {
   name?: string;
+  classLevel?: ClassLevel;  // 🎯 Novo filtro por classe
+  cycle?: SchoolCycle;      // 🎯 Novo filtro por ciclo
   teacherId?: string;
 }
 

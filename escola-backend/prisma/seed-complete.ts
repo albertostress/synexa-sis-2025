@@ -139,6 +139,8 @@ async function main() {
         name: disc.nome,
         description: `Disciplina de ${disc.nome} - Sistema educativo angolano`,
         code: disc.codigo,
+        classLevel: 'CLASSE_7', // Padrão para 7ª classe
+        cycle: 'SECUNDARIO_1', // Padrão para ensino secundário 1º ciclo
         year: '2024',
         category: 'OBRIGATORIA',
         credits: 1,
@@ -228,6 +230,8 @@ async function main() {
         const schoolClass = await prisma.schoolClass.create({
           data: {
             name: `${ano} - Turma ${t} (${turno === 'MORNING' ? 'Manhã' : turno === 'AFTERNOON' ? 'Tarde' : 'Noite'})`,
+            classLevel: 'CLASSE_7', // Padrão para 7ª classe
+            cycle: 'SECUNDARIO_1', // Padrão para ensino secundário 1º ciclo
             year: 2024,
             shift: turno as any,
             capacity: 35

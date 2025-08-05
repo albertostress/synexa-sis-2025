@@ -133,10 +133,10 @@ export class StudentsService {
     });
   }
 
-  async findAllPaginated(query: StudentsQueryDto): Promise<PaginatedStudentsResponseDto> {
+  async findAllPaginated(query: StudentsQueryDto, user?: any): Promise<PaginatedStudentsResponseDto> {
     const { page = 1, limit = 20, search, academicYear, classId, province } = query;
 
-    const where: Prisma.StudentWhereInput = {
+    let where: Prisma.StudentWhereInput = {
       ...(search && {
         OR: [
           { firstName: { contains: search, mode: 'insensitive' } },
@@ -148,6 +148,36 @@ export class StudentsService {
       ...(classId && { classId }),
       ...(province && { province }),
     };
+
+    // Se o usuário é PROFESSOR, filtrar apenas alunos das turmas que ele leciona
+    if (user && user.role === 'PROFESSOR') {
+      // Buscar as turmas onde o professor leciona através das disciplinas
+      const teacherSubjects = await this.prisma.subject.findMany({
+        where: { teacherId: user.sub },
+        select: { classId: true }
+      });
+
+      const classIds = [...new Set(teacherSubjects.map(s => s.classId))];
+      
+      // Se o professor não tem turmas atribuídas, retornar lista vazia
+      if (classIds.length === 0) {
+        return {
+          students: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+          hasNext: false,
+          hasPrevious: false,
+        };
+      }
+
+      // Filtrar apenas alunos das turmas do professor
+      where = {
+        ...where,
+        classId: { in: classIds }
+      };
+    }
 
     const [students, total] = await Promise.all([
       this.prisma.student.findMany({
@@ -186,7 +216,7 @@ export class StudentsService {
     };
   }
 
-  async findOne(id: string): Promise<Student> {
+  async findOne(id: string, user?: any): Promise<Student> {
     const student = await this.prisma.student.findUnique({
       where: { id },
       include: {
@@ -217,6 +247,20 @@ export class StudentsService {
 
     if (!student) {
       throw new NotFoundException(`Aluno com ID ${id} não encontrado`);
+    }
+
+    // Se o usuário é PROFESSOR, verificar se tem acesso a este aluno
+    if (user && user.role === 'PROFESSOR') {
+      const teacherSubjects = await this.prisma.subject.findMany({
+        where: { teacherId: user.sub },
+        select: { classId: true }
+      });
+
+      const classIds = [...new Set(teacherSubjects.map(s => s.classId))];
+      
+      if (!classIds.includes(student.classId)) {
+        throw new NotFoundException(`Aluno com ID ${id} não encontrado`);
+      }
     }
 
     return student;
@@ -276,8 +320,8 @@ export class StudentsService {
     };
   }
 
-  async update(id: string, updateStudentDto: UpdateStudentDto): Promise<Student> {
-    await this.findOne(id);
+  async update(id: string, updateStudentDto: UpdateStudentDto, user?: any): Promise<Student> {
+    await this.findOne(id, user);
 
     // Verificar se número de matrícula já existe (se estiver sendo atualizado)
     if (updateStudentDto.studentNumber) {
@@ -340,8 +384,8 @@ export class StudentsService {
     }
   }
 
-  async remove(id: string): Promise<void> {
-    await this.findOne(id);
+  async remove(id: string, user?: any): Promise<void> {
+    await this.findOne(id, user);
 
     // Verificar se há dependências
     const [enrollments, grades, invoices, attendances] = await Promise.all([
@@ -372,8 +416,8 @@ export class StudentsService {
   }
 
   // Student Notes Management
-  async createNote(studentId: string, createNoteDto: CreateStudentNoteDto, userId: string): Promise<StudentNote> {
-    await this.findOne(studentId);
+  async createNote(studentId: string, createNoteDto: CreateStudentNoteDto, userId: string, user?: any): Promise<StudentNote> {
+    await this.findOne(studentId, user);
 
     const note = await this.prisma.studentNote.create({
       data: {
@@ -400,13 +444,13 @@ export class StudentsService {
       title: `Nova ${createNoteDto.type.toLowerCase()} adicionada`,
       description: `${createNoteDto.type}: ${createNoteDto.content.substring(0, 100)}${createNoteDto.content.length > 100 ? '...' : ''}`,
       metadata: { noteId: note.id, noteType: createNoteDto.type },
-    }, userId);
+    }, userId, user);
 
     return note;
   }
 
-  async getNotes(studentId: string): Promise<StudentNote[]> {
-    await this.findOne(studentId);
+  async getNotes(studentId: string, user?: any): Promise<StudentNote[]> {
+    await this.findOne(studentId, user);
 
     return await this.prisma.studentNote.findMany({
       where: { studentId },
@@ -428,9 +472,10 @@ export class StudentsService {
   async addTimelineEvent(
     studentId: string, 
     createEventDto: CreateTimelineEventDto, 
-    userId?: string
+    userId?: string,
+    user?: any
   ): Promise<StudentTimeline> {
-    await this.findOne(studentId);
+    await this.findOne(studentId, user);
 
     return await this.prisma.studentTimeline.create({
       data: {
@@ -454,8 +499,8 @@ export class StudentsService {
     });
   }
 
-  async getTimeline(studentId: string): Promise<StudentTimeline[]> {
-    await this.findOne(studentId);
+  async getTimeline(studentId: string, user?: any): Promise<StudentTimeline[]> {
+    await this.findOne(studentId, user);
 
     return await this.prisma.studentTimeline.findMany({
       where: { studentId },
@@ -567,8 +612,8 @@ export class StudentsService {
   }
 
   // Get student invoices
-  async getStudentInvoices(studentId: string) {
-    await this.findOne(studentId);
+  async getStudentInvoices(studentId: string, user?: any) {
+    await this.findOne(studentId, user);
 
     return await this.prisma.invoice.findMany({
       where: { studentId },

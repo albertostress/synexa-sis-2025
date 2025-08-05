@@ -16,7 +16,7 @@ services:
   escola-backend:
     build: 
       context: ./escola-backend
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile.minimal
     container_name: escola-backend
     environment:
       - NODE_ENV=development
@@ -38,7 +38,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - VITE_API_BASE_URL=${API_URL:-http://escola-backend:3000}
+      - VITE_API_BASE_URL=${API_URL:-http://localhost:3000}
     networks:
       - escola-network
     # depends_on:

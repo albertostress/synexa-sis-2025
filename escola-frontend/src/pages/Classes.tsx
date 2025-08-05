@@ -23,6 +23,12 @@ import {
   formatSchoolYear,
   getOccupancyBadgeVariant
 } from '@/types/class';
+import { 
+  ClassLevel, 
+  CLASS_LEVEL_OPTIONS, 
+  SCHOOL_CYCLE_LABELS, 
+  getCycleFromClassLevel 
+} from '@/types/pedagogical';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function Classes() {
@@ -200,6 +206,7 @@ export default function Classes() {
     
     const classData: CreateClassDto = {
       name: formData.get('name') as string,
+      classLevel: formData.get('classLevel') as ClassLevel,
       year: parseInt(formData.get('year') as string) || new Date().getFullYear(),
       shift: formData.get('shift') as Shift,
       capacity: parseInt(formData.get('capacity') as string) || 30,
@@ -212,6 +219,15 @@ export default function Classes() {
       toast({
         title: 'Erro',
         description: 'Nome da turma é obrigatório',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!classData.classLevel) {
+      toast({
+        title: 'Erro',
+        description: 'Classe é obrigatória',
         variant: 'destructive'
       });
       return;
@@ -302,9 +318,31 @@ export default function Classes() {
                     id="name"
                     name="name"
                     defaultValue={editingClass?.name}
-                    placeholder="Ex: 10ª A, 11ª B"
+                    placeholder="Ex: 7A, 10B"
                     required
                   />
+                </div>
+                <div>
+                  <Label htmlFor="classLevel">🎯 Classe</Label>
+                  <Select 
+                    name="classLevel" 
+                    defaultValue={editingClass?.classLevel || ''}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a classe" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CLASS_LEVEL_OPTIONS.map(option => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className="flex items-center gap-2">
+                            <GraduationCap className="w-4 h-4" />
+                            {option.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="year">Ano Letivo</Label>
@@ -434,6 +472,8 @@ export default function Classes() {
             <TableHeader>
               <TableRow>
                 <TableHead>Turma</TableHead>
+                <TableHead>🎯 Classe</TableHead>
+                <TableHead>📘 Ciclo</TableHead>
                 <TableHead>Ano Letivo</TableHead>
                 <TableHead>Turno</TableHead>
                 <TableHead>Estudantes</TableHead>
@@ -447,7 +487,7 @@ export default function Classes() {
                 <>
                   {Array.from({ length: 3 }).map((_, index) => (
                     <TableRow key={index}>
-                      <TableCell colSpan={7} className="py-4">
+                      <TableCell colSpan={9} className="py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-muted rounded-full animate-pulse"></div>
                           <div className="flex-1 space-y-2">
@@ -461,7 +501,7 @@ export default function Classes() {
                 </>
               ) : classesError ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={9} className="text-center py-8">
                     <div className="text-red-500">Erro ao carregar turmas. Tente novamente.</div>
                     <Button 
                       variant="outline" 
@@ -500,6 +540,20 @@ export default function Classes() {
                             <div className="text-sm text-muted-foreground">ID: {cls.id.slice(0, 8)}</div>
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <GraduationCap className="w-4 h-4 text-blue-600" />
+                          <span className="font-medium">
+                            {cls.classLevel ? CLASS_LEVEL_OPTIONS.find(opt => opt.value === cls.classLevel)?.label || cls.classLevel : 'N/A'}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                          <Calendar className="w-3 h-3" />
+                          {cls.classLevel ? SCHOOL_CYCLE_LABELS[getCycleFromClassLevel(cls.classLevel)] : 'N/A'}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

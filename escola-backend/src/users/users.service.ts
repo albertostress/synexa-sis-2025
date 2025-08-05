@@ -5,7 +5,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { User } from '@prisma/client';
+import { User, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -33,6 +33,27 @@ export class UsersService {
         role,
       },
     });
+
+    // 🎯 MELHORIA 1: Criar Professor automaticamente se role === PROFESSOR
+    if (role === Role.PROFESSOR) {
+      // Verificar se já existe um professor para este usuário (prevenção de duplicação)
+      const existingTeacher = await this.prisma.teacher.findUnique({
+        where: { userId: user.id }
+      });
+
+      if (!existingTeacher) {
+        await this.prisma.teacher.create({
+          data: {
+            userId: user.id,
+            // Usar dados do User para preencher campos correspondentes
+            bio: `Professor(a) ${name}`,
+            qualification: 'A definir',
+            specialization: 'A definir',
+            experience: 0
+          }
+        });
+      }
+    }
 
     // Retornar sem a senha
     const { password: _, ...userWithoutPassword } = user;
@@ -99,6 +120,25 @@ export class UsersService {
       where: { id },
       data: dataToUpdate,
     });
+
+    // 🎯 MELHORIA 1: Criar Professor automaticamente se role mudou para PROFESSOR
+    if (updateData.role === Role.PROFESSOR) {
+      const existingTeacher = await this.prisma.teacher.findUnique({
+        where: { userId: id }
+      });
+
+      if (!existingTeacher) {
+        await this.prisma.teacher.create({
+          data: {
+            userId: id,
+            bio: `Professor(a) ${user.name}`,
+            qualification: 'A definir',
+            specialization: 'A definir',
+            experience: 0
+          }
+        });
+      }
+    }
 
     const { password, ...userWithoutPassword } = user;
     return userWithoutPassword;

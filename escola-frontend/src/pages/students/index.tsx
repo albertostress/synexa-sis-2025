@@ -22,6 +22,7 @@ import { api } from '@/lib/api';
 import { StudentFullProfileModal } from '@/components/students/StudentFullProfileModal';
 import { DatePicker } from '@/components/ui/date-picker';
 import { mapStudentFormToDto } from '@/utils/student-mappers';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Schema de validação alinhado com backend - FASE 22
 const studentSchema = z.object({
@@ -149,6 +150,7 @@ const calcularIdade = (birthDate: string): number => {
 export default function StudentsPage() {
   console.log('🔄 StudentsPage carregado - versão atualizada!');
 
+  const { user, hasAnyRole } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -159,6 +161,16 @@ export default function StudentsPage() {
   const [filterGender, setFilterGender] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const { toast } = useToast();
+
+  // Debug: verificar estado do usuário
+  if (import.meta.env.DEV) {
+    console.log('🔍 User role check:', { 
+      userRole: user?.role, 
+      isAdmin: user?.role === 'ADMIN',
+      isSecretaria: user?.role === 'SECRETARIA', 
+      isProfessor: user?.role === 'PROFESSOR'
+    });
+  }
 
   // Obtém municípios da província selecionada
   const municipiosDisponiveis = selectedProvince && selectedProvince !== 'all' ? municipiosPorProvincia[selectedProvince] || [] : [];
@@ -302,25 +314,34 @@ export default function StudentsPage() {
 
   return (
     <div className="space-y-6">
+
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Estudantes</h1>
-          <p className="text-muted-foreground">Gerir estudantes da escola - Interface melhorada</p>
+          <h1 className="text-3xl font-bold">
+            {user?.role === 'PROFESSOR' ? 'Meus Alunos' : 'Estudantes'}
+          </h1>
+          <p className="text-muted-foreground">
+            {user?.role === 'PROFESSOR'
+              ? 'Alunos das turmas onde você leciona' 
+              : 'Gerir estudantes da escola - Interface melhorada'
+            }
+          </p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button 
-              className="flex items-center gap-2"
-              onClick={() => {
-                setEditingStudent(null);
-                // Reset form when opening dialog
-              }}
-            >
-              <Plus className="w-4 h-4" />
-              Adicionar Estudante
-            </Button>
-          </DialogTrigger>
+        {(user?.role === 'ADMIN' || user?.role === 'SECRETARIA') && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                className="flex items-center gap-2"
+                onClick={() => {
+                  setEditingStudent(null);
+                  // Reset form when opening dialog
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                Adicionar Estudante
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -388,6 +409,7 @@ export default function StudentsPage() {
             />
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* KPIs */}
@@ -584,7 +606,7 @@ export default function StudentsPage() {
                   <TableHead>Encarregado</TableHead>
                   <TableHead>Localização</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead>Ações</TableHead>
+                  <TableHead>{user?.role === 'PROFESSOR' ? 'Ver' : 'Ações'}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -678,24 +700,40 @@ export default function StudentsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            title="Editar estudante"
-                            onClick={() => handleEditStudent(student)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            title="Remover estudante"
-                            onClick={() => handleDeleteStudent(student.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {/* Botões para ADMIN e SECRETARIA apenas */}
+                          {user?.role === 'ADMIN' || user?.role === 'SECRETARIA' ? (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                title="Editar estudante"
+                                onClick={() => handleEditStudent(student)}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                title="Remover estudante"
+                                onClick={() => handleDeleteStudent(student.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          ) : user?.role === 'PROFESSOR' ? (
+                            /* Botão apenas para PROFESSOR */
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              title="Ver detalhes do estudante"
+                              onClick={() => handlePreviewStudent(student)}
+                            >
+                              <UserCircle className="w-4 h-4" />
+                            </Button>
+                          ) : null}
                         </div>
                       </TableCell>
                     </TableRow>

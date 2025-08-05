@@ -50,7 +50,25 @@ export default function Login() {
           title: 'Login realizado com sucesso',
           description: 'Bem-vindo ao Synexa-SIS!',
         });
-        navigate(from, { replace: true });
+        
+        // Redirecionamento baseado no role do usuário
+        let redirectPath = from;
+        if (from === '/dashboard') {
+          switch (response.user.role) {
+            case 'ADMIN':
+            case 'DIRETOR':
+              redirectPath = '/dashboard';
+              break;
+            case 'SECRETARIA':
+            case 'PROFESSOR':
+              redirectPath = '/students';
+              break;
+            default:
+              redirectPath = '/students';
+          }
+        }
+        
+        navigate(redirectPath, { replace: true });
       }
     } catch (error: any) {
       toast({

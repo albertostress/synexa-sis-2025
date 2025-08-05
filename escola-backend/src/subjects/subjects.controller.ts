@@ -57,7 +57,7 @@ export class SubjectsController {
   }
 
   @Get()
-  @Roles('ADMIN', 'DIRETOR', 'PROFESSOR')
+  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Listar todas as disciplinas' })
   @ApiResponse({
     status: 200,
@@ -90,7 +90,7 @@ export class SubjectsController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'DIRETOR', 'PROFESSOR')
+  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Buscar disciplina por ID' })
   @ApiParam({ name: 'id', description: 'ID da disciplina' })
   @ApiResponse({

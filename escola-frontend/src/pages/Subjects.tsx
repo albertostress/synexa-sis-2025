@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, BookOpen, Users, Check, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, BookOpen, Users, Check, X, GraduationCap, Calendar, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,11 +11,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { MultiSelectSimple, Option } from '@/components/ui/multi-select-simple';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { useToast } from '@/hooks/use-toast';
-import { subjectsAPI, teachersAPI } from '@/lib/api';
+import { subjectsAPI, teachersAPI, classesAPI } from '@/lib/api';
 import { SubjectWithTeachers, CreateSubjectDto, UpdateSubjectDto } from '@/types/subject';
 import { Teacher } from '@/types/subject';
+import { 
+  ClassLevel, 
+  CLASS_LEVEL_OPTIONS, 
+  SCHOOL_CYCLE_LABELS, 
+  getCycleFromClassLevel 
+} from '@/types/pedagogical';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function Subjects() {
@@ -23,8 +30,18 @@ export default function Subjects() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<SubjectWithTeachers | null>(null);
   const [selectedTeachers, setSelectedTeachers] = useState<string[]>([]);
+  const [isTeacherPopoverOpen, setIsTeacherPopoverOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Função para alternar seleção de professores
+  const toggleTeacher = (teacherId: string) => {
+    setSelectedTeachers((prev) =>
+      prev.includes(teacherId) 
+        ? prev.filter((id) => id !== teacherId)
+        : [...prev, teacherId]
+    );
+  };
 
   // Carregar disciplinas do backend
   const { data: subjects = [], isLoading: loadingSubjects, refetch } = useQuery({
@@ -53,6 +70,20 @@ export default function Subjects() {
     enabled: isDialogOpen, // Só carrega quando o modal abre
     onError: (error: any) => {
       console.error('Erro ao carregar professores:', error);
+    }
+  });
+
+  // Carregar anos letivos das turmas existentes
+  const { data: availableYears = [] } = useQuery({
+    queryKey: ['classes-years'],
+    queryFn: async () => {
+      const classes = await classesAPI.getAll();
+      const years = [...new Set(classes.map(cls => cls.year))].sort((a, b) => b - a);
+      return years.map(year => `${year}/${year + 1}`);
+    },
+    enabled: isDialogOpen,
+    onError: (error: any) => {
+      console.error('Erro ao carregar anos letivos:', error);
     }
   });
 
@@ -187,6 +218,7 @@ export default function Subjects() {
     const subjectData = {
       name: (formData.get('name') as string)?.trim(),
       description: (formData.get('description') as string)?.trim() || undefined,
+      classLevel: formData.get('classLevel') as ClassLevel,
       year: formData.get('year') as string,
       category: formData.get('category') as string,
       status: formData.get('status') as "ATIVO" | "INATIVO",
@@ -198,6 +230,15 @@ export default function Subjects() {
       toast({
         title: 'Erro de Validação',
         description: 'Nome da disciplina deve ter pelo menos 3 caracteres',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!subjectData.classLevel) {
+      toast({
+        title: 'Erro de Validação',
+        description: 'Classe é obrigatória',
         variant: 'destructive'
       });
       return;
@@ -252,6 +293,7 @@ export default function Subjects() {
     const backendPayload: CreateSubjectDto = {
       name: subjectData.name,
       description: subjectData.description,
+      classLevel: subjectData.classLevel,
       year: subjectData.year,
       // Mapear categorias angolanas para formato backend
       category: subjectData.category === 'Técnica' || subjectData.category === 'Artística' ? 'Opcional' : 'Obrigatória',
@@ -289,6 +331,7 @@ export default function Subjects() {
   const resetForm = () => {
     setEditingSubject(null);
     setSelectedTeachers([]);
+    setIsTeacherPopoverOpen(false);
     setIsDialogOpen(false);
   };
 
@@ -338,7 +381,30 @@ export default function Subjects() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="classLevel">🎯 Classe *</Label>
+                      <Select 
+                        name="classLevel" 
+                        defaultValue={editingSubject?.classLevel || ''}
+                        required
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a classe" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CLASS_LEVEL_OPTIONS.map(option => (
+                            <SelectItem key={option.value} value={option.value}>
+                              <div className="flex items-center gap-2">
+                                <GraduationCap className="w-4 h-4" />
+                                {option.label}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div>
                       <Label htmlFor="year">Ano Letivo *</Label>
                       <Select name="year" defaultValue={editingSubject?.year}>
@@ -346,14 +412,21 @@ export default function Subjects() {
                           <SelectValue placeholder="Selecione o ano" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="10º Ano">10º Ano</SelectItem>
-                          <SelectItem value="11º Ano">11º Ano</SelectItem>
-                          <SelectItem value="12º Ano">12º Ano</SelectItem>
-                          <SelectItem value="13º Ano">13º Ano</SelectItem>
+                          {availableYears.length > 0 ? (
+                            availableYears.map(year => (
+                              <SelectItem key={year} value={year}>
+                                {year}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="2024/2025">2024/2025</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
 
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="category">Categoria *</Label>
                       <Select name="category" defaultValue={editingSubject?.category}>
@@ -402,17 +475,79 @@ export default function Subjects() {
                   <div>
                     <Label htmlFor="teachers">Professores Associados *</Label>
                     <div className="mt-2">
-                      <MultiSelectSimple
-                        options={teachers.map(teacher => ({
-                          value: teacher.id,
-                          label: `${teacher.user?.name || 'Nome não disponível'}${teacher.user?.email ? ` (${teacher.user.email})` : ''}`,
-                        }))}
-                        selected={selectedTeachers}
-                        onChange={setSelectedTeachers}
-                        placeholder={loadingTeachers ? "Carregando professores..." : "Selecione pelo menos um professor..."}
-                        disabled={loadingTeachers}
-                        className="w-full"
-                      />
+                      <Popover open={isTeacherPopoverOpen} onOpenChange={setIsTeacherPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={isTeacherPopoverOpen}
+                            className="w-full justify-between"
+                            disabled={loadingTeachers}
+                          >
+                            {loadingTeachers ? (
+                              "Carregando professores..."
+                            ) : selectedTeachers.length > 0 ? (
+                              `${selectedTeachers.length} professor(es) selecionado(s)`
+                            ) : (
+                              "Selecionar professores..."
+                            )}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Buscar professor..." />
+                            <CommandEmpty>Nenhum professor encontrado.</CommandEmpty>
+                            <CommandGroup className="max-h-64 overflow-auto">
+                              {teachers.map((teacher) => (
+                                <CommandItem
+                                  key={teacher.id}
+                                  onSelect={() => {
+                                    toggleTeacher(teacher.id);
+                                  }}
+                                  className="flex items-center space-x-2 cursor-pointer"
+                                >
+                                  <Checkbox
+                                    checked={selectedTeachers.includes(teacher.id)}
+                                    className="mr-2"
+                                  />
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">
+                                      {teacher.user?.name || 'Nome não disponível'}
+                                    </span>
+                                    {teacher.user?.email && (
+                                      <span className="text-sm text-muted-foreground">
+                                        {teacher.user.email}
+                                      </span>
+                                    )}
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      
+                      {/* Exibir professores selecionados */}
+                      {selectedTeachers.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {selectedTeachers.map((teacherId) => {
+                            const teacher = teachers.find(t => t.id === teacherId);
+                            return teacher ? (
+                              <Badge key={teacherId} variant="secondary" className="text-xs">
+                                {teacher.user?.name || 'Nome não disponível'}
+                                <button
+                                  type="button"
+                                  className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+                                  onClick={() => toggleTeacher(teacherId)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       Selecione pelo menos um professor que irá lecionar esta disciplina
@@ -473,6 +608,8 @@ export default function Subjects() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Disciplina</TableHead>
+                  <TableHead>🎯 Classe</TableHead>
+                  <TableHead>📘 Ciclo</TableHead>
                   <TableHead>Ano</TableHead>
                   <TableHead>Categoria</TableHead>
                   <TableHead>Professores</TableHead>
@@ -483,13 +620,13 @@ export default function Subjects() {
               <TableBody>
                 {loadingSubjects ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                     </TableCell>
                   </TableRow>
                 ) : filteredSubjects.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       {searchTerm ? 'Nenhuma disciplina encontrada para a busca' : 'Nenhuma disciplina cadastrada'}
                     </TableCell>
                   </TableRow>
@@ -510,6 +647,20 @@ export default function Subjects() {
                             )}
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <GraduationCap className="w-4 h-4 text-blue-600" />
+                          <span className="font-medium">
+                            {subject.classLevel ? CLASS_LEVEL_OPTIONS.find(opt => opt.value === subject.classLevel)?.label || subject.classLevel : 'N/A'}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                          <Calendar className="w-3 h-3" />
+                          {subject.classLevel ? SCHOOL_CYCLE_LABELS[getCycleFromClassLevel(subject.classLevel)] : 'N/A'}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">

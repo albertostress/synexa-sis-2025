@@ -23,10 +23,10 @@ COPY package*.json ./
 RUN npm install express cors body-parser playwright-core
 
 # Copiar código
-COPY server.js ./
+COPY server-alpine.js ./
 
 # Expor porta
 EXPOSE 3333
 
 # Comando para iniciar
-CMD ["node", "server.js"]
+CMD ["node", "server-alpine.js"]

@@ -2,13 +2,6 @@ import * as React from "react";
 import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 export interface Option {
   label: string;
@@ -38,10 +31,17 @@ export function MultiSelectSimple({
   const [isOpen, setIsOpen] = React.useState(false);
 
   const handleSelect = (value: string) => {
+    console.log('🔍 MultiSelectSimple handleSelect called with:', value);
+    console.log('📝 Current selected:', selected);
+    
     if (selected.includes(value)) {
-      onChange(selected.filter((item) => item !== value));
+      const newSelected = selected.filter((item) => item !== value);
+      console.log('➖ Removing item, new selection:', newSelected);
+      onChange(newSelected);
     } else {
-      onChange([...selected, value]);
+      const newSelected = [...selected, value];
+      console.log('➕ Adding item, new selection:', newSelected);
+      onChange(newSelected);
     }
   };
 
@@ -89,45 +89,64 @@ export function MultiSelectSimple({
         )}
       </div>
 
-      {/* Dropdown selector */}
+      {/* Custom dropdown selector */}
       {availableOptions.length > 0 && (
-        <Select
-          open={isOpen}
-          onOpenChange={setIsOpen}
-          disabled={disabled}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Adicionar item..." />
-          </SelectTrigger>
-          <SelectContent>
-            {availableOptions.length === 0 ? (
-              <div className="py-2 px-3 text-sm text-muted-foreground">
-                {emptyIndicator}
-              </div>
-            ) : (
-              availableOptions.map((option) => (
-                <SelectItem
-                  key={option.value}
-                  value={option.value}
-                  onSelect={() => {
-                    handleSelect(option.value);
-                    setIsOpen(false);
-                  }}
-                >
-                  <div className="flex items-center">
-                    {selected.includes(option.value) && (
-                      <Check className="mr-2 h-4 w-4" />
-                    )}
-                    {option.icon && (
-                      <option.icon className="mr-2 h-4 w-4" />
-                    )}
-                    {option.label}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            disabled={disabled}
+            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="text-muted-foreground">Adicionar item...</span>
+            <svg
+              className="h-4 w-4 opacity-50"
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          
+          {isOpen && (
+            <div className="absolute z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md w-full mt-1">
+              {availableOptions.length === 0 ? (
+                <div className="py-2 px-3 text-sm text-muted-foreground">
+                  {emptyIndicator}
+                </div>
+              ) : (
+                availableOptions.map((option) => (
+                  <div
+                    key={option.value}
+                    onClick={() => {
+                      console.log('🎯 Custom dropdown item clicked:', option.value);
+                      handleSelect(option.value);
+                      setIsOpen(false);
+                    }}
+                    className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                  >
+                    <div className="flex items-center">
+                      {selected.includes(option.value) && (
+                        <Check className="mr-2 h-4 w-4" />
+                      )}
+                      {option.icon && (
+                        <option.icon className="mr-2 h-4 w-4" />
+                      )}
+                      {option.label}
+                    </div>
                   </div>
-                </SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

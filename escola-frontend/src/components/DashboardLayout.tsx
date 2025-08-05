@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Moon, Sun, LogOut } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { FontSizeControl } from '@/components/FontSizeControl';
+import SchoolYearSelector from '@/components/SchoolYearSelector';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -49,6 +50,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
               
               <div className="flex items-center gap-2">
+                {/* School Year Selector */}
+                <SchoolYearSelector />
+                
                 {/* Font Size Control */}
                 <FontSizeControl variant="icon" />
                 

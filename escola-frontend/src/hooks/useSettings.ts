@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { settingsAPI } from '@/lib/api';
 import { 
   Setting, 
@@ -19,10 +20,14 @@ export interface UseSettingsOptions {
 export function useSettings(options: UseSettingsOptions = {}) {
   const { category, autoSave = false, debounceMs = 1000 } = options;
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
 
-  // Query for all settings
+  // Verificar se o usuário pode acessar settings
+  const canAccessSettings = user?.role && ['ADMIN', 'DIRETOR'].includes(user.role);
+
+  // Query for all settings - apenas para ADMIN e DIRETOR
   const {
     data: settings = [],
     isLoading,
@@ -31,6 +36,7 @@ export function useSettings(options: UseSettingsOptions = {}) {
   } = useQuery({
     queryKey: ['settings', category],
     queryFn: () => settingsAPI.getAllSettings(category ? { category } : undefined),
+    enabled: canAccessSettings,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -93,9 +99,14 @@ export function useSettings(options: UseSettingsOptions = {}) {
 
   // Get setting value with fallback to default
   const getSetting = useCallback((key: string, defaultValue?: string): string => {
+    // Para usuários sem acesso a settings, usar valores padrão
+    if (!canAccessSettings) {
+      return defaultValue || DEFAULT_SETTINGS[key] || '';
+    }
+    
     const setting = settings.find((s: Setting) => s.key === key);
     return setting?.value || defaultValue || DEFAULT_SETTINGS[key] || '';
-  }, [settings]);
+  }, [settings, canAccessSettings]);
 
   // Get boolean setting
   const getBooleanSetting = useCallback((key: string, defaultValue = false): boolean => {

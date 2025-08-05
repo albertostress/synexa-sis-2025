@@ -2,9 +2,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AdminDashboard } from '@/components/dashboards/AdminDashboard';
 import { SecretariaDashboard } from '@/components/dashboards/SecretariaDashboard';
 import { ProfessorDashboard } from '@/components/dashboards/ProfessorDashboard';
+import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user?.role === 'SECRETARIA' || user?.role === 'PROFESSOR') {
+      navigate('/students', { replace: true });
+    }
+  }, [user, navigate]);
 
   if (!user) {
     return (
@@ -17,10 +26,8 @@ export default function Dashboard() {
   switch (user.role) {
     case 'ADMIN':
       return <AdminDashboard />;
-    case 'SECRETARIA':
-      return <SecretariaDashboard />;
-    case 'PROFESSOR':
-      return <ProfessorDashboard />;
+    case 'DIRETOR':
+      return <AdminDashboard />; // DIRETOR usa o mesmo dashboard do ADMIN
     default:
       return (
         <div className="text-center">

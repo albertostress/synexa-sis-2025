@@ -2,9 +2,26 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Unauthorized() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const getHomePage = () => {
+    if (!user) return '/login';
+    
+    switch (user.role) {
+      case 'ADMIN':
+      case 'DIRETOR':
+        return '/dashboard';
+      case 'SECRETARIA':
+      case 'PROFESSOR':
+        return '/students';
+      default:
+        return '/students';
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-subtle p-4">
@@ -32,10 +49,10 @@ export default function Unauthorized() {
               Voltar
             </Button>
             <Button 
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate(getHomePage())}
               className="flex-1"
             >
-              Dashboard
+              Início
             </Button>
           </div>
         </CardContent>

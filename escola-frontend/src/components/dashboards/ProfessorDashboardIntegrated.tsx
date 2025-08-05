@@ -63,30 +63,14 @@ export function ProfessorDashboardIntegrated() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  // Query para attendance analytics (geral para contexto)
-  const { 
-    data: attendanceData, 
-    isLoading: attendanceLoading, 
-    error: attendanceError,
-    refetch: refetchAttendance 
-  } = useQuery({
-    queryKey: ['professor', 'attendance', selectedYear, selectedMonth],
-    queryFn: () => analyticsAPI.getAttendanceAnalytics({ 
-      year: selectedYear, 
-      month: selectedMonth 
-    }),
-    staleTime: 5 * 60 * 1000,
-  });
+  // Professor não tem acesso aos endpoints de analytics - usar dados locais ou endpoints específicos do professor
+  const attendanceData = null;
+  const attendanceLoading = false;
+  const attendanceError = null;
+  const refetchAttendance = () => {};
 
-  // Query para grades analytics
-  const { 
-    data: gradesData, 
-    isLoading: gradesLoading,
-  } = useQuery({
-    queryKey: ['professor', 'grades', selectedYear],
-    queryFn: () => analyticsAPI.getGradesAnalytics({ year: selectedYear }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const gradesData = null;
+  const gradesLoading = false;
 
   // Query para minhas turmas (simulado - deveria filtrar pelo professor logado)
   const { 

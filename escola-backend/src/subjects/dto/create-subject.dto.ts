@@ -5,6 +5,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional, IsArray, IsUUID, IsInt, IsBoolean, IsEnum, Min, Max } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { ClassLevel } from '@prisma/client';
 
 export enum SubjectCategory {
   OBRIGATORIA = 'Obrigatória',
@@ -36,6 +37,14 @@ export class CreateSubjectDto {
   @IsString()
   @IsNotEmpty()
   code: string;
+
+  @ApiProperty({
+    description: 'Nível de classe para o qual a disciplina se aplica',
+    example: 'CLASSE_7',
+    enum: ClassLevel,
+  })
+  @IsEnum(ClassLevel, { message: 'Classe inválida' })
+  classLevel: ClassLevel;
 
   @ApiProperty({
     description: 'Ano letivo da disciplina',

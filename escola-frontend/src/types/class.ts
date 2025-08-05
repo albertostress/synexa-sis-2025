@@ -1,4 +1,5 @@
 // Types para o módulo de Turmas (Classes)
+import { ClassLevel, SchoolCycle } from './pedagogical';
 
 // Interface base para User (reutilizada)
 export interface User {
@@ -49,6 +50,8 @@ export const ShiftLabels: Record<Shift, string> = {
 export interface SchoolClass {
   id: string;
   name: string;
+  classLevel: ClassLevel;  // 🎯 Novo campo obrigatório
+  cycle: SchoolCycle;      // 🎯 Derivado automaticamente
   year: number;
   shift: Shift;
   capacity: number;
@@ -65,6 +68,7 @@ export interface SchoolClassWithRelations extends SchoolClass {
 // DTO para criar turma
 export interface CreateClassDto {
   name: string;
+  classLevel: ClassLevel;  // 🎯 Novo campo obrigatório
   year: number;
   shift: Shift;
   capacity: number;
@@ -79,6 +83,8 @@ export interface UpdateClassDto extends Partial<CreateClassDto> {}
 export interface ClassFilters {
   year?: number;
   shift?: Shift;
+  classLevel?: ClassLevel;  // 🎯 Novo filtro por classe
+  cycle?: SchoolCycle;      // 🎯 Novo filtro por ciclo
   name?: string;
 }
 

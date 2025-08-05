@@ -150,8 +150,8 @@ export class StudentsController {
       },
     },
   })
-  async findAll(@Query() query: StudentsQueryDto): Promise<PaginatedStudentsResponseDto> {
-    return await this.studentsService.findAllPaginated(query);
+  async findAll(@Query() query: StudentsQueryDto, @Req() req: any): Promise<PaginatedStudentsResponseDto> {
+    return await this.studentsService.findAllPaginated(query, req.user);
   }
 
   @Get('by-bi/:biNumber')
@@ -318,8 +318,8 @@ export class StudentsController {
     },
   })
   @ApiResponse({ status: 404, description: 'Aluno não encontrado' })
-  async findOne(@Param('id') id: string): Promise<Student> {
-    return await this.studentsService.findOne(id);
+  async findOne(@Param('id') id: string, @Req() req: any): Promise<Student> {
+    return await this.studentsService.findOne(id, req.user);
   }
 
   @Put(':id')
@@ -369,8 +369,9 @@ export class StudentsController {
   async update(
     @Param('id') id: string,
     @Body() updateStudentDto: UpdateStudentDto,
+    @Req() req: any,
   ): Promise<Student> {
-    return await this.studentsService.update(id, updateStudentDto);
+    return await this.studentsService.update(id, updateStudentDto, req.user);
   }
 
   @Delete(':id')
@@ -398,8 +399,8 @@ export class StudentsController {
   })
   @ApiResponse({ status: 404, description: 'Aluno não encontrado' })
   @ApiResponse({ status: 409, description: 'Aluno possui dependências (matrículas, notas, etc)' })
-  async remove(@Param('id') id: string): Promise<{ message: string }> {
-    await this.studentsService.remove(id);
+  async remove(@Param('id') id: string, @Req() req: any): Promise<{ message: string }> {
+    await this.studentsService.remove(id, req.user);
     return { message: 'Aluno removido com sucesso' };
   }
 
@@ -429,7 +430,7 @@ export class StudentsController {
     @Body() createNoteDto: CreateStudentNoteDto,
     @Req() req: any,
   ): Promise<StudentNote> {
-    return await this.studentsService.createNote(studentId, createNoteDto, req.user.id);
+    return await this.studentsService.createNote(studentId, createNoteDto, req.user.sub, req.user);
   }
 
   @Get(':id/notes')
@@ -454,8 +455,8 @@ export class StudentsController {
     },
   })
   @ApiResponse({ status: 404, description: 'Aluno não encontrado' })
-  async getNotes(@Param('id') studentId: string): Promise<StudentNote[]> {
-    return await this.studentsService.getNotes(studentId);
+  async getNotes(@Param('id') studentId: string, @Req() req: any): Promise<StudentNote[]> {
+    return await this.studentsService.getNotes(studentId, req.user);
   }
 
   // Timeline endpoints
@@ -484,7 +485,7 @@ export class StudentsController {
     @Body() createEventDto: CreateTimelineEventDto,
     @Req() req: any,
   ): Promise<StudentTimeline> {
-    return await this.studentsService.addTimelineEvent(studentId, createEventDto, req.user.id);
+    return await this.studentsService.addTimelineEvent(studentId, createEventDto, req.user.sub, req.user);
   }
 
   @Get(':id/timeline')
@@ -509,8 +510,8 @@ export class StudentsController {
     },
   })
   @ApiResponse({ status: 404, description: 'Aluno não encontrado' })
-  async getTimeline(@Param('id') studentId: string): Promise<StudentTimeline[]> {
-    return await this.studentsService.getTimeline(studentId);
+  async getTimeline(@Param('id') studentId: string, @Req() req: any): Promise<StudentTimeline[]> {
+    return await this.studentsService.getTimeline(studentId, req.user);
   }
 
   // Invoices endpoint
@@ -536,8 +537,8 @@ export class StudentsController {
     },
   })
   @ApiResponse({ status: 404, description: 'Aluno não encontrado' })
-  async getInvoices(@Param('id') studentId: string) {
-    return await this.studentsService.getStudentInvoices(studentId);
+  async getInvoices(@Param('id') studentId: string, @Req() req: any) {
+    return await this.studentsService.getStudentInvoices(studentId, req.user);
   }
 
 }

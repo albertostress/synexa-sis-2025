@@ -112,6 +112,8 @@ model Subject {
   name          String
   description   String?
   code          String            @unique
+  classLevel    ClassLevel        // 🎯 Novo campo obrigatório (para que classe se aplica)
+  cycle         SchoolCycle       // 🎯 Derivado automaticamente da classLevel
   year          String
   category      SubjectCategory   @default(OBRIGATORIA)
   credits       Int               @default(1)
@@ -129,7 +131,9 @@ model Subject {
 
 model SchoolClass {
   id          String       @id @default(uuid())
-  name        String
+  name        String       // Ex: "7A", "10B"
+  classLevel  ClassLevel   // 🎯 Novo campo obrigatório (1.ª à 12.ª classe)
+  cycle       SchoolCycle  // 🎯 Derivado automaticamente da classLevel
   year        Int
   shift       Shift
   capacity    Int
@@ -705,4 +709,28 @@ model StudentTimeline {
   
   @@index([studentId, createdAt])
   @@map("student_timeline")
+}
+
+// 🎯 Enums para estrutura pedagógica de Angola
+enum SchoolCycle {
+  INICIACAO
+  PRIMARIO_1
+  PRIMARIO_2
+  SECUNDARIO_1
+  SECUNDARIO_2
+}
+
+enum ClassLevel {
+  CLASSE_1
+  CLASSE_2
+  CLASSE_3
+  CLASSE_4
+  CLASSE_5
+  CLASSE_6
+  CLASSE_7
+  CLASSE_8
+  CLASSE_9
+  CLASSE_10
+  CLASSE_11
+  CLASSE_12
 }

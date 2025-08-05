@@ -12,13 +12,41 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 import { SchoolClass, SchoolClassWithRelations } from './entities/class.entity';
+import { ClassLevel, SchoolCycle } from '@prisma/client';
 
 @Injectable()
 export class ClassesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // 🎯 Helper para atribuir SchoolCycle automaticamente com base na classLevel
+  private getCycleFromClassLevel(classLevel: ClassLevel): SchoolCycle {
+    switch (classLevel) {
+      case ClassLevel.CLASSE_1:
+      case ClassLevel.CLASSE_2:
+      case ClassLevel.CLASSE_3:
+      case ClassLevel.CLASSE_4:
+        return SchoolCycle.PRIMARIO_1;
+      case ClassLevel.CLASSE_5:
+      case ClassLevel.CLASSE_6:
+        return SchoolCycle.PRIMARIO_2;
+      case ClassLevel.CLASSE_7:
+      case ClassLevel.CLASSE_8:
+      case ClassLevel.CLASSE_9:
+        return SchoolCycle.SECUNDARIO_1;
+      case ClassLevel.CLASSE_10:
+      case ClassLevel.CLASSE_11:
+      case ClassLevel.CLASSE_12:
+        return SchoolCycle.SECUNDARIO_2;
+      default:
+        throw new BadRequestException('Classe inválida');
+    }
+  }
+
   async create(createClassDto: CreateClassDto): Promise<SchoolClassWithRelations> {
-    const { name, year, shift, capacity, studentIds, teacherIds } = createClassDto;
+    const { name, classLevel, year, shift, capacity, studentIds, teacherIds } = createClassDto;
+    
+    // 🎯 Gerar cycle automaticamente com base no classLevel
+    const cycle = this.getCycleFromClassLevel(classLevel);
 
     // Verificar se já existe uma turma com esse nome no mesmo ano
     const existingClass = await this.prisma.schoolClass.findFirst({
@@ -68,6 +96,8 @@ export class ClassesService {
     const schoolClass = await this.prisma.schoolClass.create({
       data: {
         name,
+        classLevel,
+        cycle,
         year,
         shift,
         capacity,

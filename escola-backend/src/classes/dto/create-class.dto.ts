@@ -4,7 +4,7 @@
  */
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsInt, IsEnum, IsArray, IsUUID, IsOptional, Min } from 'class-validator';
-import { Shift } from '@prisma/client';
+import { Shift, ClassLevel } from '@prisma/client';
 
 export class CreateClassDto {
   @ApiProperty({
@@ -14,6 +14,14 @@ export class CreateClassDto {
   @IsString()
   @IsNotEmpty()
   name: string;
+
+  @ApiProperty({
+    description: 'Nível de classe (1.ª à 12.ª classe)',
+    example: 'CLASSE_7',
+    enum: ClassLevel,
+  })
+  @IsEnum(ClassLevel, { message: 'Classe inválida' })
+  classLevel: ClassLevel;
 
   @ApiProperty({
     description: 'Ano letivo',
