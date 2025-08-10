@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,34 +10,29 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   DollarSign, 
   CreditCard, 
   TrendingUp, 
-  TrendingDown, 
   Search, 
-  Filter,
-  Eye,
-  FileText,
-  Users,
-  Calendar,
   Plus,
-  Download,
   AlertTriangle,
   CheckCircle,
   Clock,
-  XCircle,
   Receipt,
-  Banknote,
-  Wallet,
   Target,
   BarChart3,
   Bell,
-  Mail,
-  CheckSquare,
+  Users,
+  ArrowUpRight,
+  ArrowDownRight,
+  Percent,
+  FileText,
+  Send,
+  Filter,
+  ChevronRight
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -55,17 +49,11 @@ import {
   InvoiceFilters,
   InvoiceStatus,
   PaymentMethod,
-  InvoiceType,
   InvoiceStatusLabels,
-  InvoiceStatusColors,
-  InvoiceTypeLabels,
-  PaymentMethodLabels,
   formatCurrency,
   MONTHS_PT
 } from '@/types/finance';
-import { FinancialDashboard } from '@/components/financial/FinancialDashboard';
 import { InvoiceModal } from '@/components/financial/InvoiceModal';
-import { InvoicesTable } from '@/components/financial/InvoicesTable';
 import { useFinancialData } from '@/hooks/useFinancialData';
 
 // Schema de validação para pagamento
@@ -77,26 +65,81 @@ const paymentSchema = z.object({
 
 type PaymentFormData = z.infer<typeof paymentSchema>;
 
+// Componente para Card de Estatística
+function StatCard({ 
+  title, 
+  value, 
+  change, 
+  icon: Icon, 
+  trend,
+  color = 'default' 
+}: { 
+  title: string; 
+  value: string; 
+  change?: string; 
+  icon: React.ElementType; 
+  trend?: 'up' | 'down';
+  color?: 'default' | 'success' | 'warning' | 'danger';
+}) {
+  const colorClasses = {
+    default: 'bg-gray-50 border-gray-200 text-gray-700',
+    success: 'bg-green-50 border-green-200 text-green-700',
+    warning: 'bg-yellow-50 border-yellow-200 text-yellow-700',
+    danger: 'bg-red-50 border-red-200 text-red-700'
+  };
+
+  return (
+    <Card className={`border ${colorClasses[color]} transition-all hover:shadow-md`}>
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            <p className="text-2xl font-bold">{value}</p>
+            {change && (
+              <div className="flex items-center gap-1">
+                {trend === 'up' ? (
+                  <ArrowUpRight className="h-4 w-4 text-green-600" />
+                ) : trend === 'down' ? (
+                  <ArrowDownRight className="h-4 w-4 text-red-600" />
+                ) : null}
+                <span className={`text-xs font-medium ${
+                  trend === 'up' ? 'text-green-600' : trend === 'down' ? 'text-red-600' : 'text-gray-600'
+                }`}>
+                  {change}
+                </span>
+              </div>
+            )}
+          </div>
+          <div className={`p-3 rounded-full ${color === 'success' ? 'bg-green-100' : color === 'warning' ? 'bg-yellow-100' : color === 'danger' ? 'bg-red-100' : 'bg-gray-100'}`}>
+            <Icon className={`h-6 w-6 ${color === 'success' ? 'text-green-600' : color === 'warning' ? 'text-yellow-600' : color === 'danger' ? 'text-red-600' : 'text-gray-600'}`} />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Financial() {
-  const { user, hasRole } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  
+  // Verificar permissões
+  const userRole = user?.role || '';
+  const showKPI = userRole === 'ADMIN' || userRole === 'DIRETOR' || userRole === 'FINANCEIRO';
+  const showReports = userRole === 'ADMIN' || userRole === 'DIRETOR' || userRole === 'FINANCEIRO';
   
   // Estados locais
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [monthFilter, setMonthFilter] = useState<number | undefined>();
-  const [yearFilter, setYearFilter] = useState<number>(new Date().getFullYear());
   const [isNewInvoiceOpen, setIsNewInvoiceOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [isViewInvoiceOpen, setIsViewInvoiceOpen] = useState(false);
-  const [page, setPage] = useState(1);
-  const limit = 20;
+  // SECRETARIA começa na aba "Faturas"; gestores começam na "Visão Geral"
+  const [activeTab, setActiveTab] = useState<string>(showKPI ? 'overview' : 'invoices');
 
-  // Hook para dados financeiros do dashboard
-  const { data: dashboardData, isLoading: loadingDashboard } = useFinancialData();
+  // Hook para dados financeiros
+  const { data: summary, isLoading: loadingDashboard } = useFinancialData();
 
   // Form setup para pagamentos
   const paymentForm = useForm<PaymentFormData>({
@@ -108,18 +151,14 @@ export default function Financial() {
     },
   });
 
-  // ==================== QUERIES ====================
-
   // Buscar faturas
   const { data: invoicesData, isLoading: loadingInvoices } = useQuery({
-    queryKey: ['invoices', searchTerm, statusFilter, monthFilter, yearFilter, page],
+    queryKey: ['invoices', searchTerm, statusFilter],
     queryFn: () => {
       const filters: InvoiceFilters = {
-        page,
-        limit,
+        page: 1,
+        limit: 50,
         ...(statusFilter !== 'all' && { status: statusFilter as InvoiceStatus }),
-        ...(monthFilter && { month: monthFilter }),
-        ...(yearFilter && { year: yearFilter }),
       };
       return financialAPI.getInvoices(filters);
     },
@@ -131,15 +170,12 @@ export default function Financial() {
     queryFn: studentsAPI.getAll,
   });
 
-  // ==================== MUTATIONS ====================
-
   // Criar nova fatura
   const createInvoiceMutation = useMutation({
     mutationFn: (data: any) => {
-      // Adaptar dados do modal avançado para o formato do backend
       const createData: CreateInvoiceDto = {
         studentId: data.studentId,
-        amount: data.amount,
+        amount: Number(data.amount),
         description: data.description,
         dueDate: data.dueDate,
         month: data.month,
@@ -149,7 +185,7 @@ export default function Financial() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
       toast({
         title: 'Fatura Criada!',
         description: 'A fatura foi criada com sucesso.',
@@ -171,7 +207,7 @@ export default function Financial() {
       financialAPI.payInvoice(invoiceId, paymentData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
       toast({
         title: 'Pagamento Registrado!',
         description: 'O pagamento foi registrado com sucesso.',
@@ -189,33 +225,13 @@ export default function Financial() {
     },
   });
 
-  // Cancelar fatura
-  const cancelInvoiceMutation = useMutation({
-    mutationFn: (invoiceId: string) => financialAPI.cancelInvoice(invoiceId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
-      toast({
-        title: 'Fatura Cancelada',
-        description: 'A fatura foi cancelada com sucesso.',
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Erro ao Cancelar Fatura',
-        description: error.response?.data?.message || 'Erro interno do servidor',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  // Automação - Notificar alunos em atraso
+  // Notificar alunos em atraso
   const notifyOverdueMutation = useMutation({
     mutationFn: financialAPI.sendOverdueReminders,
     onSuccess: (result) => {
       toast({
         title: 'Lembretes Enviados!',
-        description: `Lembretes enviados para ${result.count || 'todos os'} alunos em atraso.`,
+        description: `Lembretes enviados para ${result.count || 'todos os'} alunos.`,
       });
     },
     onError: (error: any) => {
@@ -227,33 +243,12 @@ export default function Financial() {
     },
   });
 
-  // Marcar pagamentos em atraso
-  const markOverduePaymentsMutation = useMutation({
-    mutationFn: financialAPI.markOverduePayments,
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
-      toast({
-        title: 'Pagamentos Atualizados!',
-        description: `${result.count || 'Algumas'} faturas foram marcadas como vencidas.`,
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Erro ao Atualizar Pagamentos',
-        description: error.response?.data?.message || 'Erro interno do servidor',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  // ==================== HANDLERS ====================
-
+  // Handlers
   const handleSubmitPayment = (data: PaymentFormData) => {
     if (!selectedInvoice) return;
 
     const paymentData: PayInvoiceDto = {
-      amount: data.amount,
+      amount: Number(data.amount),
       method: data.method,
       reference: data.reference,
     };
@@ -264,39 +259,62 @@ export default function Financial() {
     });
   };
 
-  const handleOpenPayment = (invoice: Invoice) => {
+  const handleOpenPayment = (invoice: any) => {
     setSelectedInvoice(invoice);
-    paymentForm.setValue('amount', invoice.balance);
+    paymentForm.setValue('amount', invoice.remainingBalance || invoice.balance || 0);
     setIsPaymentOpen(true);
   };
 
-  const handleViewInvoice = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    setIsViewInvoiceOpen(true);
+  // Handler para gerar PDF da fatura
+  const handleGenerateInvoicePDF = async (invoiceId: string) => {
+    try {
+      const response = await financialAPI.downloadInvoicePDF(invoiceId);
+      
+      // Criar um blob e fazer download
+      const url = window.URL.createObjectURL(new Blob([response]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `fatura_${invoiceId.substring(0, 8)}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: 'PDF Gerado!',
+        description: 'O PDF da fatura foi baixado com sucesso.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao Gerar PDF',
+        description: error.response?.data?.message || 'Erro ao gerar o PDF da fatura',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleCancelInvoice = (invoiceId: string) => {
-    cancelInvoiceMutation.mutate(invoiceId);
+  // Handler para notificar pai/responsável individualmente
+  const handleNotifyParent = async (invoice: any) => {
+    try {
+      await financialAPI.notifyParent(invoice.id);
+      
+      toast({
+        title: 'Notificação Enviada!',
+        description: `Lembrete enviado para ${invoice.student?.name}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao Enviar Notificação',
+        description: error.response?.data?.message || 'Erro ao enviar notificação',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleViewStudentHistory = (studentId: string) => {
-    navigate(`/finance/student/${studentId}/history`);
-  };
-
-  const handleNotifyOverdue = () => {
-    notifyOverdueMutation.mutate();
-  };
-
-  const handleMarkOverduePayments = () => {
-    markOverduePaymentsMutation.mutate();
-  };
-
-  // ==================== COMPUTED VALUES ====================
-
-  const currentInvoices = invoicesData?.data || [];
-  const currentPagination = invoicesData?.pagination;
-
-  // Filtrar por busca textual (feito no cliente por simplicidade)
+  // Computed values
+  const currentInvoices = invoicesData?.invoices || [];
+  
+  // Filtrar por busca
   const filteredInvoices = currentInvoices.filter(invoice =>
     searchTerm === '' || 
     invoice.student?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -305,309 +323,406 @@ export default function Financial() {
 
   // Verificar permissões
   const canManageFinance = financialAPI.canManageFinance(user?.role || '');
-  const canViewFinance = financialAPI.canViewFinance(user?.role || '');
-
-  if (!canViewFinance) {
-    return (
-      <div className="flex justify-center items-center h-96">
-        <div className="text-center">
-          <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-yellow-600" />
-          <h2 className="text-xl font-semibold mb-2">Acesso Negado</h2>
-          <p className="text-muted-foreground">Você não tem permissão para acessar o módulo financeiro.</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center space-x-2">
-            <Wallet className="h-8 w-8 text-green-600" />
-            <span>Gestão Financeira</span>
-          </h1>
-          <p className="text-muted-foreground">
-            Sistema financeiro escolar completo adaptado para Angola (AOA)
-          </p>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          {canManageFinance && (
-            <Button 
-              onClick={() => setIsNewInvoiceOpen(true)}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Fatura
-            </Button>
-          )}
-        </div>
+      {/* Header Simplificado */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold text-gray-900">Gestão Financeira</h1>
+        <p className="text-sm text-gray-600">Sistema financeiro escolar adaptado para Angola</p>
       </div>
 
-      {/* Dashboard Financeiro Avançado */}
-      {dashboardData && (
-        <FinancialDashboard 
-          data={dashboardData}
-          onNotifyOverdue={handleNotifyOverdue}
-          onMarkOverduePayments={handleMarkOverduePayments}
-        />
+      {/* Bloco 1: Resumo Financeiro - Cards limpos e organizados - APENAS PARA GESTORES */}
+      {showKPI && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            title="Receita do Mês"
+            value={summary ? formatCurrency(summary.monthlyRevenue) : 'AOA 0,00'}
+            change={summary?.revenueGrowth ? `${summary.revenueGrowth}% vs mês anterior` : undefined}
+            trend={summary?.revenueGrowth > 0 ? 'up' : 'down'}
+            icon={DollarSign}
+            color="success"
+          />
+          
+          <StatCard
+            title="Taxa de Cobrança"
+            value={summary ? `${summary.collectionRate}%` : '0%'}
+            icon={Percent}
+            color="default"
+          />
+          
+          <StatCard
+            title="Meta do Mês"
+            value={summary ? `${summary.monthlyGoalProgress}%` : '0%'}
+            icon={Target}
+            color={summary?.monthlyGoalProgress >= 80 ? 'success' : 'warning'}
+          />
+          
+          <StatCard
+            title="Valores em Atraso"
+            value={summary ? formatCurrency(summary.overdueAmount) : 'AOA 0,00'}
+            icon={AlertTriangle}
+            color="danger"
+          />
+        </div>
       )}
 
-      {/* Abas */}
-      <Tabs defaultValue="invoices" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="invoices" className="flex items-center space-x-2">
-            <Receipt className="h-4 w-4" />
-            <span>Faturas</span>
+      {/* Bloco 2: Ações Rápidas - Apenas botão de criar fatura */}
+      <Card className="border-gray-200">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg font-semibold text-gray-900">Ações Rápidas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center">
+            {canManageFinance && (
+              <Button 
+                onClick={() => setIsNewInvoiceOpen(true)}
+                className="h-auto py-4 px-8 bg-green-600 hover:bg-green-700 text-white shadow-sm"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <Plus className="h-5 w-5" />
+                  <span className="font-medium">Gerar Nova Fatura</span>
+                  <span className="text-xs opacity-90">Criar cobrança para aluno</span>
+                </div>
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabs simplificadas */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className={`grid w-full ${showKPI ? 'grid-cols-3' : 'grid-cols-1'} bg-gray-100`}>
+          {showKPI && (
+            <TabsTrigger value="overview" className="data-[state=active]:bg-white">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Visão Geral
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="invoices" className="data-[state=active]:bg-white">
+            <Receipt className="h-4 w-4 mr-2" />
+            Faturas
           </TabsTrigger>
-          <TabsTrigger value="reports" className="flex items-center space-x-2">
-            <BarChart3 className="h-4 w-4" />
-            <span>Relatórios</span>
-          </TabsTrigger>
-          <TabsTrigger value="automation" className="flex items-center space-x-2">
-            <Bell className="h-4 w-4" />
-            <span>Automação</span>
-          </TabsTrigger>
+          {showReports && (
+            <TabsTrigger value="reports" className="data-[state=active]:bg-white">
+              <FileText className="h-4 w-4 mr-2" />
+              Relatórios
+            </TabsTrigger>
+          )}
         </TabsList>
 
-        {/* Aba de Faturas */}
+        {/* Tab Visão Geral - Bloco 3: Análises e Tendências - APENAS PARA GESTORES */}
+        {showKPI && (
+          <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Gráfico de Tendência Simplificado */}
+            <Card className="border-gray-200">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-gray-900">
+                  Tendência dos Últimos 6 Meses
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
+                  <div className="text-center">
+                    <TrendingUp className="h-12 w-12 text-green-600 mx-auto mb-3" />
+                    <p className="text-sm text-gray-600">Receita em crescimento</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-2">+12.5%</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Métodos de Pagamento Simplificado */}
+            <Card className="border-gray-200">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-gray-900">
+                  Métodos de Pagamento
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span className="text-sm text-gray-700">Transferência</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">45%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <span className="text-sm text-gray-700">Multicaixa</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">30%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                      <span className="text-sm text-gray-700">Dinheiro</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">20%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                      <span className="text-sm text-gray-700">Outros</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">5%</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Lista de Pendências Recentes */}
+          <Card className="border-gray-200">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-semibold text-gray-900">
+                Pendências Recentes
+              </CardTitle>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setActiveTab('invoices')}
+                className="text-gray-600 hover:text-gray-900"
+              >
+                Ver todas
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {filteredInvoices.slice(0, 5).map((invoice) => (
+                  <div key={invoice.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${
+                        invoice.status === 'VENCIDA' ? 'bg-red-500' : 
+                        invoice.status === 'PENDENTE' ? 'bg-yellow-500' : 
+                        'bg-green-500'
+                      }`}></div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{invoice.student?.name}</p>
+                        <p className="text-xs text-gray-600">{invoice.description}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-gray-900">{formatCurrency(invoice.amount)}</p>
+                      <p className="text-xs text-gray-600">
+                        Vence {format(new Date(invoice.dueDate), 'dd/MM', { locale: pt })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          </TabsContent>
+        )}
+
+        {/* Tab Faturas - Simplificada */}
         <TabsContent value="invoices" className="space-y-4">
-          {/* Filtros */}
-          <Card>
+          {/* Barra de Filtros Simplificada */}
+          <Card className="border-gray-200">
             <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                {/* Busca */}
-                <div className="relative">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
-                    placeholder="Buscar por aluno..."
+                    placeholder="Buscar por aluno ou descrição..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 border-gray-300"
                   />
                 </div>
-
-                {/* Filtro de Status */}
+                
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Status" />
+                  <SelectTrigger className="w-full md:w-48 border-gray-300">
+                    <SelectValue placeholder="Filtrar por status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os Status</SelectItem>
-                    <SelectItem value="PENDENTE">⏳ Pendente</SelectItem>
-                    <SelectItem value="PAGA">✅ Paga</SelectItem>
-                    <SelectItem value="VENCIDA">🔴 Vencida</SelectItem>
-                    <SelectItem value="PARCIAL">🔵 Parcial</SelectItem>
-                    <SelectItem value="CANCELADA">❌ Cancelada</SelectItem>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="PENDENTE">Pendente</SelectItem>
+                    <SelectItem value="PAGA">Paga</SelectItem>
+                    <SelectItem value="VENCIDA">Vencida</SelectItem>
+                    <SelectItem value="PARCIAL">Parcial</SelectItem>
                   </SelectContent>
                 </Select>
 
-                {/* Filtro de Mês */}
-                <Select 
-                  value={monthFilter?.toString() || 'all'} 
-                  onValueChange={(value) => setMonthFilter(value === 'all' ? undefined : parseInt(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Mês" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os Meses</SelectItem>
-                    {MONTHS_PT.map((month, index) => (
-                      <SelectItem key={index + 1} value={(index + 1).toString()}>
-                        {month}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Filtro de Ano */}
-                <Select 
-                  value={yearFilter.toString()} 
-                  onValueChange={(value) => setYearFilter(parseInt(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Ano" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[2024, 2023, 2022, 2021, 2020].map(year => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Limpar Filtros */}
                 <Button 
                   variant="outline" 
                   onClick={() => {
                     setSearchTerm('');
                     setStatusFilter('all');
-                    setMonthFilter(undefined);
-                    setYearFilter(new Date().getFullYear());
                   }}
+                  className="border-gray-300"
                 >
-                  Limpar Filtros
+                  <Filter className="h-4 w-4 mr-2" />
+                  Limpar
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Tabela de Faturas Avançada */}
-          <InvoicesTable
-            invoices={filteredInvoices}
-            isLoading={loadingInvoices}
-            pagination={currentPagination}
-            onViewInvoice={handleViewInvoice}
-            onPayInvoice={handleOpenPayment}
-            onCancelInvoice={handleCancelInvoice}
-            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['invoices'] })}
-            canManage={canManageFinance}
-          />
-
-          {/* Paginação */}
-          {currentPagination && currentPagination.pages > 1 && (
-            <div className="flex justify-between items-center">
-              <div className="text-sm text-muted-foreground">
-                Página {currentPagination.page} de {currentPagination.pages}
+          {/* Tabela Simplificada */}
+          <Card className="border-gray-200">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="font-semibold text-gray-900">Aluno</TableHead>
+                      <TableHead className="font-semibold text-gray-900">Descrição</TableHead>
+                      <TableHead className="font-semibold text-gray-900">Valor</TableHead>
+                      <TableHead className="font-semibold text-gray-900">Vencimento</TableHead>
+                      <TableHead className="font-semibold text-gray-900">Status</TableHead>
+                      <TableHead className="font-semibold text-gray-900">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingInvoices ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8">
+                          <div className="flex items-center justify-center gap-2">
+                            <Clock className="h-4 w-4 animate-spin" />
+                            <span className="text-gray-600">Carregando...</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredInvoices.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-gray-600">
+                          Nenhuma fatura encontrada
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredInvoices.map((invoice) => (
+                        <TableRow key={invoice.id} className="hover:bg-gray-50">
+                          <TableCell className="font-medium">{invoice.student?.name}</TableCell>
+                          <TableCell className="text-gray-600">{invoice.description}</TableCell>
+                          <TableCell className="font-medium">{formatCurrency(invoice.amount)}</TableCell>
+                          <TableCell className="text-gray-600">
+                            {format(new Date(invoice.dueDate), 'dd/MM/yyyy', { locale: pt })}
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={
+                                invoice.status === 'PAGA' ? 'default' :
+                                invoice.status === 'VENCIDA' ? 'destructive' :
+                                invoice.status === 'PENDENTE' ? 'secondary' :
+                                'outline'
+                              }
+                              className={
+                                invoice.status === 'PAGA' ? 'bg-green-100 text-green-800 border-green-200' :
+                                invoice.status === 'VENCIDA' ? 'bg-red-100 text-red-800 border-red-200' :
+                                invoice.status === 'PENDENTE' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                                ''
+                              }
+                            >
+                              {InvoiceStatusLabels[invoice.status]}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              {invoice.status !== 'PAGA' && invoice.status !== 'CANCELADA' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleOpenPayment(invoice)}
+                                  className="border-green-300 text-green-700 hover:bg-green-50"
+                                  title="Registrar pagamento"
+                                >
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Pagar
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleGenerateInvoicePDF(invoice.id)}
+                                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                                title="Gerar PDF da fatura"
+                              >
+                                <FileText className="h-3 w-3 mr-1" />
+                                PDF
+                              </Button>
+                              {invoice.status !== 'PAGA' && invoice.status !== 'CANCELADA' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleNotifyParent(invoice)}
+                                  className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                                  title="Notificar responsável"
+                                >
+                                  <Bell className="h-3 w-3 mr-1" />
+                                  Notificar
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
               </div>
-              <div className="flex space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPagination.page <= 1}
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                >
-                  Anterior
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPagination.page >= currentPagination.pages}
-                  onClick={() => setPage(Math.min(currentPagination.pages, page + 1))}
-                >
-                  Próxima
-                </Button>
-              </div>
-            </div>
-          )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* Aba de Relatórios */}
-        <TabsContent value="reports">
+        {/* Tab Relatórios - Simplificada - APENAS PARA GESTORES */}
+        {showReports && (
+          <TabsContent value="reports" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
+            <Card className="border-gray-200">
               <CardHeader>
-                <CardTitle>Relatórios Disponíveis</CardTitle>
+                <CardTitle className="text-base font-semibold text-gray-900">
+                  Relatórios Disponíveis
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full justify-start">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Resumo Mensal
+                <Button variant="outline" className="w-full justify-start border-gray-300">
+                  <FileText className="h-4 w-4 mr-2 text-gray-600" />
+                  <span className="text-gray-900">Resumo Mensal</span>
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Users className="h-4 w-4 mr-2" />
-                  Histórico por Aluno
+                <Button variant="outline" className="w-full justify-start border-gray-300">
+                  <Users className="h-4 w-4 mr-2 text-gray-600" />
+                  <span className="text-gray-900">Histórico por Aluno</span>
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  Análise de Inadimplência
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Target className="h-4 w-4 mr-2" />
-                  Metas vs Realizado
+                <Button variant="outline" className="w-full justify-start border-gray-300">
+                  <BarChart3 className="h-4 w-4 mr-2 text-gray-600" />
+                  <span className="text-gray-900">Análise de Inadimplência</span>
                 </Button>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-gray-200">
               <CardHeader>
-                <CardTitle>Exportações</CardTitle>
+                <CardTitle className="text-base font-semibold text-gray-900">
+                  Ações de Exportação
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full justify-start">
-                  <Download className="h-4 w-4 mr-2" />
-                  Exportar CSV
+                <Button variant="outline" className="w-full justify-start border-gray-300">
+                  <FileText className="h-4 w-4 mr-2 text-gray-600" />
+                  <span className="text-gray-900">Exportar CSV</span>
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Download className="h-4 w-4 mr-2" />
-                  Relatório PDF Completo
+                <Button variant="outline" className="w-full justify-start border-gray-300">
+                  <FileText className="h-4 w-4 mr-2 text-gray-600" />
+                  <span className="text-gray-900">Gerar PDF</span>
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Mail className="h-4 w-4 mr-2" />
-                  Enviar por Email
+                <Button variant="outline" className="w-full justify-start border-gray-300">
+                  <Send className="h-4 w-4 mr-2 text-gray-600" />
+                  <span className="text-gray-900">Enviar por Email</span>
                 </Button>
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
-
-        {/* Aba de Automação */}
-        <TabsContent value="automation">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border-orange-200">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Bell className="h-5 w-5 text-orange-600" />
-                  <span>Lembretes Automáticos</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Configure lembretes automáticos para alunos com faturas pendentes ou vencidas.
-                </p>
-                <div className="space-y-2">
-                  <Button 
-                    onClick={handleNotifyOverdue}
-                    disabled={notifyOverdueMutation.isPending}
-                    className="w-full bg-orange-600 hover:bg-orange-700"
-                  >
-                    <Mail className="h-4 w-4 mr-2" />
-                    {notifyOverdueMutation.isPending ? 'Enviando...' : 'Enviar Lembretes Agora'}
-                  </Button>
-                  <Button variant="outline" className="w-full">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Configurar Agendamento
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-blue-200">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <CheckSquare className="h-5 w-5 text-blue-600" />
-                  <span>Atualizações Automáticas</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Automatize a marcação de faturas como vencidas e outras atualizações de status.
-                </p>
-                <div className="space-y-2">
-                  <Button 
-                    onClick={handleMarkOverduePayments}
-                    disabled={markOverduePaymentsMutation.isPending}
-                    variant="outline" 
-                    className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    {markOverduePaymentsMutation.isPending ? 'Processando...' : 'Atualizar Status'}
-                  </Button>
-                  <Button variant="outline" className="w-full">
-                    <Clock className="h-4 w-4 mr-2" />
-                    Configurar Rotinas
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+          </TabsContent>
+        )}
       </Tabs>
 
-      {/* Modal de Nova Fatura Avançada */}
+      {/* Modal de Nova Fatura */}
       <InvoiceModal
         open={isNewInvoiceOpen}
         onClose={() => setIsNewInvoiceOpen(false)}
@@ -616,24 +731,31 @@ export default function Financial() {
         isLoading={createInvoiceMutation.isPending}
       />
 
-      {/* Modal de Pagamento */}
+      {/* Modal de Pagamento Simplificado */}
       {selectedInvoice && (
         <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Registrar Pagamento</DialogTitle>
-              <DialogDescription>
-                Registre um novo pagamento para esta fatura
+              <DialogTitle className="text-gray-900">Registrar Pagamento</DialogTitle>
+              <DialogDescription className="text-gray-600">
+                Registre o pagamento recebido para esta fatura
               </DialogDescription>
             </DialogHeader>
             
-            <div className="mb-4 p-4 bg-muted rounded-lg">
-              <div className="text-sm space-y-1">
-                <div><strong>Aluno:</strong> {selectedInvoice.student?.name}</div>
-                <div><strong>Fatura:</strong> {selectedInvoice.description}</div>
-                <div><strong>Valor Total:</strong> {formatCurrency(selectedInvoice.amount)}</div>
-                <div><strong>Já Pago:</strong> {formatCurrency(selectedInvoice.paidAmount)}</div>
-                <div><strong>Saldo:</strong> {formatCurrency(selectedInvoice.balance)}</div>
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="text-sm space-y-2 text-gray-700">
+                <div className="flex justify-between">
+                  <span>Aluno:</span>
+                  <span className="font-medium text-gray-900">{selectedInvoice.student?.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Valor Total:</span>
+                  <span className="font-medium text-gray-900">{formatCurrency(selectedInvoice.amount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Saldo:</span>
+                  <span className="font-medium text-green-700">{formatCurrency(selectedInvoice.remainingBalance || selectedInvoice.balance || 0)}</span>
+                </div>
               </div>
             </div>
             
@@ -644,12 +766,13 @@ export default function Financial() {
                   name="amount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Valor do Pagamento (AOA)</FormLabel>
+                      <FormLabel className="text-gray-900">Valor do Pagamento (AOA)</FormLabel>
                       <FormControl>
                         <Input 
                           type="number"
                           step="0.01"
                           placeholder="0.00"
+                          className="border-gray-300"
                           {...field}
                           onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                         />
@@ -664,18 +787,18 @@ export default function Financial() {
                   name="method"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Método de Pagamento</FormLabel>
+                      <FormLabel className="text-gray-900">Método de Pagamento</FormLabel>
                       <FormControl>
                         <Select value={field.value} onValueChange={field.onChange}>
-                          <SelectTrigger>
+                          <SelectTrigger className="border-gray-300">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {financialAPI.getPaymentMethods().map((method) => (
-                              <SelectItem key={method.value} value={method.value}>
-                                {method.icon} {method.label}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="DINHEIRO">💵 Dinheiro</SelectItem>
+                            <SelectItem value="TRANSFERENCIA">🏦 Transferência</SelectItem>
+                            <SelectItem value="MULTICAIXA">💳 Multicaixa</SelectItem>
+                            <SelectItem value="EXPRESS">📱 Express</SelectItem>
+                            <SelectItem value="PAYWAY">📲 PayWay</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>
@@ -689,10 +812,11 @@ export default function Financial() {
                   name="reference"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Referência (Opcional)</FormLabel>
+                      <FormLabel className="text-gray-900">Referência (Opcional)</FormLabel>
                       <FormControl>
                         <Input 
-                          placeholder="Ex: Comprovativo, Nº Operação..."
+                          placeholder="Nº do comprovativo..."
+                          className="border-gray-300"
                           {...field} 
                         />
                       </FormControl>
@@ -706,13 +830,14 @@ export default function Financial() {
                     type="button" 
                     variant="outline" 
                     onClick={() => setIsPaymentOpen(false)}
+                    className="border-gray-300"
                   >
                     Cancelar
                   </Button>
                   <Button 
                     type="submit" 
                     disabled={payInvoiceMutation.isPending}
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-green-600 hover:bg-green-700 text-white"
                   >
                     {payInvoiceMutation.isPending ? (
                       <>
@@ -721,119 +846,14 @@ export default function Financial() {
                       </>
                     ) : (
                       <>
-                        <CreditCard className="w-4 h-4 mr-2" />
-                        Registrar Pagamento
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Confirmar Pagamento
                       </>
                     )}
                   </Button>
                 </div>
               </form>
             </Form>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Modal de Visualização de Fatura */}
-      {selectedInvoice && (
-        <Dialog open={isViewInvoiceOpen} onOpenChange={setIsViewInvoiceOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center justify-between">
-                <span>Detalhes da Fatura</span>
-                <Badge 
-                  className={InvoiceStatusColors[selectedInvoice.status]}
-                  variant="outline"
-                >
-                  {InvoiceStatusLabels[selectedInvoice.status]}
-                </Badge>
-              </DialogTitle>
-              <DialogDescription>
-                Informações completas da fatura selecionada
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-semibold text-sm text-muted-foreground">ALUNO</h4>
-                  <p className="font-medium">{selectedInvoice.student?.name}</p>
-                  <p className="text-sm text-muted-foreground">{selectedInvoice.student?.studentNumber}</p>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold text-sm text-muted-foreground">DESCRIÇÃO</h4>
-                  <p>{selectedInvoice.description}</p>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold text-sm text-muted-foreground">PERÍODO</h4>
-                  <p>{MONTHS_PT[selectedInvoice.month - 1]} {selectedInvoice.year}</p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-semibold text-sm text-muted-foreground">VALORES</h4>
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <span>Total:</span>
-                      <span className="font-mono">{formatCurrency(selectedInvoice.amount)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Pago:</span>
-                      <span className="font-mono text-green-600">{formatCurrency(selectedInvoice.paidAmount)}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-1">
-                      <span className="font-medium">Saldo:</span>
-                      <span className="font-mono font-medium">{formatCurrency(selectedInvoice.balance)}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold text-sm text-muted-foreground">VENCIMENTO</h4>
-                  <p>{format(new Date(selectedInvoice.dueDate), 'dd/MM/yyyy', { locale: pt })}</p>
-                  {financialAPI.isOverdue(selectedInvoice.dueDate) && selectedInvoice.status !== 'PAGA' && (
-                    <p className="text-red-600 text-sm">
-                      {financialAPI.calculateDebtAge(selectedInvoice.dueDate)} dias em atraso
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => handleViewStudentHistory(selectedInvoice.student?.id)}
-              >
-                <Users className="h-4 w-4 mr-2" />
-                Ver Histórico do Aluno
-              </Button>
-              
-              <div className="flex space-x-2">
-                <Button
-                  variant="outline"
-                  onClick={() => financialAPI.downloadInvoicePdf(selectedInvoice.id, `fatura_${selectedInvoice.id}.pdf`)}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Baixar PDF
-                </Button>
-                
-                {canManageFinance && selectedInvoice.status !== 'PAGA' && selectedInvoice.status !== 'CANCELADA' && (
-                  <Button
-                    onClick={() => {
-                      setIsViewInvoiceOpen(false);
-                      handleOpenPayment(selectedInvoice);
-                    }}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <CreditCard className="h-4 w-4 mr-2" />
-                    Registrar Pagamento
-                  </Button>
-                )}
-              </div>
-            </div>
           </DialogContent>
         </Dialog>
       )}

@@ -313,7 +313,7 @@ export default function StudentsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col space-y-4">
 
       <div className="flex justify-between items-center">
         <div>
@@ -567,14 +567,14 @@ export default function StudentsPage() {
       </Card>
 
       {/* Tabela Melhorada de Estudantes */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5" />
+      <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <CardHeader className="py-3 border-b">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Users className="w-4 h-4" />
             Lista de Estudantes ({filteredStudents.length})
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-8 space-y-2">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -596,30 +596,28 @@ export default function StudentsPage() {
               </div>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Estudante</TableHead>
-                  <TableHead>Número</TableHead>
-                  <TableHead>Idade</TableHead>
-                  <TableHead>Classe</TableHead>
-                  <TableHead>Encarregado</TableHead>
-                  <TableHead>Localização</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>{user?.role === 'PROFESSOR' ? 'Ver' : 'Ações'}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <div className="overflow-y-auto" style={{ maxHeight: '480px', minHeight: '300px' }}>
+              <Table>
+                <TableHeader className="sticky top-0 bg-white dark:bg-gray-900 z-10 border-b">
+                  <TableRow>
+                    <TableHead className="w-2/5">Estudante</TableHead>
+                    <TableHead className="w-1/5">Número</TableHead>
+                    <TableHead className="w-1/4">Classe</TableHead>
+                    <TableHead className="w-1/6">Estado</TableHead>
+                    <TableHead className="w-1/6 text-center">{user?.role === 'PROFESSOR' ? 'Ver' : 'Ações'}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                 {filteredStudents.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       Nenhum estudante encontrado
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredStudents.map((student) => (
-                    <TableRow key={student.id}>
-                      <TableCell>
+                    <TableRow key={student.id} className="hover:bg-muted/50 transition-colors">
+                      <TableCell className="py-3">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-10 w-10">
                             <AvatarImage src={student.profilePhotoUrl || ""} />
@@ -645,18 +643,12 @@ export default function StudentsPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-3">
                         <Badge variant="secondary" className="font-mono">
                           {student.studentNumber}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4 text-muted-foreground" />
-                          {calcularIdade(student.birthDate)} anos
-                        </div>
-                      </TableCell>
-                      <TableCell>
+                      <TableCell className="py-3">
                         <div className="flex items-center gap-2">
                           <GraduationCap className="w-4 h-4 text-primary" />
                           {student.schoolClass ? (
@@ -672,25 +664,7 @@ export default function StudentsPage() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{student.guardianName}</div>
-                          <div className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Phone className="w-3 h-3" />
-                            {student.guardianPhone}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <MapPin className="w-4 h-4 text-primary" />
-                          <div>
-                            <div className="font-medium text-sm">{student.municipality}</div>
-                            <div className="text-xs text-muted-foreground">{student.province}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
+                      <TableCell className="py-3">
                         <Badge 
                           variant="default" 
                           className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
@@ -698,7 +672,7 @@ export default function StudentsPage() {
                           Ativo
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-3">
                         <div className="flex gap-2">
                           {/* Botões para ADMIN e SECRETARIA apenas */}
                           {user?.role === 'ADMIN' || user?.role === 'SECRETARIA' ? (
@@ -739,8 +713,9 @@ export default function StudentsPage() {
                     </TableRow>
                   ))
                 )}
-              </TableBody>
-            </Table>
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

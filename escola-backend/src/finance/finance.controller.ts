@@ -46,7 +46,7 @@ export class FinanceController {
     private readonly pdfService: PdfService,
   ) {}
 
-  @Post('invoice')
+  @Post('invoices')
   @Roles('ADMIN', 'SECRETARIA')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Criar nova fatura' })
@@ -111,7 +111,8 @@ export class FinanceController {
     return this.financeService.findInvoiceById(id);
   }
 
-  @Get('invoice/:id/pdf')
+  // Mudado para pdf-old - usar o endpoint na linha 287 que tem o design novo
+  @Get('invoice/:id/pdf-old')
   @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
   @Header('Content-Type', 'application/pdf')
   @ApiOperation({ summary: 'Gerar e baixar fatura em PDF' })
@@ -160,10 +161,10 @@ export class FinanceController {
     res.send(pdfBuffer);
   }
 
-  @Post('invoice/:id/pay')
+  @Post('invoices/:id/payments')
   @Roles('ADMIN', 'SECRETARIA')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Registrar pagamento de fatura' })
+  @ApiOperation({ summary: 'Registrar pagamento de fatura (total ou parcial)' })
   @ApiParam({ name: 'id', description: 'ID da fatura' })
   @ApiResponse({
     status: 200,
@@ -178,11 +179,11 @@ export class FinanceController {
     status: 404,
     description: 'Fatura não encontrada',
   })
-  async payInvoice(
+  async settleInvoice(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() payInvoiceDto: PayInvoiceDto,
+    @Body() body: { amount: number; method: string; paidAt?: Date },
   ): Promise<InvoiceEntity> {
-    return this.financeService.payInvoice(id, payInvoiceDto);
+    return this.financeService.settleInvoice(id, body);
   }
 
   @Get('student/:id/history')
@@ -249,9 +250,9 @@ export class FinanceController {
 
   // ============= ENDPOINTS PARA RELATÓRIOS =============
 
-  @Get('reports/summary')
-  @Roles('ADMIN', 'DIRETOR')
-  @ApiOperation({ summary: 'Resumo financeiro geral (apenas ADMIN e DIRETOR)' })
+  @Get('summary')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @ApiOperation({ summary: 'Resumo financeiro geral com KPIs' })
   @ApiQuery({ name: 'year', description: 'Ano para filtrar', required: false })
   @ApiQuery({ name: 'month', description: 'Mês para filtrar', required: false })
   @ApiResponse({
@@ -278,14 +279,94 @@ export class FinanceController {
       },
     },
   })
-  async getFinancialSummary(
-    @Query('year') year?: number,
-    @Query('month') month?: number,
-  ): Promise<any> {
-    // Esta implementação seria adicionada ao FinanceService
-    return { 
-      message: 'Endpoint de relatório financeiro - implementação futura',
-      filters: { year, month }
-    };
+  async getSummary(): Promise<any> {
+    return this.financeService.getSummary();
+  }
+
+  // ============= ENDPOINTS DE PDF =============
+
+  @Get('invoice/:id/pdf')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @ApiOperation({ summary: 'Gerar PDF da fatura (Fatura para pendentes, Recibo para pagas)' })
+  @ApiParam({ name: 'id', description: 'ID da fatura' })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF gerado com sucesso',
+    content: {
+      'application/pdf': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Fatura não encontrada',
+  })
+  async generateInvoicePDF(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: any,
+  ): Promise<void> {
+    const pdfBuffer = await this.financeService.generateInvoicePDF(id);
+    
+    // Adicionar headers CORS manualmente quando usando @Res()
+    res.set({
+      'Access-Control-Allow-Origin': process.env.FRONTEND_URL || 'http://localhost:3001',
+      'Access-Control-Allow-Credentials': 'true',
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="fatura_${id.substring(0, 8)}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+    
+    res.end(pdfBuffer);
+  }
+
+  // ============= ENDPOINTS DE NOTIFICAÇÃO =============
+
+  @Post('invoice/:id/notify')
+  @Roles('ADMIN', 'SECRETARIA')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Enviar notificação para o responsável sobre uma fatura específica' })
+  @ApiParam({ name: 'id', description: 'ID da fatura' })
+  @ApiResponse({
+    status: 200,
+    description: 'Notificação enviada com sucesso',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Notificação enviada com sucesso' },
+        emailSent: { type: 'string', example: 'parent@email.com' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Fatura não encontrada',
+  })
+  async notifyInvoiceParent(@Param('id', ParseUUIDPipe) id: string): Promise<any> {
+    return this.financeService.notifyInvoiceParent(id);
+  }
+
+  @Post('notifications/overdue')
+  @Roles('ADMIN', 'SECRETARIA')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Enviar lembretes para todos os responsáveis com faturas vencidas' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lembretes enviados com sucesso',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        count: { type: 'number', example: 5 },
+        message: { type: 'string', example: 'Lembretes enviados para 5 responsáveis' },
+      },
+    },
+  })
+  async sendOverdueReminders(): Promise<any> {
+    return this.financeService.sendOverdueReminders();
   }
 }

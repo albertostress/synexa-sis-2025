@@ -231,7 +231,7 @@ export class LibraryController {
   }
 
   @Get('loans')
-  @Roles('ADMIN', 'DIRETOR')
+  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA')
   @ApiOperation({
     summary: 'Histórico de empréstimos',
     description: 'Retorna lista paginada de empréstimos com filtros avançados',
@@ -319,7 +319,7 @@ export class LibraryController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Sem permissão para visualizar histórico (apenas ADMIN/DIRETOR)',
+    description: 'Sem permissão para visualizar histórico (apenas ADMIN/DIRETOR/SECRETARIA)',
   })
   async getLoans(@Query() filters: FilterLoansDto): Promise<LoansListResponse> {
     return this.libraryService.getLoans(filters);

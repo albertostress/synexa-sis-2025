@@ -438,6 +438,27 @@ interface Subject {
 ### Módulos bloqueados para SECRETARIA:
 ❌ Professores, Disciplinas, Notas, Utilizadores, Configurações, Relatórios Avançados
 
+## 🔒 Ocultação de KPIs financeiros para ROLE: SECRETARIA
+📅 [2025-08-09T12:00:00Z]
+✅ **Visibilidade condicional por role no módulo financeiro**
+
+### Mudanças implementadas:
+- **Frontend**: KPIs e aba "Visão Geral" ocultos para SECRETARIA
+- **Backend**: Endpoint `/finance/reports/summary` protegido com RolesGuard (ADMIN, SECRETARIA, DIRETOR)
+- **Hook otimizado**: `useFinancialData` com `enabled` condicionado ao role (evita chamadas desnecessárias)
+- **Utilitário de roles**: Criado `/utils/roles.ts` com funções de verificação de permissões
+- **UX melhorada**: SECRETARIA inicia diretamente na aba "Faturas"
+
+### Permissões por role:
+- **ADMIN/DIRETOR/FINANCEIRO**: Veem KPIs, Visão Geral, Faturas e Relatórios
+- **SECRETARIA**: Vê apenas Faturas (mantém operações de gerar, pagar, notificar)
+
+### Arquivos alterados:
+- `/escola-frontend/src/utils/roles.ts` - Novo arquivo com helpers de permissões
+- `/escola-frontend/src/pages/Financial.tsx` - Renderização condicional baseada em role
+- `/escola-frontend/src/hooks/useFinancialData.ts` - Query desabilitada para SECRETARIA
+- Rebuild Docker concluído
+
 ## 🔧 Correção: Botão "Nova Disciplina" - Seleção de Professores [2025-08-05T14:50]
 
 ### Problema Identificado
@@ -528,6 +549,220 @@ docker-compose restart escola-frontend
 
 **Módulos mantidos para PROFESSOR:**
 ✅ Alunos, Notas, Presenças, Eventos
+
+## 🎨 Redesenho completo do módulo de Documentos Oficiais
+📅 [2025-08-08T18:00:00Z]
+✅ **Refatoração Total**: Módulo simplificado para formulário único e funcional
+
+### 🐛 **Problema Original**:
+- Interface complexa com múltiplos cartões, etapas visuais e ícones decorativos
+- Design carregado e confuso para usuários de escolas angolanas
+- Processo demorado com muitos cliques desnecessários
+- Preview modal complexo e pouco prático
+
+### ✅ **Solução Implementada**:
+
+**Frontend (React):**
+- ✅ Layout simplificado em formulário vertical único de 385 linhas (antes: 797 linhas)
+- ✅ Card compacto centralizado com max-width de 2xl
+- ✅ Campos organizados sequencialmente: Tipo → Ano → Turma → Aluno
+- ✅ Carregamento dinâmico de dados via API existentes
+- ✅ Remoção completa de: preview modal, badges decorativos, cards múltiplos, etapas visuais
+- ✅ Botão único "Gerar Documento PDF" para ação direta
+- ✅ Proteção de roles: PROFESSOR redirecionado para /grades automaticamente
+
+**Funcionalidades Mantidas:**
+- ✅ Geração de 3 tipos de documento: Declaração, Histórico, Certificado
+- ✅ Campo de finalidade condicional para declarações
+- ✅ Validações e feedback via toast
+- ✅ Download automático do PDF gerado
+- ✅ Reset do formulário após sucesso
+
+**Benefícios:**
+- 📉 **52% menos código** (385 vs 797 linhas)
+- ⚡ **Interface mais rápida** sem componentes pesados
+- 🎯 **Foco na funcionalidade** sem distrações visuais
+- 👥 **UX otimizada** para secretárias escolares angolanas
+- 📱 **Responsivo** mas focado em desktop
+
+## 🎯 Otimização: Formulário de Notas para PROFESSOR
+📅 [2025-08-07T12:00:00Z]
+✅ **Melhoria Implementada**: Campo Professor removido automaticamente para usuários com ROLE: PROFESSOR
+
+### 🐛 **Problema Original**:
+- Professor tinha que selecionar seu próprio nome no dropdown ao criar notas
+- Redundância desnecessária, pois sistema já sabe qual professor está logado
+- Risco de professor selecionar outro professor por engano
+
+### ✅ **Solução Implementada**:
+
+**Frontend (React):**
+- ✅ Campo "Professor" ocultado condicionalmente quando `user.role === 'PROFESSOR'`
+- ✅ Hook `useEffect` busca automaticamente o teacher ID associado ao usuário
+- ✅ Campo professor mantido visível para ADMIN e SECRETARIA
+- ✅ Lógica de submissão ajustada para injetar teacherId automaticamente
+
+**Backend (NestJS):**
+- ✅ DTO `CreateGradeDto` atualizado: campo `teacherId` agora opcional
+- ✅ Service `GradesService.create()` modificado para:
+  - Buscar professor automaticamente se teacherId não fornecido
+  - ADMIN pode lançar notas para qualquer professor
+  - PROFESSOR só pode lançar notas em seu próprio nome
+- ✅ Validação de segurança: PROFESSOR não pode criar notas em nome de outro
+
+### 📝 **Alterações Técnicas**:
+
+**Frontend** (`/escola-frontend/src/pages/Grades.tsx`):
+```typescript
+// Estado para armazenar professor atual
+const [currentTeacherId, setCurrentTeacherId] = useState<string | null>(null);
+const isProfessor = user?.role === 'PROFESSOR';
+
+// Buscar professor do usuário logado
+useEffect(() => {
+  if (isProfessor && user?.id) {
+    const currentTeacher = teachers.find(t => t.userId === user.id);
+    setCurrentTeacherId(currentTeacher?.id);
+  }
+}, [isProfessor, user?.id]);
+
+// Condicionar exibição do campo
+{!isProfessor && (
+  <div>
+    <Label htmlFor="teacherId">Professor</Label>
+    <Select name="teacherId">...</Select>
+  </div>
+)}
+```
+
+**Backend** (`/escola-backend/src/grades/grades.service.ts`):
+```typescript
+// Auto-detectar professor se não fornecido
+if (!teacherId) {
+  const currentTeacher = await this.prisma.teacher.findUnique({
+    where: { userId: currentUserId }
+  });
+  teacherId = currentTeacher.id;
+}
+
+// Validação de segurança
+if (currentUser?.role === 'PROFESSOR' && teacher.userId !== currentUserId) {
+  throw new ForbiddenException('Você só pode lançar notas como o professor associado ao seu usuário');
+}
+```
+
+### 🎯 **Benefícios**:
+- ✅ **UX melhorada**: Professor não precisa se auto-selecionar
+- ✅ **Segurança**: Professor não pode criar notas em nome de outro
+- ✅ **Flexibilidade**: ADMIN mantém capacidade de lançar para qualquer professor
+- ✅ **Menos erros**: Elimina possibilidade de seleção incorreta
+
+### 🔧 **Correção Adicional** [2025-08-07T12:15:00Z]:
+- **Problema**: Erro 403 ao carregar lista de professores quando logado como PROFESSOR
+- **Solução**: Adicionado role `PROFESSOR` ao endpoint `GET /teachers`
+- **Arquivo**: `/escola-backend/src/teachers/teachers.controller.ts:60`
+- **Alteração**: `@Roles('ADMIN', 'DIRETOR', 'SECRETARIA', 'PROFESSOR')`
+- **Resultado**: PROFESSOR agora pode visualizar lista de professores necessária para o formulário de notas
+
+## 🎨 Refatoração Visual do Módulo Financeiro
+📅 [2025-08-09T03:00:00Z]
+✅ **Redesign Completo**: Módulo financeiro reformulado para design limpo e moderno
+
+### 📊 **Mudanças Implementadas**:
+
+**Frontend (React + Tailwind):**
+- ✅ **3 Blocos Principais Criados**:
+  - **Bloco 1**: Resumo Financeiro com 4 cards de estatísticas (Receita, Taxa Cobrança, Meta, Atrasos)
+  - **Bloco 2**: Ações Rápidas com 3 botões destacados (Nova Fatura, Marcar Pagamento, Notificar Pais)
+  - **Bloco 3**: Análises e Tendências com gráficos simplificados
+- ✅ **Design Limpo**:
+  - Paleta reduzida: verde e cinza como cores principais
+  - Vermelho/laranja apenas para alertas e indicadores de risco
+  - Espaço em branco aumentado entre elementos
+  - Bordas suaves e sombras discretas
+  - Títulos com font-weight 600
+- ✅ **Layout Mobile-First**:
+  - Grid responsivo com breakpoints md: e lg:
+  - Blocos empilhados em mobile
+  - 2 colunas em desktop para estatísticas e gráficos
+  - Botões sempre visíveis sem scroll horizontal
+- ✅ **UX Melhorada**:
+  - Ícones intuitivos em todos os botões (Lucide Icons)
+  - Espaçamento consistente (p-4, gap-4)
+  - Contraste adequado WCAG AA
+  - Estados hover mais suaves
+- ✅ **Componentes Simplificados**:
+  - StatCard customizado para estatísticas
+  - Tabela limpa sem bordas excessivas
+  - Modais com design minimalista
+  - Tabs com visual mais discreto
+
+### 📝 **Alterações Técnicas**:
+
+**Arquivo** (`/escola-frontend/src/pages/Financial.tsx`):
+```typescript
+// Componente StatCard criado para cards uniformes
+function StatCard({ title, value, change, icon, trend, color }) {
+  // Cards com cores sutis e ícones
+}
+
+// Layout com 3 blocos principais
+// Bloco 1: Grid de 4 estatísticas
+// Bloco 2: Card com 3 botões de ação
+// Bloco 3: Tabs com gráficos e listas
+```
+
+### 🎯 **Benefícios**:
+- ✅ **Visual mais limpo**: Menos poluição visual, hierarquia clara
+- ✅ **Fácil navegação**: Informações agrupadas logicamente
+- ✅ **Performance**: Menos elementos DOM, carregamento mais rápido
+- ✅ **Manutenção**: Código mais organizado e componentizado
+- ✅ **Acessibilidade**: Cores com contraste adequado, textos legíveis
+
+## 📅 [2025-08-09T08:00:00Z]
+🔧 **Módulo Financeiro - Correções estruturais completas**
+
+### Mudanças implementadas:
+
+**Backend (NestJS + Prisma):**
+- ✅ Endpoints corrigidos: `POST /finance/invoices`, `POST /finance/invoices/:id/payments`, `GET /finance/summary`
+- ✅ FinanceService com métodos `settleInvoice()` e `getSummary()`
+- ✅ Conversão para number: `Number(amount || 0)` evita NaN
+- ✅ Status automático: PENDENTE → PARCIAL → PAGA baseado em pagamentos
+- ✅ KPIs calculados: monthlyRevenue, overdueAmount, collectionRate, monthlyGoalProgress
+- ✅ RBAC implementado: ADMIN/SECRETARIA escrita, DIRETOR leitura
+
+**Frontend (React + TypeScript):**
+- ✅ Formatação AOA: `new Intl.NumberFormat('pt-AO', { currency: 'AOA' })`  
+- ✅ API atualizada: `/finance/invoices`, `/finance/summary`
+- ✅ KPIs sem NaN: `Number(value || 0)` em todos os cálculos
+- ✅ Invalidação de queries: `financial-summary` após criar/pagar
+- ✅ useFinancialData hook simplificado para consumir API real
+
+**Funcionalidades testadas:**
+- Criar fatura com sucesso
+- Marcar pagamento (total/parcial)
+- KPIs atualizados em tempo real
+- RBAC funcionando no frontend e backend
+
+## 📅 [2025-08-09T02:30:00Z]
+🔧 **Correção de erros de API no sistema:**
+
+### Erros Corrigidos:
+
+1. **404 - /finance/automation/send-overdue-reminders**
+   - ✅ Adicionado mock response em `/escola-frontend/src/lib/api.ts`
+   - Endpoint não implementado no backend, retorna simulação
+
+2. **403 - /library/loans**
+   - ✅ Adicionado role `SECRETARIA` em `/escola-backend/src/library/library.controller.ts:234`
+   - Antes: `@Roles('ADMIN', 'DIRETOR')`
+   - Depois: `@Roles('ADMIN', 'DIRETOR', 'SECRETARIA')`
+   - Secretaria agora pode visualizar histórico de empréstimos
+
+3. **Outros erros identificados:**
+   - 401 Unauthorized em várias rotas devido a problemas de autenticação
+   - Credenciais padrão: admin@escola.com / admin123
 
 ## 5. Regras de Otimização Docker
 
@@ -751,3 +986,15 @@ Se aparecer erro **"property [campo] should not exist"**:
 - **SEMPRE fazer rebuild do Docker** após mudanças no schema
 - **NUNCA ignorar erros de validação** - indicam dessincronia
 - **VERIFICAR todos os 3 pontos**: Schema, Banco, Container
+
+## 📅 [2025-08-08T22:45:00Z]
+📋 **Otimização completa do módulo de presenças com scroll interno:**
+- ✅ **Layout fixo**: Página usa altura total da tela (h-screen) sem scroll externo
+- ✅ **Cabeçalho fixo**: Título "Controle de Presenças" em área fixa no topo
+- ✅ **Container principal**: Utiliza flexbox com overflow-hidden para conter conteúdo
+- ✅ **Scroll interno na Lista de Chamada**: Tabela com altura máxima definida (max-h-[calc(100vh-400px)])
+- ✅ **Cabeçalho da tabela sticky**: Thead com position sticky mantém headers visíveis durante scroll
+- ✅ **Botão "Salvar Presenças" sempre visível**: Posicionado em área fixa fora do scroll
+- ✅ **Cores temáticas**: Uso de bg-background, text-foreground, bg-muted para compatibilidade com tema
+- ✅ **Seções flex-shrink-0**: Filtros e estatísticas não encolhem, apenas a tabela
+- ✅ **Melhor UX**: Interface mais limpa e profissional com scroll apenas onde necessário

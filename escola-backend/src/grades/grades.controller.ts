@@ -51,7 +51,7 @@ export class GradesController {
   ) {}
 
   @Post()
-  @Roles('PROFESSOR')
+  @Roles('ADMIN', 'PROFESSOR')
   @ApiOperation({ summary: 'Lançar nova nota' })
   @ApiResponse({
     status: 201,
@@ -82,7 +82,7 @@ export class GradesController {
   }
 
   @Get()
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
   @ApiOperation({ summary: 'Listar todas as notas com filtros opcionais' })
   @ApiQuery({ name: 'studentId', description: 'ID do aluno', required: false })
   @ApiQuery({ name: 'subjectId', description: 'ID da disciplina', required: false })
@@ -255,7 +255,7 @@ export class GradesController {
   // ==================== ENDPOINTS OTIMIZADOS SISTEMA ANGOLANO ====================
 
   @Get('angola/student/:studentId/term/:term')
-  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA')
+  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA', 'PROFESSOR')
   @ApiOperation({ 
     summary: 'Buscar notas completas de um aluno por trimestre (Otimizado)',
     description: 'Retorna as notas do aluno com MT calculada e status final. Ideal para boletim escolar.'
@@ -295,7 +295,7 @@ export class GradesController {
   }
 
   @Get('angola/class/:classId/term/:term')
-  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA')
+  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA', 'PROFESSOR')
   @ApiOperation({ 
     summary: 'Resumo de notas de toda a turma por trimestre (Otimizado)',
     description: 'Retorna média e status de todos os alunos da turma. Ideal para dashboards.'
@@ -323,7 +323,7 @@ export class GradesController {
   }
 
   @Get('angola/calculate-mt/:studentId/:subjectId/:term')
-  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA')
+  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA', 'PROFESSOR')
   @ApiOperation({ 
     summary: 'Calcular MT isolada de uma disciplina (Otimizado)',
     description: 'Retorna cálculo isolado de MAC, NPP, NPT e MT. Ideal para feedback ao professor.'

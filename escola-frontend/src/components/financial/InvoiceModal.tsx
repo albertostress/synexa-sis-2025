@@ -489,20 +489,6 @@ export function InvoiceModal({
               </CardContent>
             </Card>
 
-            {/* Informação Legal Angola */}
-            <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
-              <div className="flex items-start space-x-2">
-                <Info className="h-4 w-4 text-amber-600 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-medium text-amber-800">Conformidade AGT Angola</p>
-                  <p className="text-amber-700 mt-1">
-                    Esta fatura será gerada com numeração sequencial conforme exigências da 
-                    Administração Geral Tributária (AGT) de Angola para faturação eletrônica.
-                  </p>
-                </div>
-              </div>
-            </div>
-
             {/* Botões */}
             <div className="flex justify-end space-x-3 pt-4 border-t">
               <Button 

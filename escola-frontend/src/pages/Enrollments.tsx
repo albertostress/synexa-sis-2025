@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { enrollmentAPI, studentsAPI, classesAPI } from '@/lib/api';
 import { useEnrollmentYears } from '@/hooks/useEnrollmentYears';
 import { 
@@ -24,16 +25,19 @@ import {
   getStatusBadgeVariant,
   calculateEnrollmentStats
 } from '@/types/enrollment';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { EnrollmentCreateModal } from '@/components/enrollment/EnrollmentCreateModal';
 
 export default function Enrollments() {
+  console.log('🚀 Enrollments component rendering...');
+  
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isNewEnrollmentModalOpen, setIsNewEnrollmentModalOpen] = useState(false);
   const [editingEnrollment, setEditingEnrollment] = useState<EnrollmentWithRelations | null>(null);
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState<number>(2025); // Default to 2025
   const [selectedStatus, setSelectedStatus] = useState<EnrollmentStatus | ''>('');
+  const [selectedClassFilter, setSelectedClassFilter] = useState<string>('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -43,6 +47,7 @@ export default function Enrollments() {
   // Definir o ano mais recente como padrão quando os anos forem carregados
   useEffect(() => {
     if (yearsAsNumbers.length > 0 && selectedYear !== mostRecentYear) {
+      console.log('🎯 Setting selected year to:', mostRecentYear);
       setSelectedYear(mostRecentYear);
     }
   }, [yearsAsNumbers, mostRecentYear]);
@@ -56,15 +61,18 @@ export default function Enrollments() {
   } = useQuery({
     queryKey: ['enrollments', selectedYear, selectedStatus],
     queryFn: async () => {
-      console.log('📚 Carregando matrículas...');
+      console.log('📚 Carregando matrículas para o ano:', selectedYear);
       const filters = {
         ...(selectedYear && { year: selectedYear }),
         ...(selectedStatus && { status: selectedStatus as EnrollmentStatus })
       };
       const data = await enrollmentAPI.getAll(filters);
-      console.log('🎓 Matrículas carregadas:', data?.length, 'matrículas');
-      return data;
+      // Garantir que sempre retorna um array
+      const enrollmentsArray = Array.isArray(data) ? data : [];
+      console.log('🎓 Matrículas carregadas:', enrollmentsArray.length, 'matrículas');
+      return enrollmentsArray;
     },
+    enabled: !!user && !loadingYears && selectedYear > 0, // Only fetch when authenticated and year is ready
     staleTime: 30000, // Cache por 30 segundos
     retry: 1
   });
@@ -80,22 +88,30 @@ export default function Enrollments() {
   }
 
   // Carregar estudantes para seleção
-  const { data: students = [], isLoading: loadingStudents } = useQuery({
+  const { data: studentsData, isLoading: loadingStudents } = useQuery({
     queryKey: ['students'],
-    queryFn: () => studentsAPI.getAll(),
-    enabled: isDialogOpen,
+    queryFn: async () => {
+      const data = await studentsAPI.getAll();
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: !!user && isDialogOpen,
     staleTime: 60000, // Cache por 1 minuto
     retry: 1
   });
+  const students = Array.isArray(studentsData) ? studentsData : [];
 
   // Carregar turmas para seleção
-  const { data: classes = [], isLoading: loadingClasses } = useQuery({
+  const { data: classesData, isLoading: loadingClasses } = useQuery({
     queryKey: ['classes'],
-    queryFn: () => classesAPI.getAll(),
-    enabled: isDialogOpen,
+    queryFn: async () => {
+      const data = await classesAPI.getAll();
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: !!user && isDialogOpen,
     staleTime: 60000, // Cache por 1 minuto
     retry: 1
   });
+  const classes = Array.isArray(classesData) ? classesData : [];
 
   // Mutation para criar matrícula
   const createMutation = useMutation({
@@ -199,21 +215,38 @@ export default function Enrollments() {
     }
   });
 
-  // Filtrar matrículas
-  const filteredEnrollments = enrollments.filter(enrollment => {
+  // Filtrar matrículas (garantir que enrollments é sempre um array)
+  const safeEnrollments = Array.isArray(enrollments) ? enrollments : [];
+  const filteredEnrollments = safeEnrollments.filter(enrollment => {
     const studentName = formatStudentName(enrollment.student);
     const className = enrollment.class.name;
     const studentNumber = enrollment.student.studentNumber || '';
     
-    return (
+    // Filtro de busca
+    const matchesSearch = searchTerm === '' || (
       studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       className.toLowerCase().includes(searchTerm.toLowerCase()) ||
       studentNumber.toLowerCase().includes(searchTerm.toLowerCase())
     );
+    
+    // Filtro de turma
+    const matchesClass = selectedClassFilter === '' || enrollment.class.id === selectedClassFilter;
+    
+    return matchesSearch && matchesClass;
   });
 
-  // Calcular estatísticas
-  const stats = calculateEnrollmentStats(filteredEnrollments);
+  // Calcular estatísticas (garantir que filteredEnrollments é um array)
+  const stats = calculateEnrollmentStats(Array.isArray(filteredEnrollments) ? filteredEnrollments : []);
+  
+  // Obter lista única de turmas das matrículas
+  const uniqueClasses = Array.from(
+    new Map(
+      safeEnrollments.map(enrollment => [
+        enrollment.class.id,
+        { id: enrollment.class.id, name: enrollment.class.name }
+      ])
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -282,9 +315,42 @@ export default function Enrollments() {
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
+  // Debug info
+  console.log('🔍 Render state:', {
+    user: !!user,
+    loadingYears,
+    yearsAsNumbers,
+    selectedYear,
+    loadingEnrollments,
+    enrollmentsCount: enrollments?.length,
+    enrollmentsError
+  });
+
+  // Check if user is authenticated
+  if (!user) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">Redirecionando para login...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Early return if still loading years
+  if (loadingYears) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando anos letivos...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <ErrorBoundary>
-      <div className="space-y-6">
+    <div className="h-full flex flex-col space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Matrículas</h1>
@@ -328,12 +394,14 @@ export default function Enrollments() {
                       <SelectContent>
                         {loadingStudents ? (
                           <div className="text-center p-2">Carregando...</div>
-                        ) : (
+                        ) : students && students.length > 0 ? (
                           students.map(student => (
                             <SelectItem key={student.id} value={student.id}>
                               {formatStudentName(student)} ({student.studentNumber})
                             </SelectItem>
                           ))
+                        ) : (
+                          <div className="text-center p-2">Nenhum aluno disponível</div>
                         )}
                       </SelectContent>
                     </Select>
@@ -347,12 +415,14 @@ export default function Enrollments() {
                       <SelectContent>
                         {loadingClasses ? (
                           <div className="text-center p-2">Carregando...</div>
-                        ) : (
+                        ) : classes && classes.length > 0 ? (
                           classes.map(cls => (
                             <SelectItem key={cls.id} value={cls.id}>
                               {cls.name} ({formatSchoolYear(cls.year)})
                             </SelectItem>
                           ))
+                        ) : (
+                          <div className="text-center p-2">Nenhuma turma disponível</div>
                         )}
                       </SelectContent>
                     </Select>
@@ -366,12 +436,14 @@ export default function Enrollments() {
                       <SelectContent>
                         {loadingYears ? (
                           <div className="text-center p-2">Carregando anos letivos...</div>
-                        ) : (
+                        ) : yearsAsNumbers && yearsAsNumbers.length > 0 ? (
                           yearsAsNumbers.map(year => (
                             <SelectItem key={year} value={year.toString()}>
                               {formatSchoolYear(year)}
                             </SelectItem>
                           ))
+                        ) : (
+                          <div className="text-center p-2">Nenhum ano disponível</div>
                         )}
                       </SelectContent>
                     </Select>
@@ -383,7 +455,7 @@ export default function Enrollments() {
                         <SelectValue placeholder="Selecione o status" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Object.values(EnrollmentStatus).map(status => (
+                        {(EnrollmentStatus ? Object.values(EnrollmentStatus) : []).map(status => (
                           <SelectItem key={status} value={status}>
                             {EnrollmentStatusLabels[status]}
                           </SelectItem>
@@ -442,10 +514,13 @@ export default function Enrollments() {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Lista de Matrículas</span>
+        <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <CardHeader className="py-3 border-b">
+            <CardTitle className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Lista de Matrículas ({filteredEnrollments.length})
+              </span>
               <div className="flex items-center gap-2">
                 <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))} disabled={loadingYears}>
                   <SelectTrigger className="w-32">
@@ -454,12 +529,14 @@ export default function Enrollments() {
                   <SelectContent>
                     {loadingYears ? (
                       <div className="text-center p-2">Carregando...</div>
-                    ) : (
+                    ) : yearsAsNumbers && yearsAsNumbers.length > 0 ? (
                       yearsAsNumbers.map(year => (
                         <SelectItem key={year} value={year.toString()}>
                           {year}
                         </SelectItem>
                       ))
+                    ) : (
+                      <div className="text-center p-2">Nenhum ano</div>
                     )}
                   </SelectContent>
                 </Select>
@@ -469,9 +546,22 @@ export default function Enrollments() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">Todos</SelectItem>
-                    {Object.values(EnrollmentStatus).map(status => (
+                    {(EnrollmentStatus ? Object.values(EnrollmentStatus) : []).map(status => (
                       <SelectItem key={status} value={status}>
                         {EnrollmentStatusLabels[status]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={selectedClassFilter || 'ALL'} onValueChange={(value) => setSelectedClassFilter(value === 'ALL' ? '' : value)}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Turma" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todas as Turmas</SelectItem>
+                    {uniqueClasses.map(cls => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -488,24 +578,23 @@ export default function Enrollments() {
               </div>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Aluno</TableHead>
-                  <TableHead>Turma</TableHead>
-                  <TableHead>Ano Letivo</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
+          <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
+            <div className="overflow-y-auto" style={{ maxHeight: '480px', minHeight: '300px' }}>
+              <Table>
+                <TableHeader className="sticky top-0 bg-white dark:bg-gray-900 z-10 border-b">
+                  <TableRow>
+                    <TableHead className="w-2/5">Aluno</TableHead>
+                    <TableHead className="w-1/5">Turma</TableHead>
+                    <TableHead className="w-1/5">Status</TableHead>
+                    <TableHead className="w-1/5 text-center">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
               <TableBody>
-                {loadingEnrollments ? (
+                {loadingYears || loadingEnrollments ? (
                   <>
                     {Array.from({ length: 5 }).map((_, index) => (
                       <TableRow key={index}>
-                        <TableCell colSpan={6} className="py-4">
+                        <TableCell colSpan={4} className="py-4">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 bg-muted rounded-full animate-pulse"></div>
                             <div className="flex-1 space-y-2">
@@ -519,7 +608,7 @@ export default function Enrollments() {
                   </>
                 ) : enrollmentsError ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={4} className="text-center py-8">
                       <div className="text-red-500">Erro ao carregar matrículas. Tente novamente.</div>
                       <Button 
                         variant="outline" 
@@ -531,54 +620,47 @@ export default function Enrollments() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ) : !enrollments || enrollments.length === 0 ? (
+                ) : !safeEnrollments || safeEnrollments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                       Nenhuma matrícula cadastrada
                     </TableCell>
                   </TableRow>
                 ) : filteredEnrollments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                       Nenhuma matrícula encontrada
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredEnrollments.map((enrollment) => (
-                    <TableRow key={enrollment.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                            <UserPlus className="w-4 h-4 text-primary" />
+                    <TableRow key={enrollment.id} className="hover:bg-muted/50 transition-colors">
+                      <TableCell className="w-2/5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-semibold">
+                              {enrollment.student.firstName?.charAt(0)}{enrollment.student.lastName?.charAt(0)}
+                            </span>
                           </div>
                           <div>
                             <div className="font-medium">{formatStudentName(enrollment.student)}</div>
-                            <div className="text-sm text-muted-foreground">{enrollment.student.studentNumber || 'N/A'}</div>
+                            <div className="text-xs text-muted-foreground">{enrollment.student.studentNumber || 'N/A'}</div>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <GraduationCap className="w-4 h-4" />
-                          <span className="font-medium">{enrollment.class.name}</span>
+                      <TableCell className="w-1/5">
+                        <div>
+                          <div className="font-medium">{enrollment.class.name}</div>
+                          <div className="text-xs text-muted-foreground">{formatSchoolYear(enrollment.year)}</div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          <span>{formatSchoolYear(enrollment.year)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
+                      <TableCell className="w-1/5">
                         <Badge variant={getStatusBadgeVariant(enrollment.status)}>
                           {EnrollmentStatusLabels[enrollment.status]}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <span className="text-sm">{formatEnrollmentDate(enrollment.createdAt)}</span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
+                      <TableCell className="w-1/5">
+                        <div className="flex items-center justify-center gap-1">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -599,8 +681,9 @@ export default function Enrollments() {
                     </TableRow>
                   ))
                 )}
-              </TableBody>
-            </Table>
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
 
@@ -613,6 +696,5 @@ export default function Enrollments() {
           }}
         />
       </div>
-    </ErrorBoundary>
   );
 }

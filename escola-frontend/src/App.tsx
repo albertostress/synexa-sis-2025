@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SchoolYearProvider } from "@/contexts/SchoolYearContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { VersionCheck } from "@/components/VersionCheck";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -42,6 +43,7 @@ const App = () => (
       <AuthProvider>
         <SchoolYearProvider>
           <TooltipProvider>
+          <VersionCheck />
           <Toaster />
           <Sonner />
           <BrowserRouter

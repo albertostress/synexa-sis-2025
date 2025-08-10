@@ -223,7 +223,7 @@ export class EnrollmentController {
   }
 
   @Get('years')
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
   @ApiOperation({ 
     summary: 'Listar todos os anos letivos disponíveis',
     description: 'Retorna lista de anos letivos distintos existentes no sistema com base nas matrículas registradas'

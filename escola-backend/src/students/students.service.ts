@@ -151,13 +151,34 @@ export class StudentsService {
 
     // Se o usuário é PROFESSOR, filtrar apenas alunos das turmas que ele leciona
     if (user && user.role === 'PROFESSOR') {
-      // Buscar as turmas onde o professor leciona através das disciplinas
-      const teacherSubjects = await this.prisma.subject.findMany({
-        where: { teacherId: user.sub },
-        select: { classId: true }
+      // Buscar o professor através do userId
+      const teacher = await this.prisma.teacher.findUnique({
+        where: { userId: user.sub },
+        include: {
+          subjects: true
+        }
       });
 
-      const classIds = [...new Set(teacherSubjects.map(s => s.classId))];
+      if (!teacher) {
+        return {
+          students: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+          hasNext: false,
+          hasPrevious: false,
+        };
+      }
+      
+      // Buscar classes onde o professor tem alunos com notas
+      const teacherGrades = await this.prisma.grade.findMany({
+        where: { teacherId: teacher.id },
+        select: { classId: true },
+        distinct: ['classId']
+      });
+
+      const classIds = teacherGrades.map(g => g.classId);
       
       // Se o professor não tem turmas atribuídas, retornar lista vazia
       if (classIds.length === 0) {
@@ -251,14 +272,26 @@ export class StudentsService {
 
     // Se o usuário é PROFESSOR, verificar se tem acesso a este aluno
     if (user && user.role === 'PROFESSOR') {
-      const teacherSubjects = await this.prisma.subject.findMany({
-        where: { teacherId: user.sub },
-        select: { classId: true }
+      const teacher = await this.prisma.teacher.findUnique({
+        where: { userId: user.sub },
+        include: {
+          subjects: true
+        }
       });
 
-      const classIds = [...new Set(teacherSubjects.map(s => s.classId))];
+      if (!teacher) {
+        throw new NotFoundException(`Professor não encontrado para o usuário`);
+      }
       
-      if (!classIds.includes(student.classId)) {
+      // Verificar se o professor tem disciplinas na turma do aluno
+      const hasAccessToStudent = await this.prisma.grade.findFirst({
+        where: {
+          studentId: id,
+          teacherId: teacher.id
+        }
+      });
+      
+      if (!hasAccessToStudent) {
         throw new NotFoundException(`Aluno com ID ${id} não encontrado`);
       }
     }

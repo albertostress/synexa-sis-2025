@@ -32,7 +32,20 @@ export class GradesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createGradeDto: CreateGradeDto, currentUserId: string): Promise<GradeWithRelations> {
-    const { studentId, subjectId, teacherId, classId, type, term, year, value } = createGradeDto;
+    let { studentId, subjectId, teacherId, classId, type, term, year, value } = createGradeDto;
+
+    // Se o teacherId não foi fornecido, buscar o professor associado ao usuário atual
+    if (!teacherId) {
+      const currentTeacher = await this.prisma.teacher.findUnique({
+        where: { userId: currentUserId },
+      });
+
+      if (!currentTeacher) {
+        throw new BadRequestException('Professor ID é obrigatório ou você deve estar cadastrado como professor');
+      }
+
+      teacherId = currentTeacher.id;
+    }
 
     // Verificar se o professor existe e pertence ao usuário logado
     const teacher = await this.prisma.teacher.findUnique({
@@ -44,8 +57,16 @@ export class GradesService {
       throw new NotFoundException(`Professor com ID ${teacherId} não encontrado`);
     }
 
-    if (teacher.userId !== currentUserId) {
-      throw new ForbiddenException('Você só pode lançar notas como o professor associado ao seu usuário');
+    // Apenas verificar se o professor pertence ao usuário se for um PROFESSOR
+    // ADMIN pode lançar notas para qualquer professor
+    if (currentUserId) {
+      const currentUser = await this.prisma.user.findUnique({
+        where: { id: currentUserId },
+      });
+
+      if (currentUser?.role === 'PROFESSOR' && teacher.userId !== currentUserId) {
+        throw new ForbiddenException('Você só pode lançar notas como o professor associado ao seu usuário');
+      }
     }
 
     // Verificar se o professor ministra a disciplina

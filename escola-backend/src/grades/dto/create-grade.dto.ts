@@ -3,7 +3,7 @@
  * Referência: context7 mcp - DTO Pattern
  */
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsInt, IsNumber, IsUUID, Min, Max, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsInt, IsNumber, IsUUID, Min, Max, IsEnum, IsOptional } from 'class-validator';
 import { GradeType } from '@prisma/client';
 
 export class CreateGradeDto {
@@ -26,13 +26,14 @@ export class CreateGradeDto {
   subjectId: string;
 
   @ApiProperty({
-    description: 'ID do professor',
+    description: 'ID do professor (opcional para PROFESSOR, obrigatório para ADMIN)',
     example: 'uuid-teacher-id',
+    required: false,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @IsUUID('4')
-  teacherId: string;
+  teacherId?: string;
 
   @ApiProperty({
     description: 'ID da turma',

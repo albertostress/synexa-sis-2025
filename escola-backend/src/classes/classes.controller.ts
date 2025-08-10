@@ -59,7 +59,7 @@ export class ClassesController {
   }
 
   @Get()
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
   @ApiOperation({ summary: 'Listar todas as turmas' })
   @ApiResponse({
     status: 200,
@@ -71,7 +71,7 @@ export class ClassesController {
   }
 
   @Get('by-year')
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
   @ApiOperation({ summary: 'Buscar turmas por ano letivo' })
   @ApiQuery({ name: 'year', description: 'Ano letivo', example: 2024 })
   @ApiResponse({
@@ -84,6 +84,7 @@ export class ClassesController {
   }
 
   @Get(':id/availability')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
   @ApiOperation({ summary: 'Verificar disponibilidade de vagas na turma' })
   @ApiParam({ name: 'id', description: 'ID da turma' })
   @ApiResponse({
@@ -108,7 +109,7 @@ export class ClassesController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
   @ApiOperation({ summary: 'Buscar turma por ID' })
   @ApiParam({ name: 'id', description: 'ID da turma' })
   @ApiResponse({

@@ -95,12 +95,15 @@ export interface EnrollmentStats {
 }
 
 // Helper function para calcular estatísticas
-export const calculateEnrollmentStats = (enrollments: EnrollmentWithRelations[]): EnrollmentStats => {
-  const totalEnrollments = enrollments.length;
-  const activeEnrollments = enrollments.filter(e => e.status === EnrollmentStatus.ACTIVE).length;
-  const pendingEnrollments = enrollments.filter(e => e.status === EnrollmentStatus.PENDING).length;
-  const cancelledEnrollments = enrollments.filter(e => e.status === EnrollmentStatus.CANCELLED).length;
-  const transferredEnrollments = enrollments.filter(e => e.status === EnrollmentStatus.TRANSFERRED).length;
+export const calculateEnrollmentStats = (enrollments: EnrollmentWithRelations[] | any): EnrollmentStats => {
+  // Garantir que enrollments é um array válido
+  const safeEnrollments = Array.isArray(enrollments) ? enrollments : [];
+  
+  const totalEnrollments = safeEnrollments.length;
+  const activeEnrollments = safeEnrollments.filter(e => e && e.status === EnrollmentStatus.ACTIVE).length;
+  const pendingEnrollments = safeEnrollments.filter(e => e && e.status === EnrollmentStatus.PENDING).length;
+  const cancelledEnrollments = safeEnrollments.filter(e => e && e.status === EnrollmentStatus.CANCELLED).length;
+  const transferredEnrollments = safeEnrollments.filter(e => e && e.status === EnrollmentStatus.TRANSFERRED).length;
 
   return {
     totalEnrollments,

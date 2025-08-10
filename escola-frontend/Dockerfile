@@ -11,6 +11,8 @@ RUN npm ci && \
     npm cache clean --force
 
 # Copiar código fonte DEPOIS (mudanças no código não afetam npm install)
+# Forçar invalidação de cache quando necessário
+ARG CACHEBUST=1
 COPY . .
 
 # Build de produção

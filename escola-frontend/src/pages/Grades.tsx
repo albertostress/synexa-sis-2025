@@ -45,6 +45,7 @@ const GRADE_TYPES = [
 export default function Grades() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingGrade, setEditingGrade] = useState<GradeWithRelations | null>(null);
+  const [currentTeacherId, setCurrentTeacherId] = useState<string | null>(null);
   
   // Estados dos filtros organizados conforme nova especificação
   const [selectedYear, setSelectedYear] = useState<number>(2025);
@@ -61,6 +62,26 @@ export default function Grades() {
   // Verificar permissões: apenas ADMIN e PROFESSOR podem modificar notas
   const canModifyGrades = hasAnyRole(['ADMIN', 'PROFESSOR']);
   const isSecretaria = user?.role === 'SECRETARIA';
+  const isProfessor = user?.role === 'PROFESSOR';
+
+  // Buscar o professor associado ao usuário quando for PROFESSOR
+  useEffect(() => {
+    const fetchCurrentTeacher = async () => {
+      if (isProfessor && user?.id) {
+        try {
+          const teachers = await teachersAPI.getAll();
+          const currentTeacher = teachers.find(t => t.userId === user.id);
+          if (currentTeacher) {
+            setCurrentTeacherId(currentTeacher.id);
+          }
+        } catch (error) {
+          console.error('Erro ao buscar professor atual:', error);
+        }
+      }
+    };
+    
+    fetchCurrentTeacher();
+  }, [isProfessor, user?.id]);
 
   // Limpar seleções dependentes quando filtros superiores mudarem
   useEffect(() => {
@@ -159,6 +180,9 @@ export default function Grades() {
   } = useQuery({
     queryKey: ['angola-student-grades', selectedStudentId, selectedTerm],
     queryFn: async () => {
+      if (!selectedStudentId || selectedStudentId === 'ALL') {
+        return null;
+      }
       const result = await gradesAPI.getStudentTermGrades(selectedStudentId, selectedTerm);
       console.log('📊 Angola grades loaded:', result);
       return result;
@@ -307,7 +331,7 @@ export default function Grades() {
     const gradeData: CreateGradeDto = {
       studentId: formData.get('studentId') as string,
       subjectId: formData.get('subjectId') as string,
-      teacherId: formData.get('teacherId') as string,
+      teacherId: isProfessor && currentTeacherId ? currentTeacherId : (formData.get('teacherId') as string),
       classId: formData.get('classId') as string,
       type: formData.get('type') as GradeType,
       term: parseInt(formData.get('term') as string) || 1,
@@ -488,21 +512,23 @@ export default function Grades() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label htmlFor="teacherId">Professor</Label>
-                    <Select name="teacherId" defaultValue={editingGrade?.teacherId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um professor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {teachers.map(teacher => (
-                          <SelectItem key={teacher.id} value={teacher.id}>
-                            {formatTeacherName(teacher)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {!isProfessor && (
+                    <div>
+                      <Label htmlFor="teacherId">Professor</Label>
+                      <Select name="teacherId" defaultValue={editingGrade?.teacherId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um professor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {teachers.map(teacher => (
+                            <SelectItem key={teacher.id} value={teacher.id}>
+                              {formatTeacherName(teacher)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div>
                     <Label htmlFor="classId">Turma</Label>
                     <Select name="classId" defaultValue={editingGrade?.classId}>

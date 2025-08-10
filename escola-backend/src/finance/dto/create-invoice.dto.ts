@@ -43,10 +43,12 @@ export class CreateInvoiceDto {
     description: 'Descrição da fatura',
     example: 'Mensalidade - Agosto 2024',
     maxLength: 200,
+    required: false,
   })
+  @IsOptional()
   @IsString({ message: 'Descrição deve ser uma string' })
   @MaxLength(200, { message: 'Descrição deve ter no máximo 200 caracteres' })
-  description: string;
+  description?: string;
 
   @ApiProperty({
     description: 'Mês de referência (1-12)',

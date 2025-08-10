@@ -57,7 +57,7 @@ export class TeachersController {
   }
 
   @Get()
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA', 'PROFESSOR')
   @ApiOperation({ summary: 'Listar todos os professores' })
   @ApiResponse({
     status: 200,
@@ -90,7 +90,7 @@ export class TeachersController {
   }
 
   @Get(':id')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DIRETOR', 'SECRETARIA')
   @ApiOperation({ summary: 'Buscar professor por ID' })
   @ApiParam({
     name: 'id',

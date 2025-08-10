@@ -28,7 +28,8 @@ async function bootstrap(): Promise<void> {
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Range'],
+    exposedHeaders: ['Content-Disposition', 'Content-Length', 'Content-Type'],
   });
 
   const config = new DocumentBuilder()

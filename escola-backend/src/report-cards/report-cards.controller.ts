@@ -171,8 +171,8 @@ export class ReportCardsController {
 
   // ============= ENDPOINT PARA PDF DO BOLETIM ANGOLANO =============
 
-  @Post(':studentId/pdf')
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
+  @Get(':studentId/pdf')
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR', 'PROFESSOR')
   @Header('Content-Type', 'application/pdf')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ 
@@ -198,9 +198,9 @@ export class ReportCardsController {
   })
   async downloadReportCardPdf(
     @Param('studentId', ParseUUIDPipe) studentId: string,
-    @Body() query: GetReportCardDto,
-    @Res() res: Response,
-  ): Promise<void> {
+    @Query() query: GetReportCardDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<Buffer> {
     // Gerar dados do boletim no formato angolano melhorado
     const reportCard = await this.reportCardsService.generateAngolaReportCard(
       studentId, 
@@ -216,12 +216,10 @@ export class ReportCardsController {
     const studentName = reportCard.student.name.replace(/\s+/g, '_');
     const filename = `boletim_angola_${studentName}_${query.year}${termText}.pdf`;
     
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Content-Length': pdfBuffer.length.toString(),
-    });
-
-    res.send(pdfBuffer);
+    // Adicionar header de filename mantendo CORS funcionando
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // Retornar o buffer, CORS será gerenciado pelo NestJS
+    return pdfBuffer;
   }
 }

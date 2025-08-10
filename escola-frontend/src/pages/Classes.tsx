@@ -1,661 +1,290 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, GraduationCap, Users, Calendar, Clock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { MultiSelectSimple } from '@/components/ui/multi-select-simple';
+import { useNavigate } from 'react-router-dom';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { classesAPI, studentsAPI, teachersAPI } from '@/lib/api';
-import { 
-  SchoolClassWithRelations, 
-  CreateClassDto, 
-  UpdateClassDto, 
-  Shift, 
-  ShiftLabels,
-  calculateClassStats,
-  formatSchoolYear,
-  getOccupancyBadgeVariant
-} from '@/types/class';
-import { 
-  ClassLevel, 
-  CLASS_LEVEL_OPTIONS, 
-  SCHOOL_CYCLE_LABELS, 
-  getCycleFromClassLevel 
-} from '@/types/pedagogical';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { classesAPI } from '@/lib/api';
+import ClassCard from '@/components/classes/ClassCard';
+import { ClassesToolbar } from '@/components/classes/ClassesToolbar';
+import ClassDialog from '@/components/classes/ClassDialog';
+import ClassDetailsModal from '@/components/classes/ClassDetailsModal';
+import { cn } from '@/lib/utils';
+import type { SchoolClassWithRelations } from '@/types/class';
+
+// Hook de permissões (simplificado)
+function usePermissions() {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const role = user?.role || '';
+  
+  return {
+    role,
+    canCreate: ['ADMIN', 'DIRETOR', 'SECRETARIA'].includes(role),
+    canManage: ['ADMIN', 'DIRETOR', 'SECRETARIA'].includes(role),
+  };
+}
 
 export default function Classes() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingClass, setEditingClass] = useState<SchoolClassWithRelations | null>(null);
-  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
-  const [selectedTeachers, setSelectedTeachers] = useState<string[]>([]);
+  const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { canCreate, canManage } = usePermissions();
 
-  // Carregar turmas do backend
+  // Estados
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingClass, setEditingClass] = useState<SchoolClassWithRelations | null>(null);
+  const [viewingClass, setViewingClass] = useState<SchoolClassWithRelations | null>(null);
+  const [filters, setFilters] = useState({
+    classLevel: undefined as string | undefined,
+    cycle: undefined as string | undefined,
+    shift: undefined as string | undefined,
+    year: undefined as number | undefined,
+  });
+
+  // Carregar turmas
   const { 
     data: classes = [], 
-    isLoading: loadingClasses, 
-    error: classesError,
+    isLoading, 
+    error,
     refetch 
   } = useQuery({
     queryKey: ['classes'],
-    queryFn: async () => {
-      console.log('📚 Carregando turmas...');
-      const data = await classesAPI.getAll();
-      console.log('🎓 Turmas carregadas:', data?.length, 'turmas');
-      return data;
-    },
-    staleTime: 30000, // Cache por 30 segundos
-    retry: 1
+    queryFn: classesAPI.getAll,
+    staleTime: 30000,
   });
 
-  // Tratamento de erro do lado do React
-  useEffect(() => {
-    if (classesError) {
-      console.error('❌ Erro ao carregar turmas:', classesError);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível carregar as turmas',
-        variant: 'destructive'
-      });
+  // Filtrar turmas
+  const filteredClasses = useMemo(() => {
+    let result = [...classes];
+
+    // Busca por texto
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(turma => 
+        turma.name.toLowerCase().includes(query) ||
+        turma.classLevel?.toLowerCase().includes(query) ||
+        turma.cycle?.toLowerCase().includes(query)
+      );
     }
-  }, [classesError, toast]);
 
-  // Carregar estudantes para seleção
-  const { data: students = [], isLoading: loadingStudents } = useQuery({
-    queryKey: ['students'],
-    queryFn: () => studentsAPI.getAll(),
-    enabled: isDialogOpen,
-    staleTime: 60000, // Cache por 1 minuto
-    retry: 1
-  });
+    // Filtros específicos
+    if (filters.classLevel) {
+      result = result.filter(t => t.classLevel === filters.classLevel);
+    }
+    if (filters.cycle) {
+      result = result.filter(t => t.cycle === filters.cycle);
+    }
+    if (filters.shift) {
+      result = result.filter(t => t.shift === filters.shift);
+    }
+    if (filters.year) {
+      result = result.filter(t => t.year === filters.year);
+    }
 
-  // Carregar professores para seleção
-  const { data: teachers = [], isLoading: loadingTeachers } = useQuery({
-    queryKey: ['teachers'],
-    queryFn: () => teachersAPI.getAll(),
-    enabled: isDialogOpen,
-    staleTime: 60000, // Cache por 1 minuto
-    retry: 1
-  });
+    return result;
+  }, [classes, searchQuery, filters]);
 
-  // Mutation para criar turma
+  // Mutations
   const createMutation = useMutation({
-    mutationFn: (data: CreateClassDto) => {
-      console.log('🚀 Criando turma:', data);
-      return classesAPI.create(data);
-    },
-    onSuccess: (result) => {
-      console.log('✅ Turma criada com sucesso:', result);
-      refetch();
-      setIsDialogOpen(false);
-      setEditingClass(null);
-      setSelectedStudents([]);
-      setSelectedTeachers([]);
-      toast({ 
-        title: 'Sucesso!',
-        description: 'Turma criada com sucesso!' 
+    mutationFn: classesAPI.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      setIsCreateDialogOpen(false);
+      toast({
+        title: 'Turma criada',
+        description: 'A turma foi criada com sucesso.',
       });
     },
     onError: (error: any) => {
-      console.error('❌ Erro ao criar turma:', error);
-      const errorMessage = error.response?.data?.message || 'Erro ao criar turma';
-      
-      if (error.response?.status === 409) {
-        toast({
-          title: 'Conflito',
-          description: 'Já existe uma turma com este nome para este ano',
-          variant: 'destructive'
-        });
-      } else {
-        toast({
-          title: 'Erro!',
-          description: errorMessage,
-          variant: 'destructive'
-        });
-      }
-    }
+      toast({
+        title: 'Erro ao criar turma',
+        description: error.response?.data?.message || 'Ocorreu um erro ao criar a turma.',
+        variant: 'destructive',
+      });
+    },
   });
 
-  // Mutation para atualizar turma
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateClassDto }) => 
+    mutationFn: ({ id, data }: { id: string; data: any }) => 
       classesAPI.update(id, data),
     onSuccess: () => {
-      refetch();
-      setIsDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
       setEditingClass(null);
-      setSelectedStudents([]);
-      setSelectedTeachers([]);
-      toast({ 
-        title: 'Sucesso!',
-        description: 'Turma atualizada com sucesso!' 
+      toast({
+        title: 'Turma atualizada',
+        description: 'A turma foi atualizada com sucesso.',
       });
     },
     onError: (error: any) => {
-      console.error('Erro ao atualizar turma:', error);
-      const errorMessage = error.response?.data?.message || 'Erro ao atualizar turma';
-      
-      if (error.response?.status === 409) {
-        toast({
-          title: 'Conflito',
-          description: 'Já existe uma turma com este nome para este ano',
-          variant: 'destructive'
-        });
-      } else {
-        toast({
-          title: 'Erro!',
-          description: errorMessage,
-          variant: 'destructive'
-        });
-      }
-    }
+      toast({
+        title: 'Erro ao atualizar turma',
+        description: error.response?.data?.message || 'Ocorreu um erro ao atualizar a turma.',
+        variant: 'destructive',
+      });
+    },
   });
 
-  // Mutation para deletar turma
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => classesAPI.delete(id),
+    mutationFn: classesAPI.delete,
     onSuccess: () => {
-      refetch();
-      toast({ 
-        title: 'Sucesso!',
-        description: 'Turma removida com sucesso!' 
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      toast({
+        title: 'Turma apagada',
+        description: 'A turma foi apagada com sucesso.',
       });
     },
     onError: (error: any) => {
-      console.error('Erro ao remover turma:', error);
-      const errorMessage = error.response?.data?.message || 'Erro ao remover turma';
       toast({
-        title: 'Erro!',
-        description: errorMessage,
-        variant: 'destructive'
+        title: 'Erro ao apagar turma',
+        description: error.response?.data?.message || 'Ocorreu um erro ao apagar a turma.',
+        variant: 'destructive',
       });
-    }
+    },
   });
 
-  // Filtrar e ordenar turmas
-  const filteredClasses = classes
-    .filter(cls =>
-      cls.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cls.year.toString().includes(searchTerm) ||
-      ShiftLabels[cls.shift].toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cls.teachers?.some(teacher => 
-        teacher.user?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    )
-    .sort((a, b) => {
-      // Ordenar por ano (desc) e depois por nome (asc)
-      if (a.year !== b.year) {
-        return b.year - a.year;
-      }
-      return a.name.localeCompare(b.name);
-    });
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    
-    const classData: CreateClassDto = {
-      name: formData.get('name') as string,
-      classLevel: formData.get('classLevel') as ClassLevel,
-      year: parseInt(formData.get('year') as string) || new Date().getFullYear(),
-      shift: formData.get('shift') as Shift,
-      capacity: parseInt(formData.get('capacity') as string) || 30,
-      studentIds: selectedStudents.length > 0 ? selectedStudents : undefined,
-      teacherIds: selectedTeachers.length > 0 ? selectedTeachers : undefined
-    };
-
-    // Validações básicas
-    if (!classData.name.trim()) {
-      toast({
-        title: 'Erro',
-        description: 'Nome da turma é obrigatório',
-        variant: 'destructive'
-      });
-      return;
+  // Handlers
+  const handleView = useCallback((id: string) => {
+    const turma = classes.find(c => c.id === id);
+    if (turma) {
+      setViewingClass(turma);
     }
+  }, [classes]);
 
-    if (!classData.classLevel) {
-      toast({
-        title: 'Erro',
-        description: 'Classe é obrigatória',
-        variant: 'destructive'
-      });
-      return;
+  const handleEdit = useCallback((id: string) => {
+    const turma = classes.find(c => c.id === id);
+    if (turma) {
+      setEditingClass(turma);
     }
+  }, [classes]);
 
-    if (classData.capacity <= 0) {
-      toast({
-        title: 'Erro',
-        description: 'Capacidade deve ser maior que zero',
-        variant: 'destructive'
-      });
-      return;
+  const handleDuplicate = useCallback((id: string) => {
+    const turma = classes.find(c => c.id === id);
+    if (turma) {
+      const duplicateData = {
+        name: `${turma.name} (Cópia)`,
+        classLevel: turma.classLevel,
+        cycle: turma.cycle,
+        year: turma.year,
+        shift: turma.shift,
+        capacity: turma.capacity,
+      };
+      createMutation.mutate(duplicateData as any);
     }
+  }, [classes, createMutation]);
 
-    if (classData.year < 2020) {
-      toast({
-        title: 'Erro',
-        description: 'Ano deve ser 2020 ou posterior',
-        variant: 'destructive'
-      });
-      return;
+  const handleDelete = useCallback((id: string) => {
+    if (confirm('Tem certeza que deseja apagar esta turma?')) {
+      deleteMutation.mutate(id);
     }
+  }, [deleteMutation]);
 
-    if (editingClass) {
-      updateMutation.mutate({ 
-        id: editingClass.id, 
-        data: classData 
-      });
-    } else {
-      createMutation.mutate(classData);
-    }
-  };
+  // Estados de carregamento
+  if (isLoading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
-  const handleEdit = (schoolClass: SchoolClassWithRelations) => {
-    setEditingClass(schoolClass);
-    setSelectedStudents(schoolClass.students?.map(s => s.id) || []);
-    setSelectedTeachers(schoolClass.teachers?.map(t => t.id) || []);
-    setIsDialogOpen(true);
-  };
-
-  const handleDelete = (schoolClass: SchoolClassWithRelations) => {
-    if (confirm(`Tem certeza que deseja remover a turma "${schoolClass.name}"?`)) {
-      deleteMutation.mutate(schoolClass.id);
-    }
-  };
-
-  const resetForm = () => {
-    setEditingClass(null);
-    setSelectedStudents([]);
-    setSelectedTeachers([]);
-    setIsDialogOpen(false);
-  };
-
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Erro ao carregar turmas. Por favor, tente novamente.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
-    <ErrorBoundary>
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Turmas</h1>
-          <p className="text-muted-foreground">Gerir turmas e organização escolar</p>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setEditingClass(null)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Adicionar Turma
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                {editingClass ? 'Editar Turma' : 'Nova Turma'}
-              </DialogTitle>
-              <DialogDescription>
-                {editingClass 
-                  ? 'Modifique as informações da turma conforme necessário.'
-                  : 'Preencha os campos para criar uma nova turma no sistema.'
-                }
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Nome da Turma</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    defaultValue={editingClass?.name}
-                    placeholder="Ex: 7A, 10B"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="classLevel">🎯 Classe</Label>
-                  <Select 
-                    name="classLevel" 
-                    defaultValue={editingClass?.classLevel || ''}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a classe" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CLASS_LEVEL_OPTIONS.map(option => (
-                        <SelectItem key={option.value} value={option.value}>
-                          <div className="flex items-center gap-2">
-                            <GraduationCap className="w-4 h-4" />
-                            {option.label}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="year">Ano Letivo</Label>
-                  <Select name="year" defaultValue={editingClass?.year?.toString() || new Date().getFullYear().toString()}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o ano" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({length: 11}, (_, i) => 2020 + i).map(year => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {formatSchoolYear(year)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="shift">Turno</Label>
-                  <Select name="shift" defaultValue={editingClass?.shift || Shift.MORNING}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o turno" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.values(Shift).map(shift => (
-                        <SelectItem key={shift} value={shift}>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4" />
-                            {ShiftLabels[shift]}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="capacity">Capacidade Máxima</Label>
-                  <Input
-                    id="capacity"
-                    name="capacity"
-                    type="number"
-                    defaultValue={editingClass?.capacity || 30}
-                    placeholder="Ex: 30"
-                    min="1"
-                    max="50"
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <Label>Estudantes da Turma</Label>
-                  <MultiSelectSimple
-                    options={(students || []).map(student => ({
-                      value: student.id,
-                      label: `${student.firstName} ${student.lastName} (${student.studentNumber})`,
-                      icon: Users
-                    }))}
-                    selected={selectedStudents}
-                    onChange={setSelectedStudents}
-                    placeholder="Selecionar estudantes..."
-                    emptyIndicator={
-                      loadingStudents ? 
-                        "Carregando estudantes..." : 
-                        "Nenhum estudante encontrado"
-                    }
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {selectedStudents.length} estudante(s) selecionado(s)
-                  </p>
-                </div>
-                
-                <div>
-                  <Label>Professores da Turma</Label>
-                  <MultiSelectSimple
-                    options={(teachers || []).map(teacher => ({
-                      value: teacher.id,
-                      label: `${teacher.user?.name || 'Nome não disponível'}${teacher.user?.email ? ` (${teacher.user.email})` : ''}`,
-                      icon: GraduationCap
-                    }))}
-                    selected={selectedTeachers}
-                    onChange={setSelectedTeachers}
-                    placeholder="Selecionar professores..."
-                    emptyIndicator={
-                      loadingTeachers ? 
-                        "Carregando professores..." : 
-                        "Nenhum professor encontrado"
-                    }
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {selectedTeachers.length} professor(es) selecionado(s)
-                  </p>
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                  {editingClass ? 'Atualizar' : 'Criar'}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+    <div className="flex flex-col h-[calc(100vh-10rem)] -mx-6 -my-8">
+      {/* Toolbar fixa no topo */}
+      <div className="flex-shrink-0">
+        <ClassesToolbar
+          canCreate={canCreate}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onCreateClick={() => setIsCreateDialogOpen(true)}
+          totalCount={classes.length}
+          filteredCount={filteredClasses.length}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          filters={filters}
+          onFiltersChange={setFilters}
+        />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Lista de Turmas</span>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  placeholder="Buscar turmas..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-64"
-                />
-              </div>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Turma</TableHead>
-                <TableHead>🎯 Classe</TableHead>
-                <TableHead>📘 Ciclo</TableHead>
-                <TableHead>Ano Letivo</TableHead>
-                <TableHead>Turno</TableHead>
-                <TableHead>Estudantes</TableHead>
-                <TableHead>Professores</TableHead>
-                <TableHead>Capacidade</TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loadingClasses ? (
-                <>
-                  {Array.from({ length: 3 }).map((_, index) => (
-                    <TableRow key={index}>
-                      <TableCell colSpan={9} className="py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-muted rounded-full animate-pulse"></div>
-                          <div className="flex-1 space-y-2">
-                            <div className="h-4 bg-muted rounded animate-pulse w-1/4"></div>
-                            <div className="h-3 bg-muted/60 rounded animate-pulse w-1/6"></div>
-                          </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </>
-              ) : classesError ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8">
-                    <div className="text-red-500">Erro ao carregar turmas. Tente novamente.</div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="mt-2"
-                      onClick={() => refetch()}
-                    >
-                      Tentar novamente
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ) : !classes || classes.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    Nenhuma turma cadastrada
-                  </TableCell>
-                </TableRow>
-              ) : filteredClasses.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    Nenhuma turma encontrada
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredClasses.map((cls) => {
-                  const stats = calculateClassStats(cls);
-                  return (
-                    <TableRow key={cls.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                            <GraduationCap className="w-4 h-4 text-primary" />
-                          </div>
-                          <div>
-                            <div className="font-medium">{cls.name}</div>
-                            <div className="text-sm text-muted-foreground">ID: {cls.id.slice(0, 8)}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <GraduationCap className="w-4 h-4 text-blue-600" />
-                          <span className="font-medium">
-                            {cls.classLevel ? CLASS_LEVEL_OPTIONS.find(opt => opt.value === cls.classLevel)?.label || cls.classLevel : 'N/A'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="flex items-center gap-1 w-fit">
-                          <Calendar className="w-3 h-3" />
-                          {cls.classLevel ? SCHOOL_CYCLE_LABELS[getCycleFromClassLevel(cls.classLevel)] : 'N/A'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          <span className="font-medium">{formatSchoolYear(cls.year)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="flex items-center gap-1 w-fit">
-                          <Clock className="w-3 h-3" />
-                          {ShiftLabels[cls.shift]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4" />
-                          <div>
-                            <div className="font-medium">{stats.totalStudents}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {stats.totalStudents > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {cls.students?.slice(0, 3).map(student => (
-                                    <Badge key={student.id} variant="secondary" className="text-xs">
-                                      {student.firstName}
-                                    </Badge>
-                                  ))}
-                                  {cls.students && cls.students.length > 3 && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      +{cls.students.length - 3}
-                                    </Badge>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <GraduationCap className="w-4 h-4" />
-                          <div>
-                            <div className="font-medium">{cls.teachers?.length || 0}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {cls.teachers && cls.teachers.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {cls.teachers.slice(0, 2).map(teacher => (
-                                    <Badge key={teacher.id} variant="secondary" className="text-xs">
-                                      {teacher.user?.name?.split(' ')[0] || 'N/A'}
-                                    </Badge>
-                                  ))}
-                                  {cls.teachers.length > 2 && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      +{cls.teachers.length - 2}
-                                    </Badge>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="text-right">
-                            <div className="font-medium">{stats.totalStudents}/{stats.capacity}</div>
-                            <Badge 
-                              variant={getOccupancyBadgeVariant(stats.occupancyPercentage)}
-                              className="text-xs"
-                            >
-                              {stats.occupancyPercentage}%
-                            </Badge>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(cls)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(cls)}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Área scrollável para as turmas */}
+      <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+        {filteredClasses.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center">
+            <p className="text-lg font-medium text-gray-900">
+              {searchQuery || Object.values(filters).some(v => v)
+                ? 'Nenhuma turma encontrada'
+                : 'Ainda não há turmas cadastradas'}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              {searchQuery || Object.values(filters).some(v => v)
+                ? 'Tente ajustar os filtros ou a busca'
+                : canCreate 
+                  ? 'Clique em "Nova Turma" para criar a primeira turma'
+                  : 'Entre em contato com a administração para criar turmas'}
+            </p>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              'grid gap-4 pt-4',
+              viewMode === 'grid'
+                ? 'grid-cols-1 lg:grid-cols-2'
+                : 'grid-cols-1'
+            )}
+          >
+            {filteredClasses.map((turma) => (
+              <ClassCard
+                key={turma.id}
+                turma={turma}
+                canManage={canManage}
+                onView={handleView}
+                onEdit={handleEdit}
+                onDuplicate={handleDuplicate}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Dialog de criação/edição */}
+      {(isCreateDialogOpen || editingClass) && (
+        <ClassDialog
+          isOpen={isCreateDialogOpen || !!editingClass}
+          onClose={() => {
+            setIsCreateDialogOpen(false);
+            setEditingClass(null);
+          }}
+          onSave={(data) => {
+            if (editingClass) {
+              updateMutation.mutate({ id: editingClass.id, data });
+            } else {
+              createMutation.mutate(data);
+            }
+          }}
+          classData={editingClass}
+          isLoading={createMutation.isPending || updateMutation.isPending}
+        />
+      )}
+
+      {/* Modal de detalhes */}
+      <ClassDetailsModal
+        isOpen={!!viewingClass}
+        onClose={() => setViewingClass(null)}
+        turma={viewingClass}
+      />
     </div>
-    </ErrorBoundary>
   );
 }
