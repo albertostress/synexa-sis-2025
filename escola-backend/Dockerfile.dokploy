@@ -8,7 +8,7 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install all dependencies (including dev) for build stage
-RUN npm ci
+RUN npm ci || npm install
 
 # Generate Prisma client
 RUN npx prisma generate
@@ -29,8 +29,8 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install only production dependencies
-RUN npm ci --only=production && \
-    npx prisma generate
+RUN npm ci --only=production || npm install --only=production
+RUN npx prisma generate
 
 # Production stage
 FROM node:18-alpine

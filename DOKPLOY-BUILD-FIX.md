@@ -1,15 +1,38 @@
-# 🔧 Fix for Dokploy Build Error
+# 🔧 Fix for Dokploy Build Errors
 
-## Error Message
+## Error 1: Missing package-lock.json
 ```
-target escola-backend: failed to solve: process "/bin/sh -c npm ci --only=production && npm install -g @nestjs/cli && npm install @prisma/client" did not complete successfully: exit code: 1
+npm error The `npm ci` command can only install with an existing package-lock.json
+```
+
+## Error 2: Missing Environment Variables
+```
+warning msg="The \"BACKEND_DOMAIN\" variable is not set. Defaulting to a blank string."
 ```
 
 ## 🚀 Quick Solution
 
-### Option 1: Use the Updated Dockerfile (Recommended)
+### Step 1: Set Environment Variables in Dokploy
 
-The `Dockerfile.dokploy` has been updated to fix this issue. Pull the latest changes:
+**In Dokploy UI**, go to your project and add these environment variables:
+
+```env
+FRONTEND_DOMAIN=escola.yourdomain.com
+BACKEND_DOMAIN=api.escola.yourdomain.com
+DB_USER=escola_user
+DB_PASSWORD=YourSecurePassword123!
+DB_NAME=escola_db
+JWT_SECRET=your32characterrandomstringhere1234567890
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=youremail@gmail.com
+SMTP_PASS=yourapppassword
+SMTP_FROM=noreply@yourdomain.com
+```
+
+### Step 2: Pull Latest Fixes
+
+The `Dockerfile.dokploy` has been updated to handle missing package-lock.json. Pull the latest changes:
 
 ```bash
 git pull origin main
