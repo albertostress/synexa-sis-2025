@@ -1,0 +1,40 @@
+# Simple single-stage Dockerfile for Dokploy
+FROM node:18-alpine
+
+# Install necessary tools
+RUN apk add --no-cache curl postgresql-client
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install dependencies
+RUN npm ci
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Copy source code
+COPY . .
+
+# Build application
+RUN npm run build
+
+# Create necessary directories
+RUN mkdir -p /app/uploads /app/reports && \
+    chown -R node:node /app
+
+# Clean up devDependencies to reduce image size
+RUN npm prune --production
+
+USER node
+
+EXPOSE 3000
+
+# Healthcheck for zero-downtime deployments
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+
+CMD ["node", "dist/main"]

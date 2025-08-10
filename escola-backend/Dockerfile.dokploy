@@ -7,19 +7,30 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies
-RUN npm ci --only=production && \
-    npm install -g @nestjs/cli && \
-    npm install @prisma/client
-
-# Copy source code
-COPY . .
+# Install all dependencies (including dev) for build stage
+RUN npm ci
 
 # Generate Prisma client
 RUN npx prisma generate
 
+# Copy source code
+COPY . .
+
 # Build application
 RUN npm run build
+
+# Production dependencies stage
+FROM node:18-alpine AS deps
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install only production dependencies
+RUN npm ci --only=production && \
+    npx prisma generate
 
 # Production stage
 FROM node:18-alpine
@@ -29,11 +40,11 @@ RUN apk add --no-cache curl postgresql-client
 
 WORKDIR /app
 
-# Copy from builder
+# Copy production dependencies
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/prisma ./prisma
+COPY package*.json ./
+COPY prisma ./prisma
 
 # Create uploads directory
 RUN mkdir -p /app/uploads /app/reports && \
