@@ -14,13 +14,12 @@ COPY . .
 
 # Build arguments for API URL
 ARG VITE_API_URL
-ARG BACKEND_DOMAIN
 
-# Set API URL - use VITE_API_URL or construct from BACKEND_DOMAIN
-ENV VITE_API_URL=${VITE_API_URL:-https://${BACKEND_DOMAIN}}
+# Set API URL environment variable
+ENV VITE_API_URL=${VITE_API_URL}
 
 # Debug: Show what URL we're using
-RUN echo "Building with API URL: ${VITE_API_URL}"
+RUN echo "Building frontend with API URL: ${VITE_API_URL}"
 
 # Build the application
 RUN npm run build

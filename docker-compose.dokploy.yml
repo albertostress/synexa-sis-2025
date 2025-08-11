@@ -68,8 +68,7 @@ services:
       context: ./escola-frontend
       dockerfile: Dockerfile.dokploy
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://${BACKEND_DOMAIN}}
-        BACKEND_DOMAIN: ${BACKEND_DOMAIN}
+        VITE_API_URL: https://${BACKEND_DOMAIN}
     depends_on:
       - escola-backend
     networks:
