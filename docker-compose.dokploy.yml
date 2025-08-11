@@ -21,7 +21,7 @@ services:
   escola-backend:
     build:
       context: ./escola-backend
-      dockerfile: Dockerfile.dokploy
+      dockerfile: Dockerfile.production
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-escola_db}
