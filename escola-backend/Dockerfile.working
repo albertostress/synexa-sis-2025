@@ -1,0 +1,34 @@
+# Working Dockerfile - Development mode but functional
+FROM node:18-alpine
+
+# Install required tools
+RUN apk add --no-cache curl postgresql-client python3 make g++
+
+WORKDIR /app
+
+# Copy everything
+COPY . .
+
+# Clean install
+RUN rm -rf node_modules dist package-lock.json
+
+# Install all dependencies
+RUN npm install
+
+# Install NestJS CLI globally
+RUN npm install -g @nestjs/cli
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Build the application
+RUN nest build
+
+# Verify build was successful
+RUN ls -la dist/ && test -f dist/main.js
+
+# Create necessary directories
+RUN mkdir -p uploads reports
+
+# Use development start command that handles missing dist
+CMD ["sh", "-c", "if [ ! -f dist/main.js ]; then npm run build; fi && npm run start:prod"]

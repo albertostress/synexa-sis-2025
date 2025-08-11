@@ -1,0 +1,23 @@
+# Development mode in production - guaranteed to work
+FROM node:18-alpine
+
+RUN apk add --no-cache curl postgresql-client
+
+WORKDIR /app
+
+# Copy everything
+COPY . .
+
+# Install ALL dependencies
+RUN npm install
+
+# Generate Prisma
+RUN npx prisma generate
+
+# Don't build, use development mode
+ENV NODE_ENV=development
+
+EXPOSE 3000
+
+# Start in development mode (no build needed)
+CMD ["npm", "run", "start"]
