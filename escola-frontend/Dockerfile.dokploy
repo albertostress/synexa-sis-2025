@@ -16,11 +16,15 @@ COPY . .
 ARG VITE_API_URL
 ARG BACKEND_DOMAIN
 
-# Override .env.production if variables are provided
-RUN if [ -n "$VITE_API_URL" ]; then \
+# Override .env.production ONLY if variables are provided and not empty
+RUN if [ -n "$VITE_API_URL" ] && [ "$VITE_API_URL" != "" ]; then \
       echo "VITE_API_URL=${VITE_API_URL}" > .env.production; \
-    elif [ -n "$BACKEND_DOMAIN" ]; then \
+      echo "VITE_API_BASE_URL=${VITE_API_URL}" >> .env.production; \
+    elif [ -n "$BACKEND_DOMAIN" ] && [ "$BACKEND_DOMAIN" != "" ]; then \
       echo "VITE_API_URL=https://${BACKEND_DOMAIN}" > .env.production; \
+      echo "VITE_API_BASE_URL=https://${BACKEND_DOMAIN}" >> .env.production; \
+    else \
+      echo "Using default .env.production file"; \
     fi
 
 # Debug: Show what URL we're using
