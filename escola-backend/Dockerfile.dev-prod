@@ -5,19 +5,22 @@ RUN apk add --no-cache curl postgresql-client
 
 WORKDIR /app
 
-# Copy everything
-COPY . .
+# Copy package files first
+COPY package*.json ./
 
 # Install ALL dependencies
 RUN npm install
 
+# Copy the rest
+COPY . .
+
 # Generate Prisma
 RUN npx prisma generate
 
-# Don't build, use development mode
-ENV NODE_ENV=development
+# Try to build, but don't fail if it doesn't work
+RUN npm run build || echo "Build failed, will use dev mode"
 
 EXPOSE 3000
 
-# Start in development mode (no build needed)
-CMD ["npm", "run", "start"]
+# Start with fallback - try production first, then development
+CMD sh -c "if [ -f dist/main.js ]; then node dist/main.js; else npm run start; fi"

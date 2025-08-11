@@ -28,9 +28,6 @@ RUN npx prisma generate
 # Copy source code
 COPY src ./src
 
-# Copy start script
-COPY start.sh ./
-
 # Build the application
 RUN npm run build || ./node_modules/.bin/nest build || npx tsc
 
@@ -42,8 +39,17 @@ RUN echo "=== Checking build output ===" && \
 # Create required directories
 RUN mkdir -p uploads reports
 
-# Make start script executable
-RUN chmod +x start.sh
+# Create a simple start script inline
+RUN echo '#!/bin/sh\n\
+if [ ! -f dist/main.js ]; then\n\
+  echo "Building..."\n\
+  npm run build\n\
+fi\n\
+if [ -f dist/main.js ]; then\n\
+  node dist/main.js\n\
+else\n\
+  npm run start\n\
+fi' > start.sh && chmod +x start.sh
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
