@@ -7,7 +7,37 @@ import { EnrollmentWithRelations, CreateEnrollmentDto, UpdateEnrollmentDto, Enro
 import { GradeWithRelations, CreateGradeDto, UpdateGradeDto, GradeFilters } from '../types/grade';
 import { ReportCard, StudentInfo, GetReportCardDto, ReportFilters } from '../types/report';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Force production API URL for kiandaedge deployment
+const getApiUrl = () => {
+  // Check environment variables first
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Production domains mapping
+  const domainMap: Record<string, string> = {
+    'escola.kiandaedge.online': 'https://api.kiandaedge.online',
+    'kiandaedge.online': 'https://api.kiandaedge.online',
+    // Add more production domains here if needed
+  };
+  
+  const hostname = window.location.hostname;
+  if (domainMap[hostname]) {
+    console.log(`Using API URL for ${hostname}: ${domainMap[hostname]}`);
+    return domainMap[hostname];
+  }
+  
+  // Default to localhost for development
+  return 'http://localhost:3000';
+};
+
+const API_BASE_URL = getApiUrl();
+
+// Log the API URL being used (for debugging)
+console.log('API Base URL:', API_BASE_URL);
 
 // Create axios instance
 export const api = axios.create({
@@ -21,6 +51,10 @@ export const api = axios.create({
 // Add auth token to requests
 api.interceptors.request.use(
   (config) => {
+    // Debug: Log the full URL being called
+    const fullUrl = config.baseURL + (config.url || '');
+    console.log('Making request to:', fullUrl);
+    
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
