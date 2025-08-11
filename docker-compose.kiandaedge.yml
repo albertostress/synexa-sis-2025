@@ -3,10 +3,10 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${DB_USER:-user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-      POSTGRES_DB: ${DB_NAME:-escola_db}
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_USER: escola_user
+      POSTGRES_PASSWORD: escola_password_2025
+      POSTGRES_DB: escola_db
+      POSTGRES_HOST_AUTH_METHOD: md5
     volumes:
       - "../files/postgres-data:/var/lib/postgresql/data"
     networks:
@@ -24,8 +24,8 @@ services:
       dockerfile: Dockerfile.dev-prod
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-escola_db}
-      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgresql://escola_user:escola_password_2025@postgres:5432/escola_db
+      JWT_SECRET: kiandaedge_jwt_secret_2025_very_secure_key_32chars
       REDIS_HOST: redis
       REDIS_PORT: 6379
       PLAYWRIGHT_SERVICE_URL: http://playwright-service:3005
