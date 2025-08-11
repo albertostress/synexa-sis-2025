@@ -3,10 +3,10 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${DB_USER:-user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_USER: ${DB_USER:-escola_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-uma_senha_forte}
       POSTGRES_DB: ${DB_NAME:-escola_db}
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_HOST_AUTH_METHOD: md5
     volumes:
       - "../files/postgres-data:/var/lib/postgresql/data"
     networks:
@@ -23,9 +23,10 @@ services:
       context: ./escola-backend
       dockerfile: Dockerfile.dev-prod
     environment:
-      NODE_ENV: production
-      DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-escola_db}
-      JWT_SECRET: ${JWT_SECRET}
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-3000}
+      DATABASE_URL: postgresql://${DB_USER:-escola_user}:${DB_PASSWORD:-uma_senha_forte}@postgres:5432/${DB_NAME:-escola_db}
+      JWT_SECRET: ${JWT_SECRET:-983cc770545ec209d12cbfa39e6a83618e14bed69c07a3e81303d15cef2fc7bb}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       PLAYWRIGHT_SERVICE_URL: http://playwright-service:3005
@@ -34,7 +35,7 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
       SMTP_FROM: ${SMTP_FROM}
-      FRONTEND_URL: https://${FRONTEND_DOMAIN}
+      FRONTEND_URL: https://${FRONTEND_DOMAIN:-escola.kiandaedge.online}
     volumes:
       - "../files/uploads:/app/uploads"
       - "../files/reports:/app/reports"
@@ -49,14 +50,14 @@ services:
       - 3000
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`${BACKEND_DOMAIN}`)"
+      - "traefik.http.routers.backend.rule=Host(`${BACKEND_DOMAIN:-api.kiandaedge.online}`)"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certResolver=letsencrypt"
       - "traefik.http.services.backend.loadbalancer.server.port=3000"
       # CORS headers
       - "traefik.http.middlewares.backend-cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
       - "traefik.http.middlewares.backend-cors.headers.accesscontrolallowheaders=*"
-      - "traefik.http.middlewares.backend-cors.headers.accesscontrolalloworiginlist=https://${FRONTEND_DOMAIN}"
+      - "traefik.http.middlewares.backend-cors.headers.accesscontrolalloworiginlist=https://${FRONTEND_DOMAIN:-escola.kiandaedge.online}"
       - "traefik.http.middlewares.backend-cors.headers.accesscontrolmaxage=100"
       - "traefik.http.middlewares.backend-cors.headers.addvaryheader=true"
       - "traefik.http.middlewares.backend-cors.headers.accesscontrolallowcredentials=true"
@@ -68,8 +69,8 @@ services:
       context: ./escola-frontend
       dockerfile: Dockerfile.dokploy
       args:
-        VITE_API_URL: https://${BACKEND_DOMAIN}
-        BACKEND_DOMAIN: ${BACKEND_DOMAIN}
+        VITE_API_URL: https://${BACKEND_DOMAIN:-api.kiandaedge.online}
+        BACKEND_DOMAIN: ${BACKEND_DOMAIN:-api.kiandaedge.online}
     depends_on:
       - escola-backend
     networks:
@@ -78,7 +79,7 @@ services:
       - 3001
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`${FRONTEND_DOMAIN}`)"
+      - "traefik.http.routers.frontend.rule=Host(`${FRONTEND_DOMAIN:-escola.kiandaedge.online}`)"
       - "traefik.http.routers.frontend.entrypoints=websecure"
       - "traefik.http.routers.frontend.tls.certResolver=letsencrypt"
       - "traefik.http.services.frontend.loadbalancer.server.port=3001"
