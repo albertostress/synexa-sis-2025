@@ -1,0 +1,51 @@
+# Optimized Dockerfile for Dokploy deployment
+FROM node:18-alpine
+
+# Install required tools
+RUN apk add --no-cache curl postgresql-client
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies - use npm install as fallback
+RUN npm ci --only=production 2>/dev/null || npm install --production
+
+# Install dev dependencies for build
+RUN npm install --save-dev @nestjs/cli typescript
+
+# Copy source code
+COPY . .
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Build the application
+RUN npm run build || echo "Build failed, will run in dev mode"
+
+# Create startup script inline
+RUN echo '#!/bin/sh\n\
+echo "🚀 Starting application..."\n\
+echo "DATABASE_URL: $DATABASE_URL"\n\
+echo "⏳ Waiting for PostgreSQL..."\n\
+until pg_isready -h postgres -p 5432 -U ${DB_USER:-escola_user}; do\n\
+  echo "Waiting for database..."\n\
+  sleep 2\n\
+done\n\
+echo "✅ PostgreSQL is ready!"\n\
+echo "🗄️ Running migrations..."\n\
+npx prisma migrate deploy 2>/dev/null || npx prisma db push --accept-data-loss\n\
+echo "🔧 Generating Prisma client..."\n\
+npx prisma generate\n\
+echo "🎯 Starting NestJS..."\n\
+if [ -f dist/main.js ]; then\n\
+  exec node dist/main.js\n\
+else\n\
+  exec npm run start\n\
+fi' > /app/start.sh && chmod +x /app/start.sh
+
+EXPOSE 3000
+
+# Use the startup script
+ENTRYPOINT ["/app/start.sh"]

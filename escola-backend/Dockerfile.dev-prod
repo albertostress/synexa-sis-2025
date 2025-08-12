@@ -20,7 +20,11 @@ RUN npx prisma generate
 # Try to build, but don't fail if it doesn't work
 RUN npm run build || echo "Build failed, will use dev mode"
 
+# Copy entrypoint script
+COPY docker-entrypoint.sh /app/
+RUN chmod +x /app/docker-entrypoint.sh
+
 EXPOSE 3000
 
-# Start with fallback - try production first, then development
-CMD sh -c "if [ -f dist/main.js ]; then node dist/main.js; else npm run start; fi"
+# Start with entrypoint that handles database initialization
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

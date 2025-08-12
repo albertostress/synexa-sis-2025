@@ -23,10 +23,13 @@ services:
   escola-backend:
     build:
       context: ./escola-backend
-      dockerfile: Dockerfile.dev-prod
+      dockerfile: Dockerfile.dokploy-final
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-3000}
+      DB_USER: ${DB_USER:-escola_user}
+      DB_PASSWORD: ${DB_PASSWORD:-uma_senha_forte}
+      DB_NAME: ${DB_NAME:-escola_db}
       DATABASE_URL: postgresql://${DB_USER:-escola_user}:${DB_PASSWORD:-uma_senha_forte}@postgres:5432/${DB_NAME:-escola_db}
       JWT_SECRET: ${JWT_SECRET:-983cc770545ec209d12cbfa39e6a83618e14bed69c07a3e81303d15cef2fc7bb}
       REDIS_HOST: redis
