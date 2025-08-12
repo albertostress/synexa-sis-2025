@@ -20,9 +20,28 @@ RUN npx prisma generate
 # Try to build, but don't fail if it doesn't work
 RUN npm run build || echo "Build failed, will use dev mode"
 
-# Copy entrypoint script
-COPY docker-entrypoint.sh /app/
-RUN chmod +x /app/docker-entrypoint.sh
+# Create entrypoint script inline to avoid copy issues
+RUN echo '#!/bin/sh' > /app/docker-entrypoint.sh && \
+    echo 'echo "🚀 Starting application initialization..."' >> /app/docker-entrypoint.sh && \
+    echo 'echo "⏳ Waiting for PostgreSQL to be ready..."' >> /app/docker-entrypoint.sh && \
+    echo 'until pg_isready -h postgres -p 5432 -U ${DB_USER:-escola_user} -d ${DB_NAME:-escola_db}; do' >> /app/docker-entrypoint.sh && \
+    echo '  echo "PostgreSQL is unavailable - sleeping"' >> /app/docker-entrypoint.sh && \
+    echo '  sleep 2' >> /app/docker-entrypoint.sh && \
+    echo 'done' >> /app/docker-entrypoint.sh && \
+    echo 'echo "✅ PostgreSQL is ready!"' >> /app/docker-entrypoint.sh && \
+    echo 'echo "🗄️ Running Prisma migrations..."' >> /app/docker-entrypoint.sh && \
+    echo 'npx prisma migrate deploy 2>/dev/null || npx prisma db push --accept-data-loss' >> /app/docker-entrypoint.sh && \
+    echo 'echo "🔧 Generating Prisma client..."' >> /app/docker-entrypoint.sh && \
+    echo 'npx prisma generate' >> /app/docker-entrypoint.sh && \
+    echo 'echo "🎯 Starting NestJS application..."' >> /app/docker-entrypoint.sh && \
+    echo 'if [ -f "dist/main.js" ]; then' >> /app/docker-entrypoint.sh && \
+    echo '  echo "Running production build..."' >> /app/docker-entrypoint.sh && \
+    echo '  node dist/main.js' >> /app/docker-entrypoint.sh && \
+    echo 'else' >> /app/docker-entrypoint.sh && \
+    echo '  echo "No production build found, running in development mode..."' >> /app/docker-entrypoint.sh && \
+    echo '  npm run start' >> /app/docker-entrypoint.sh && \
+    echo 'fi' >> /app/docker-entrypoint.sh && \
+    chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 3000
 
