@@ -3,16 +3,17 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: escola_user
-      POSTGRES_PASSWORD: escola_password_2025
-      POSTGRES_DB: escola_db
-      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - "../files/postgres-data:/var/lib/postgresql/data"
+      - "./escola-backend/scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql"
     networks:
       - dokploy-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d ${DB_NAME:-escola_db}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d escola_db"]
       interval: 10s
       timeout: 5s
       retries: 5
