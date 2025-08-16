@@ -34,6 +34,12 @@ RUN npx prisma generate
 # Build da aplicação
 RUN npm run build || (echo "Build falhou, tentando compilar diretamente..." && npx nest build) || (echo "Nest build falhou, tentando tsc..." && npx tsc -p tsconfig.json)
 
+# Verificar se o build gerou os arquivos
+RUN echo "Verificando resultado do build..." && \
+    ls -la /app/ && \
+    echo "Conteúdo de dist:" && \
+    ls -la /app/dist/ || echo "AVISO: Diretório dist não existe!"
+
 # Stage de produção
 FROM node:18-alpine
 
@@ -88,12 +94,31 @@ RUN echo '#!/bin/sh' > /entrypoint.sh && \
     echo '# Verificar se dist existe, senão compilar' >> /entrypoint.sh && \
     echo 'if [ ! -f /app/dist/main.js ]; then' >> /entrypoint.sh && \
     echo '  echo "Arquivo main.js não encontrado, compilando..."' >> /entrypoint.sh && \
-    echo '  npm run build || npx tsc' >> /entrypoint.sh && \
+    echo '  npm run build' >> /entrypoint.sh && \
+    echo '  echo "Build concluído, verificando arquivos..."' >> /entrypoint.sh && \
+    echo '  ls -la /app/dist/' >> /entrypoint.sh && \
+    echo '  if [ ! -f /app/dist/main.js ]; then' >> /entrypoint.sh && \
+    echo '    echo "ERRO: Build não gerou main.js! Tentando compilação alternativa..."' >> /entrypoint.sh && \
+    echo '    cd /app && npx tsc --outDir dist src/main.ts' >> /entrypoint.sh && \
+    echo '    ls -la /app/dist/' >> /entrypoint.sh && \
+    echo '  fi' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
+    echo '' >> /entrypoint.sh && \
+    echo '# Aguardar build completar' >> /entrypoint.sh && \
+    echo 'sleep 5' >> /entrypoint.sh && \
     echo '' >> /entrypoint.sh && \
     echo '# Iniciar aplicação' >> /entrypoint.sh && \
     echo 'echo "Iniciando aplicação..."' >> /entrypoint.sh && \
-    echo 'exec "$@"' >> /entrypoint.sh && \
+    echo 'if [ -f /app/dist/main.js ]; then' >> /entrypoint.sh && \
+    echo '  exec "$@"' >> /entrypoint.sh && \
+    echo 'else' >> /entrypoint.sh && \
+    echo '  echo "ERRO FATAL: main.js não existe após build!"' >> /entrypoint.sh && \
+    echo '  echo "Conteúdo de /app:"' >> /entrypoint.sh && \
+    echo '  ls -la /app/' >> /entrypoint.sh && \
+    echo '  echo "Conteúdo de /app/dist:"' >> /entrypoint.sh && \
+    echo '  ls -la /app/dist/' >> /entrypoint.sh && \
+    echo '  exit 1' >> /entrypoint.sh && \
+    echo 'fi' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
 # Usar entrypoint
