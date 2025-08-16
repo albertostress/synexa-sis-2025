@@ -19,8 +19,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Instalar dependências
-RUN npm ci
+# Instalar dependências (incluindo devDependencies para build)
+RUN npm ci --include=dev
 
 # Copiar código fonte
 COPY . .
@@ -29,7 +29,7 @@ COPY . .
 RUN npx prisma generate
 
 # Build da aplicação
-RUN npm run build
+RUN npm run build || npm run build:prod || npx tsc
 
 # Stage de produção
 FROM node:18-alpine
@@ -78,6 +78,12 @@ RUN echo '#!/bin/sh' > /entrypoint.sh && \
     echo '# Executar migrações do Prisma' >> /entrypoint.sh && \
     echo 'echo "Executando migrações do banco de dados..."' >> /entrypoint.sh && \
     echo 'npx prisma migrate deploy || npx prisma db push' >> /entrypoint.sh && \
+    echo '' >> /entrypoint.sh && \
+    echo '# Verificar se dist existe, senão compilar' >> /entrypoint.sh && \
+    echo 'if [ ! -f /app/dist/main.js ]; then' >> /entrypoint.sh && \
+    echo '  echo "Arquivo main.js não encontrado, compilando..."' >> /entrypoint.sh && \
+    echo '  npm run build || npx tsc' >> /entrypoint.sh && \
+    echo 'fi' >> /entrypoint.sh && \
     echo '' >> /entrypoint.sh && \
     echo '# Iniciar aplicação' >> /entrypoint.sh && \
     echo 'echo "Iniciando aplicação..."' >> /entrypoint.sh && \
