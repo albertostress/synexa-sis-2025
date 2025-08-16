@@ -5,11 +5,10 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
+      POSTGRES_DB: escola_db
       POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - "../files/postgres-data:/var/lib/postgresql/data"
-      - "./escola-backend/scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql"
     networks:
       - dokploy-network
     healthcheck:
@@ -22,10 +21,10 @@ services:
   escola-backend:
     build:
       context: ./escola-backend
-      dockerfile: Dockerfile.dev-prod
+      dockerfile: Dockerfile
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://escola_user:escola_password_2025@postgres:5432/escola_db
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/escola_db
       JWT_SECRET: kiandaedge_jwt_secret_2025_very_secure_key_32chars
       REDIS_HOST: redis
       REDIS_PORT: 6379
