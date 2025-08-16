@@ -25,11 +25,14 @@ RUN npm ci --include=dev
 # Copiar código fonte
 COPY . .
 
+# Verificar arquivos copiados
+RUN ls -la && ls -la src/
+
 # Gerar cliente Prisma
 RUN npx prisma generate
 
 # Build da aplicação
-RUN npm run build || npm run build:prod || npx tsc
+RUN npm run build || (echo "Build falhou, tentando compilar diretamente..." && npx nest build) || (echo "Nest build falhou, tentando tsc..." && npx tsc -p tsconfig.json)
 
 # Stage de produção
 FROM node:18-alpine
@@ -50,6 +53,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/nest-cli.json ./nest-cli.json
+COPY --from=builder /app/src ./src
 
 # Configurar variáveis de ambiente
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
