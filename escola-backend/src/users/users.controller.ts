@@ -59,8 +59,8 @@ export class UsersController {
   }
 
   @Get()
-  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Listar todos os usuários' })
+  @Roles('ADMIN', 'DIRETOR')
   @ApiResponse({
     status: 200,
     description: 'Lista de usuários retornada com sucesso',
@@ -70,8 +70,8 @@ export class UsersController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Buscar usuário por ID' })
+  @Roles('ADMIN', 'DIRETOR')
   @ApiResponse({
     status: 200,
     description: 'Usuário encontrado',
@@ -82,8 +82,8 @@ export class UsersController {
   }
 
   @Put(':id')
-  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Atualizar usuário' })
+  @Roles('ADMIN', 'DIRETOR')
   @ApiResponse({
     status: 200,
     description: 'Usuário atualizado com sucesso',
@@ -99,8 +99,8 @@ export class UsersController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'DIRETOR')
   @ApiOperation({ summary: 'Remover usuário' })
+  @Roles('ADMIN', 'DIRETOR')
   @ApiResponse({
     status: 200,
     description: 'Usuário removido com sucesso',

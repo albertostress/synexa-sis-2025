@@ -317,11 +317,11 @@ export class UploadsController {
   }
 
   @Delete('file/:fileId')
-  @Roles('ADMIN')
   @ApiOperation({
     summary: 'Apagar arquivo',
     description: 'Remove arquivo do servidor e do banco de dados',
   })
+  @Roles('ADMIN')
   @ApiParam({
     name: 'fileId',
     description: 'ID do arquivo',
@@ -360,11 +360,11 @@ export class UploadsController {
   }
 
   @Get('file/:fileId')
-  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
   @ApiOperation({
     summary: 'Obter informações do arquivo',
     description: 'Retorna metadados do arquivo sem fazer download',
   })
+  @Roles('ADMIN', 'SECRETARIA', 'DIRETOR')
   @ApiParam({
     name: 'fileId',
     description: 'ID do arquivo',
