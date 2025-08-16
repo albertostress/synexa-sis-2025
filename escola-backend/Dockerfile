@@ -32,7 +32,7 @@ RUN ls -la && ls -la src/
 RUN npx prisma generate
 
 # Build da aplicação
-RUN npm run build || (echo "Build falhou, tentando compilar diretamente..." && npx nest build) || (echo "Nest build falhou, tentando tsc..." && npx tsc -p tsconfig.json)
+RUN rm -rf dist && npm run build || (echo "Build falhou, tentando limpar e recompilar..." && rm -rf dist && npx nest build)
 
 # Verificar se o build gerou os arquivos
 RUN echo "Verificando resultado do build..." && \
@@ -84,7 +84,7 @@ RUN echo '#!/bin/sh' > /app/build.sh && \
     echo 'fi' >> /app/build.sh && \
     echo 'echo "Build completo falhou, tentando compilação manual..."' >> /app/build.sh && \
     echo 'mkdir -p dist' >> /app/build.sh && \
-    echo 'npx tsc --skipLibCheck --module commonjs --target ES2021 --outDir dist src/main.ts' >> /app/build.sh && \
+    echo 'npx tsc --skipLibCheck --module commonjs --target ES2017 --experimentalDecorators --emitDecoratorMetadata --outDir dist src/main.ts' >> /app/build.sh && \
     echo 'if [ -f dist/main.js ]; then' >> /app/build.sh && \
     echo '  echo "✅ Build manual bem-sucedido!"' >> /app/build.sh && \
     echo '  exit 0' >> /app/build.sh && \
