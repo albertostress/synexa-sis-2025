@@ -62,8 +62,36 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/nest-cli.json ./nest-cli.json
 COPY --from=builder /app/src ./src
-COPY build.sh /app/build.sh
-RUN chmod +x /app/build.sh
+# Criar script de build inline
+RUN echo '#!/bin/sh' > /app/build.sh && \
+    echo 'echo "=== Iniciando processo de build ==="' >> /app/build.sh && \
+    echo 'rm -rf dist' >> /app/build.sh && \
+    echo 'if [ ! -f tsconfig.json ]; then' >> /app/build.sh && \
+    echo '  echo "ERRO: tsconfig.json não encontrado!"' >> /app/build.sh && \
+    echo '  exit 1' >> /app/build.sh && \
+    echo 'fi' >> /app/build.sh && \
+    echo 'echo "Tentando build com Nest CLI..."' >> /app/build.sh && \
+    echo 'npx nest build' >> /app/build.sh && \
+    echo 'if [ -f dist/main.js ]; then' >> /app/build.sh && \
+    echo '  echo "✅ Build com Nest CLI bem-sucedido!"' >> /app/build.sh && \
+    echo '  exit 0' >> /app/build.sh && \
+    echo 'fi' >> /app/build.sh && \
+    echo 'echo "Nest CLI falhou, tentando com tsc..."' >> /app/build.sh && \
+    echo 'npx tsc' >> /app/build.sh && \
+    echo 'if [ -f dist/main.js ]; then' >> /app/build.sh && \
+    echo '  echo "✅ Build com tsc bem-sucedido!"' >> /app/build.sh && \
+    echo '  exit 0' >> /app/build.sh && \
+    echo 'fi' >> /app/build.sh && \
+    echo 'echo "Build completo falhou, tentando compilação manual..."' >> /app/build.sh && \
+    echo 'mkdir -p dist' >> /app/build.sh && \
+    echo 'npx tsc --skipLibCheck --module commonjs --target ES2021 --outDir dist src/main.ts' >> /app/build.sh && \
+    echo 'if [ -f dist/main.js ]; then' >> /app/build.sh && \
+    echo '  echo "✅ Build manual bem-sucedido!"' >> /app/build.sh && \
+    echo '  exit 0' >> /app/build.sh && \
+    echo 'fi' >> /app/build.sh && \
+    echo 'echo "❌ ERRO: Não foi possível compilar o projeto!"' >> /app/build.sh && \
+    echo 'exit 1' >> /app/build.sh && \
+    chmod +x /app/build.sh
 
 # Configurar variáveis de ambiente
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
