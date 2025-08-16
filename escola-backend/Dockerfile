@@ -73,8 +73,7 @@ RUN echo '#!/bin/sh' > /entrypoint.sh && \
     echo '' >> /entrypoint.sh && \
     echo '# Tentar criar usuário e banco se não existirem' >> /entrypoint.sh && \
     echo 'echo "Verificando/criando usuário e banco de dados..."' >> /entrypoint.sh && \
-    echo 'PGPASSWORD=${POSTGRES_PASSWORD:-postgres} psql -h ${DATABASE_HOST:-postgres} -U postgres -tc "SELECT 1 FROM pg_user WHERE usename = '"'"'escola_user'"'"'" | grep -q 1 || PGPASSWORD=${POSTGRES_PASSWORD:-postgres} psql -h ${DATABASE_HOST:-postgres} -U postgres -c "CREATE USER escola_user WITH PASSWORD '"'"'escola_password_2025'"'"' SUPERUSER CREATEDB;"' >> /entrypoint.sh && \
-    echo 'PGPASSWORD=${POSTGRES_PASSWORD:-postgres} psql -h ${DATABASE_HOST:-postgres} -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = '"'"'escola_db'"'"'" | grep -q 1 || PGPASSWORD=${POSTGRES_PASSWORD:-postgres} psql -h ${DATABASE_HOST:-postgres} -U postgres -c "CREATE DATABASE escola_db OWNER escola_user;"' >> /entrypoint.sh && \
+    echo '# Pular criação de usuário - usar credenciais existentes' >> /entrypoint.sh && \
     echo '' >> /entrypoint.sh && \
     echo '# Executar migrações do Prisma' >> /entrypoint.sh && \
     echo 'echo "Executando migrações do banco de dados..."' >> /entrypoint.sh && \
