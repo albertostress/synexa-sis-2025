@@ -62,6 +62,8 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/nest-cli.json ./nest-cli.json
 COPY --from=builder /app/src ./src
+COPY build.sh /app/build.sh
+RUN chmod +x /app/build.sh
 
 # Configurar variáveis de ambiente
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
@@ -94,7 +96,7 @@ RUN echo '#!/bin/sh' > /entrypoint.sh && \
     echo '# Verificar se dist existe, senão compilar' >> /entrypoint.sh && \
     echo 'if [ ! -f /app/dist/main.js ]; then' >> /entrypoint.sh && \
     echo '  echo "Arquivo main.js não encontrado, compilando..."' >> /entrypoint.sh && \
-    echo '  npm run build' >> /entrypoint.sh && \
+    echo '  sh /app/build.sh || npm run build' >> /entrypoint.sh && \
     echo '  echo "Build concluído, verificando arquivos..."' >> /entrypoint.sh && \
     echo '  ls -la /app/dist/' >> /entrypoint.sh && \
     echo '  if [ ! -f /app/dist/main.js ]; then' >> /entrypoint.sh && \
